@@ -163,8 +163,22 @@ pub fn effect(
     help: &str,
     requirement: &str,
 ) -> Manifest {
-    let mut p = standard_params();
-    p.extend(params);
+    // The common `wet` parameter is injected unless the caller already supplied
+    // one (generator/CPU rows add their own labelled opacity control).
+    let mut p = if params.iter().any(|d| d.id == "wet") {
+        params
+    } else {
+        let mut base = standard_params();
+        base.extend(params);
+        base
+    };
+    // Guarantee manifest order: `wet` first for stable uniform slots.
+    if let Some(pos) = p.iter().position(|d| d.id == "wet") {
+        if pos != 0 {
+            let wet = p.remove(pos);
+            p.insert(0, wet);
+        }
+    }
     Manifest {
         id: id.into(),
         version: 1,

@@ -3,10 +3,12 @@ resolver = "2"
 members = [
   "crates/domain",
   "crates/engine",
+  "crates/render",
   "crates/media",
   "crates/audio",
   "crates/catalog",
   "crates/xtask",
+  "crates/app",
 ]
 [workspace.package]
 version = "0.1.0"
@@ -21,7 +23,9 @@ uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wgpu = "27"
 bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
 crossbeam-channel = "0.5"
 rustfft = "6"
 glam = { version = "0.30", features = ["bytemuck"] }

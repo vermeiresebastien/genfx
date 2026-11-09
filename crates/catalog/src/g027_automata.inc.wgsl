@@ -10,7 +10,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // used for generators that present without an uploaded simulation buffer.
   var alive = 0.0;
   let kind = p_kind();
-  if (kind == 1u) {
+  if (kind == 1) {
     // Elementary rule: 1D strip over y.
     let x = u32(cell.x) % 256u;
     let y = floor(time_seconds() * 30.0);
@@ -34,7 +34,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
       stepse = stepse + 1u;
     }
     alive = select(0.0, 1.0, cur && fract(g.y) < 0.7);
-  } else if (kind == 2u) {
+  } else if (kind == 2) {
     let s = u32(hash21(cell) * 8.0);
     let phase = u32(floor(time_seconds() * 4.0));
     alive = f32((s + phase) % 8u) / 8.0;
@@ -52,7 +52,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     live = select(total == 3, live && (total == 2 || total == 3), live);
     alive = select(0.0, 1.0, live);
   }
-  let inner = select(0.0, 1.0, max(abs(fract(g) - 0.5)) < 0.45);
+  let fg = fract(g) - vec2<f32>(0.5);
+  let inner = select(0.0, 1.0, max(abs(fg.x), abs(fg.y)) < 0.45);
   let v = alive * inner * p_wet();
   return premul(vec3<f32>(v), select(1.0, v, p_transparent()));
 }

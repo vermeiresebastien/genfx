@@ -49,9 +49,8 @@ pub fn generate_with(entry: &crate::CatalogEntry, spec: ShaderSpec) -> String {
     let body = &entry.source;
 
     let mut s = String::new();
-    s.push_str("// Generated from manifest. Do not edit by hand.\n");
-    s.push_str("// Shader ABI version 1.\n\n");
-
+    s.push_str("// Generated from manifest. Do not edit by hand.\n// Shader ABI version 1.\n\n");
+    s.push_str(&params_src);
     s.push_str(r#"
 struct FrameUniform {
   dims: vec4<u32>,
@@ -73,7 +72,6 @@ struct AudioFeatures {
 @group(0) @binding(2) var<uniform> audio: AudioFeatures;
 
 "#);
-    s.push_str(&params_src);
     s.push_str("\n");
 
     if spec.generator {
@@ -139,6 +137,21 @@ fn px_to_uv(px: f32) -> vec2<f32> {
 
     s.push_str(body);
     s.push_str("\n");
+
+    // Fullscreen triangle vertex stage. No vertex buffers: 3 vertices emitted
+    // from the vertex index, covering the whole clip space.
+    s.push_str(r#"
+@vertex
+fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
+  var pos = array<vec2<f32>, 3>(
+    vec2<f32>(-1.0, -3.0),
+    vec2<f32>(-1.0, 1.0),
+    vec2<f32>(3.0, 1.0)
+  );
+  return vec4<f32>(pos[idx], 0.0, 1.0);
+}
+
+"#);
 
     // Entry point. `process` receives uv and source RGBA and returns premultiplied RGBA.
     s.push_str(r#"

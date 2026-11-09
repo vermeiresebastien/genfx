@@ -32,9 +32,9 @@ pub fn g050_ken_burns() -> (&'static str, Manifest, &'static str) {
         r#"
 fn ease01(t_in: f32) -> f32 {
   let t = clamp(t_in, 0.0, 1.0);
-  if (p_ease() == 0u) { return t; }
-  if (p_ease() == 1u) { return t * t; }
-  if (p_ease() == 2u) { return 1.0 - (1.0 - t) * (1.0 - t); }
+  if (p_ease() == 0) { return t; }
+  if (p_ease() == 1) { return t * t; }
+  if (p_ease() == 2) { return 1.0 - (1.0 - t) * (1.0 - t); }
   return smoothstep(0.0, 1.0, t);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
@@ -235,7 +235,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // The temporal history node supplies a delayed frame; this pass mixes the
   // current frame with the delayed frame per-axis based on screen coordinate.
   let prev = textureSampleLevel(src_tex, src_sampler, uv, 0.0);
-  let coord = select(uv.y, uv.x, p_axis() == 0u);
+  let coord = select(uv.y, uv.x, p_axis() == 0);
   let k = clamp(fract(coord + time_seconds() * 0.1), 0.0, 1.0);
   return mix(src, prev, k * clamp(p_history(), 0.0, 1.0));
 }
@@ -252,8 +252,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let r = length(c) * 2.0;
   let a = atan2(c.y, c.x) / 6.2831853 + 0.5 + time_seconds() * p_spin();
   let k = p_kind();
-  if (k == 0u) { return textureSampleLevel(src_tex, src_sampler, vec2<f32>(fract(a), clamp(r, 0.0, 1.0)), 0.0); }
-  if (k == 1u) {
+  if (k == 0) { return textureSampleLevel(src_tex, src_sampler, vec2<f32>(fract(a), clamp(r, 0.0, 1.0)), 0.0); }
+  if (k == 1) {
     let lat = clamp(r * 1.4, 0.0, 1.0);
     return textureSampleLevel(src_tex, src_sampler, vec2<f32>(fract(a), lat), 0.0);
   }
@@ -291,10 +291,10 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let rows = f32(max(p_rows(), 1));
   let total = cols * rows;
   var f = floor(time_seconds() * p_fps());
-  if (p_order() == 1u) { let per = total * 2.0 - 2.0; f = mod(f, per); if (f >= total) { f = per - f; } }
-  else if (p_order() == 2u) { f = floor(hash21(vec2<f32>(floor(time_seconds() * p_fps()))) * total); }
-  else { f = mod(f, total); }
-  let cx = mod(f, cols);
+  if (p_order() == 1) { let per = total * 2.0 - 2.0; f = fmod(f, per); if (f >= total) { f = per - f; } }
+  else if (p_order() == 2) { f = floor(hash21(vec2<f32>(floor(time_seconds() * p_fps()))) * total); }
+  else { f = fmod(f, total); }
+  let cx = fmod(f, cols);
   let cy = floor(f / cols);
   let suv = vec2<f32>((cx + uv.x) / cols, (cy + uv.y) / rows);
   return textureSampleLevel(src_tex, src_sampler, suv, 0.0);
@@ -356,13 +356,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let k = p_kind();
   let c = textureSampleLevel(src_tex, src_sampler, uv, 0.0);
   var v = 0.0;
-  if (k == 0u) { v = luminance_from_rgb(unpremul(c)); }
-  else if (k == 1u) { v = c.a; }
-  else if (k == 2u) {
+  if (k == 0) { v = luminance_from_rgb(unpremul(c)); }
+  else if (k == 1) { v = c.a; }
+  else if (k == 2) {
     let e = px_to_uv(1.0);
     v = abs(sample_luma(uv + vec2<f32>(e.x, 0.0)) - sample_luma(uv - vec2<f32>(e.x, 0.0)))
       + abs(sample_luma(uv + vec2<f32>(0.0, e.y)) - sample_luma(uv - vec2<f32>(0.0, e.y)));
-  } else if (k == 3u) { v = select(0.0, 1.0, luminance_from_rgb(unpremul(c)) > p_threshold()); }
+  } else if (k == 3) { v = select(0.0, 1.0, luminance_from_rgb(unpremul(c)) > p_threshold()); }
   else { v = abs(luminance_from_rgb(unpremul(c)) - p_threshold()); }
   return premul(vec3<f32>(v), 1.0);
 }

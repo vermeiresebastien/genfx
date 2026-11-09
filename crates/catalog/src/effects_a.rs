@@ -53,15 +53,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   }
   if (taps > 0.0) { acc = acc / taps; }
   let glow = acc * tint * enroll_intensity();
-  var out = src;
-  let add = glow;
-  out = vec4<f32>(src.rgb + add, src.a);
+  var out_rgb = src.rgb + glow;
+  var out_a = src.a;
   if (p_expandAlpha()) {
-    let g = max(add.r, max(add.g, add.b));
-    out.a = max(src.a, min(g, 1.0));
-    out.rgb = out.rgb + src.rgb * (1.0 - src.a) * 0.0;
+    let g = max(glow.r, max(glow.g, glow.b));
+    out_a = max(src.a, min(g, 1.0));
   }
-  return out;
+  return vec4<f32>(out_rgb, out_a);
 }
 fn enroll_intensity() -> f32 { return p_intensity(); }
 "#;
@@ -90,14 +88,14 @@ fn poly_aperture(theta: f32, blades: f32) -> f32 {
   // Radius of a regular polygon aperture at angle theta (unit circle scaled).
   let n = max(blades, 3.0);
   let seg = 6.2831853 / n;
-  let a = mod(theta + p_rotation(), seg);
+  let a = fmod(theta + p_rotation(), seg);
   let half = seg * 0.5;
   return cos(half) / max(cos(a - half), 0.0001);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let r = p_radius();
   if (r <= 0.0001) { return src; }
-  let taps_f = select(16.0, select(32.0, 64.0, p_quality() == 2u), p_quality() == 1u);
+  let taps_f = select(16.0, select(32.0, 64.0, p_quality() == 2), p_quality() == 1);
   let taps = i32(taps_f);
   let blades = f32(p_blades());
   let radius_uv = px_to_uv(r);
@@ -255,7 +253,7 @@ fn hsv2rgb(hsv: vec3<f32>) -> vec3<f32> {
   let p = hsv.z * (1.0 - hsv.y);
   let q = hsv.z * (1.0 - hsv.y * f);
   let t = hsv.z * (1.0 - hsv.y * (1.0 - f));
-  let m = i32(mod(i, 6.0));
+  let m = i32(fmod(i, 6.0));
   var c = vec3<f32>(hsv.z, t, p);
   if (m == 1) { c = vec3<f32>(q, hsv.z, p); }
   else if (m == 2) { c = vec3<f32>(p, hsv.z, t); }

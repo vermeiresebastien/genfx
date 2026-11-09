@@ -45,11 +45,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let mode = p_mode();
   var t = 0.5;
   var dither_amt = 1.0;
-  if (mode == 0u) { t = bayer2(px); }
-  else if (mode == 1u) { t = bayer4(px); }
-  else if (mode == 2u) { t = bayer8(px); }
-  else if (mode == 3u) { t = hash21(vec2<f32>(px) * 0.731); }
-  else if (mode == 4u) { t = hash21(vec2<f32>(px) + seedf() * 97.0); }
+  if (mode == 0) { t = bayer2(px); }
+  else if (mode == 1) { t = bayer4(px); }
+  else if (mode == 2) { t = bayer8(px); }
+  else if (mode == 3) { t = hash21(vec2<f32>(px) * 0.731); }
+  else if (mode == 4) { t = hash21(vec2<f32>(px) + seedf() * 97.0); }
   else {
     // Error diffusion approximation: ordered 8x8 blue-noise-like clamp of the
     // wavefront residual. The CPU path implements exact serial diffusion.
@@ -106,14 +106,14 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let c = unpremul(src);
   let p = p_preset();
   var o = c;
-  if (p == 1u) { o = c * vec3<f32>(1.1, 0.98, 0.85); }
-  else if (p == 2u) { o = c * vec3<f32>(0.85, 0.98, 1.12); }
-  else if (p == 3u) { let l = luminance_from_rgb(c); o = vec3<f32>(l); }
-  else if (p == 4u) { o = clamp((c - vec3<f32>(0.18)) * 1.6 + vec3<f32>(0.18), vec3<f32>(0.0), vec3<f32>(4.0)); }
-  else if (p == 5u) { o = mix(c * vec3<f32>(1.1, 1.0, 0.85), vec3<f32>(0.12, 0.14, 0.2), 0.25) * 0.9 + vec3<f32>(0.08); }
-  else if (p == 6u) { o = lut_duotone(luminance_from_rgb(c)); }
-  else if (p == 7u) { o = lut_solarized(c); }
-  else if (p == 8u) { o = lut_thermal(luminance_from_rgb(c)); }
+  if (p == 1) { o = c * vec3<f32>(1.1, 0.98, 0.85); }
+  else if (p == 2) { o = c * vec3<f32>(0.85, 0.98, 1.12); }
+  else if (p == 3) { let l = luminance_from_rgb(c); o = vec3<f32>(l); }
+  else if (p == 4) { o = clamp((c - vec3<f32>(0.18)) * 1.6 + vec3<f32>(0.18), vec3<f32>(0.0), vec3<f32>(4.0)); }
+  else if (p == 5) { o = mix(c * vec3<f32>(1.1, 1.0, 0.85), vec3<f32>(0.12, 0.14, 0.2), 0.25) * 0.9 + vec3<f32>(0.08); }
+  else if (p == 6) { o = lut_duotone(luminance_from_rgb(c)); }
+  else if (p == 7) { o = lut_solarized(c); }
+  else if (p == 8) { o = lut_thermal(luminance_from_rgb(c)); }
   let mixed = mix(c, o, clamp(p_intensity(), 0.0, 1.0));
   return premul(mixed, src.a);
 }
@@ -241,13 +241,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let d = clamp(1.0 - l * p_contrast(), 0.0, 1.0);
   let shape = p_shape();
   var mask = 0.0;
-  if (shape == 0u) {
+  if (shape == 0) {
     let r = length(f) * 2.0;
     mask = 1.0 - smoothstep(d - 0.08, d + 0.08, r);
-  } else if (shape == 1u) {
+  } else if (shape == 1) {
     let r = length(f * vec2<f32>(1.0, 1.6)) * 2.0;
     mask = 1.0 - smoothstep(d - 0.08, d + 0.08, r);
-  } else if (shape == 2u) {
+  } else if (shape == 2) {
     let r = max(abs(f.x), abs(f.y)) * 2.0;
     mask = 1.0 - smoothstep(d - 0.06, d + 0.06, r);
   } else {
@@ -287,7 +287,7 @@ fn line_mask(uv: vec2<f32>, angle_deg: f32, w: f32) -> f32 {
   let centered = (uv - vec2<f32>(0.5)) * vec2<f32>(f32(frame.dims.x), f32(frame.dims.y));
   let rp = vec2<f32>(centered.x * cos(a) - centered.y * sin(a), centered.x * sin(a) + centered.y * cos(a));
   let wob = sin(rp.x * 0.06 + seedf() * 6.28) * p_wobble();
-  let d = abs(mod(rp.y + wob + p_spacing() * 0.5, max(p_spacing(), 1.0)) - p_spacing() * 0.5);
+  let d = abs(fmod(rp.y + wob + p_spacing() * 0.5, max(p_spacing(), 1.0)) - p_spacing() * 0.5);
   return 1.0 - smoothstep(w, w + 1.0, d);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
@@ -392,7 +392,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     inner_min = min(inner_min, a);
   }
   var mask = 0.0;
-  if (p_mode() == 0u) {
+  if (p_mode() == 0) {
     let dilate = outer_max;
     let erode = inner_min;
     let outer_edge = clamp(dilate - a0, 0.0, 1.0);
@@ -440,9 +440,9 @@ fn height(uv: vec2<f32>) -> f32 {
   let pts = uv * vec2<f32>(f32(frame.dims.x), f32(frame.dims.y)) / sc;
   let p = rot2(p_rotation()) * pts + vec2<f32>(time_seconds() * p_speed(), 0.0);
   let pattern = p_pattern();
-  if (pattern == 0u) { return sin(p.x * 6.2831853) * 0.5 + 0.5; }
-  else if (pattern == 1u) { return (sin(p.x * 6.2831853) * sin(p.y * 6.2831853)) * 0.5 + 0.5; }
-  else if (pattern == 2u) {
+  if (pattern == 0) { return sin(p.x * 6.2831853) * 0.5 + 0.5; }
+  else if (pattern == 1) { return (sin(p.x * 6.2831853) * sin(p.y * 6.2831853)) * 0.5 + 0.5; }
+  else if (pattern == 2) {
     let g = fract(p) - vec2<f32>(0.5);
     return smoothstep(0.5, 0.05, length(g));
   } else {
@@ -451,9 +451,9 @@ fn height(uv: vec2<f32>) -> f32 {
 }
 fn sample_border(uv: vec2<f32>) -> vec4<f32> {
   let b = p_border();
-  if (b == 0u) { return sample_clamp(uv); }
-  else if (b == 1u) { return sample_mirror(uv); }
-  else if (b == 2u) { return sample_repeat(uv); }
+  if (b == 0) { return sample_clamp(uv); }
+  else if (b == 1) { return sample_mirror(uv); }
+  else if (b == 2) { return sample_repeat(uv); }
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec4<f32>(0.0); }
   return textureSampleLevel(src_tex, src_sampler, uv, 0.0);
 }
@@ -499,23 +499,22 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let axis = p_axis();
   var coord = 0.0;
   var band_uv = uv;
-  if (axis == 0u) { coord = uv.x; }
-  else if (axis == 1u) { coord = uv.y; }
+  if (axis == 0) { coord = uv.x; }
+  else if (axis == 1) { coord = uv.y; }
   else { coord = length(uv - vec2<f32>(0.5)) * 2.0; }
   let origin = p_origin();
   let dir = coord - origin;
-  let in_region = select(abs(dir) <= ext, false, false);
-  var use = true;
-  if (axis != 2u) {
-    use = (p_direction() == 2u) || ((p_direction() == 0u) && dir > 0.0) || ((p_direction() == 1u) && dir < 0.0);
-    use = use && abs(dir) <= ext;
+  var stretch = true;
+  if (axis != 2) {
+    stretch = (p_direction() == 2) || ((p_direction() == 0) && dir > 0.0) || ((p_direction() == 1) && dir < 0.0);
+    stretch = stretch && abs(dir) <= ext;
   } else {
-    use = (coord - origin) <= ext;
+    stretch = (coord - origin) <= ext;
   }
-  if (!use) { return src; }
+  if (!stretch) { return src; }
   let band = px_to_uv(p_sourceBand());
-  if (axis == 0u) { band_uv = vec2<f32>(origin + sign(dir) * band.x, uv.y); }
-  else if (axis == 1u) { band_uv = vec2<f32>(uv.x, origin + sign(dir) * band.y); }
+  if (axis == 0) { band_uv = vec2<f32>(origin + sign(dir) * band.x, uv.y); }
+  else if (axis == 1) { band_uv = vec2<f32>(uv.x, origin + sign(dir) * band.y); }
   else { let d = normalize(uv - vec2<f32>(0.5)); band_uv = vec2<f32>(0.5) + d * band.x; }
   return textureSampleLevel(src_tex, src_sampler, clamp(band_uv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
 }
@@ -547,12 +546,12 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let px = uv * vec2<f32>(f32(frame.dims.x), f32(frame.dims.y));
   let off = p_gridOffset();
   var cell = floor((px + off) / bs) * bs + bs * 0.5 - off;
-  if (p_shape() == 1u) {
+  if (p_shape() == 1) {
     // Hex grid: snap to the nearest of two offset row lattices.
     cell = floor((px + off) / bs) * bs + bs * 0.5 - off;
   }
   let cuv = cell / vec2<f32>(f32(frame.dims.x), f32(frame.dims.y));
-  if (p_sampling() == 0u) {
+  if (p_sampling() == 0) {
     return textureSampleLevel(src_tex, src_sampler, clamp(cuv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
   }
   let h = px_to_uv(bs.x * 0.35);
@@ -590,23 +589,23 @@ fn sample_border(uv: vec2<f32>) -> vec4<f32> {
   if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
     return textureSampleLevel(src_tex, src_sampler, uv, 0.0);
   }
-  if (b == 0u) { return sample_repeat(uv); }
-  if (b == 1u) { return sample_clamp(uv); }
+  if (b == 0) { return sample_repeat(uv); }
+  if (b == 1) { return sample_clamp(uv); }
   return vec4<f32>(0.0);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let n = f32(max(p_slices(), 1));
   let axis = p_axis();
-  let coord = select(uv.y, uv.x, axis == 0u);
+  let coord = select(uv.y, uv.x, axis == 0);
   let idx = floor(coord * n);
   // Hold time cell: update_rate determines independent frames.
   let cell = floor(time_seconds() * max(p_updateRate(), 0.001));
   let h = hash21(vec2<f32>(idx, cell) + vec2<f32>(seedf() * 53.0, 0.0));
-  let active = h < p_activeProbability();
+  let is_active = h < p_activeProbability();
   var duv = uv;
-  if (active) {
+  if (is_active) {
     let d = (hash21(vec2<f32>(idx, cell + 7.0)) * 2.0 - 1.0) * px_to_uv(p_displacement());
-    if (axis == 0u) { duv.x = uv.x + d.x; }
+    if (axis == 0) { duv.x = uv.x + d.x; }
     else { duv.y = uv.y + d.y; }
   }
   return sample_border(duv);
@@ -644,9 +643,9 @@ fn noise_field(uv: vec2<f32>) -> vec2<f32> {
 }
 fn sample_border(uv: vec2<f32>) -> vec4<f32> {
   let b = p_border();
-  if (b == 0u) { return sample_clamp(uv); }
-  else if (b == 1u) { return sample_mirror(uv); }
-  else if (b == 2u) { return sample_repeat(uv); }
+  if (b == 0) { return sample_clamp(uv); }
+  else if (b == 1) { return sample_mirror(uv); }
+  else if (b == 2) { return sample_repeat(uv); }
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec4<f32>(0.0); }
   return textureSampleLevel(src_tex, src_sampler, uv, 0.0);
 }

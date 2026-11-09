@@ -8,6 +8,29 @@ license.workspace = true
 name = "xtask"
 path = "src/main.rs"
 
+[[bin]]
+name = "shader_check"
+path = "src/bin/shader_check.rs"
+
+[[bin]]
+name = "gpu_probe"
+path = "src/bin/gpu_probe.rs"
+
+[[bin]]
+name = "dump_shader"
+path = "src/bin/dump_shader.rs"
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+flux-domain = { path = "../domain" }
+flux-engine = { path = "../engine" }
+flux-catalog = { path = "../catalog" }
+flux-media = { path = "../media" }
+flux-audio = { path = "../audio" }
+flux-render = { path = "../render" }
+wgpu = { workspace = true }
+
+[dependencies.naga]
+version = "27"
+features = ["wgsl-in"]

@@ -47,22 +47,22 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let l = luminance_from_rgb(c);
   let mode = p_mode();
   var o = c;
-  if (mode == 0u) {
+  if (mode == 0) {
     let lo = p_inBlack(); let hi = p_inWhite();
     var t = select(0.0, clamp((l - lo) / max(hi - lo, 0.0001), 0.0, 1.0), hi > lo);
     t = pow(t, 1.0 / max(p_gamma(), 0.01));
     let v = mix(p_outBlack(), p_outWhite(), t);
     let ratio = select(0.0, v / max(l, 0.0001), l > 0.0001);
     o = c * ratio;
-  } else if (mode == 1u) {
+  } else if (mode == 1) {
     let n = f32(p_levels() - 1);
     o = floor(c * n + 0.5) / n;
-  } else if (mode == 2u) {
+  } else if (mode == 2) {
     let v = select(vec3<f32>(0.0), vec3<f32>(1.0), l >= p_threshold());
     o = v;
-  } else if (mode == 3u) {
+  } else if (mode == 3) {
     o = vec3<f32>(1.0) - c;
-  } else if (mode == 4u) {
+  } else if (mode == 4) {
     o = mix(p_lowColor().rgb, p_highColor().rgb, l);
   } else {
     o = lut_thermal(l);
@@ -113,7 +113,7 @@ fn hsv2rgbv(h: f32, s: f32, v: f32) -> vec3<f32> {
   let p = v * (1.0 - s);
   let q = v * (1.0 - s * f);
   let t = v * (1.0 - s * (1.0 - f));
-  let m = i32(mod(i, 6.0));
+  let m = i32(fmod(i, 6.0));
   if (m == 0) { return vec3<f32>(v, t, p); }
   if (m == 1) { return vec3<f32>(q, v, p); }
   if (m == 2) { return vec3<f32>(p, v, t); }
@@ -125,17 +125,17 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let c = unpremul(src);
   let mode = p_mode();
   var o = c;
-  if (mode == 0u) {
+  if (mode == 0) {
     let hsv = rgb2hsvv(c);
     o = hsv2rgbv(hsv.x + p_hue(), hsv.y, hsv.z);
-  } else if (mode == 1u) {
+  } else if (mode == 1) {
     o = c * vec3<f32>(1.0 + p_temperature() * 0.25 - p_tint() * 0.05, 1.0 + p_temperature() * 0.05, 1.0 - p_temperature() * 0.25 + p_tint() * 0.05);
-  } else if (mode == 2u) {
+  } else if (mode == 2) {
     // Identity LUT: real .cube LUT nodes load tables; here an identity 3D sample
     // with a mild contrast keeps the control path exercised.
     let l = luminance_from_rgb(c);
     o = mix(c, vec3<f32>(smoothstep(0.0, 1.0, l)) * (l / max(l, 0.0001)), p_strength() * 0.5);
-  } else if (mode == 3u) {
+  } else if (mode == 3) {
     let n = f32(p_paletteLevels() - 1);
     o = floor(clamp(c, vec3<f32>(0.0), vec3<f32>(1.0)) * n + 0.5) / n;
   } else {
@@ -174,13 +174,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   var n = hash21(cell + vec2<f32>(seedf() * 100.0, t)) - 0.5;
   let c = unpremul(src);
   var o = c;
-  if (style == 0u) {
+  if (style == 0) {
     // Film grain: luma-weighted noise, slightly stronger in midtones.
     let l = luminance_from_rgb(c);
     o = c + vec3<f32>(n * p_amplitude() * (1.0 - abs(l - 0.5) * 1.2));
-  } else if (style == 1u) {
+  } else if (style == 1) {
     o = c + vec3<f32>(n * p_amplitude() * 2.0);
-  } else if (style == 2u) {
+  } else if (style == 2) {
     let paper = fbm(uv * 120.0, 3, 2.0, 0.5) - 0.5;
     o = c * (1.0 + paper * p_amplitude()) + vec3<f32>(paper * p_amplitude() * 0.1);
   } else {
@@ -213,7 +213,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   if (r <= 0.0001) { return src; }
   let mode = p_mode();
   let radius_uv = px_to_uv(r);
-  let taps = select(24, 16, mode == 0u);
+  let taps = select(24, 16, mode == 0);
   var acc = vec4<f32>(0.0);
   var sum = 0.0;
   for (var i = 0; i < taps; i = i + 1) {
@@ -221,15 +221,15 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     let f = (fi + 0.5) / f32(taps) * 2.0 - 1.0;
     var off = vec2<f32>(0.0);
     var w = 1.0;
-    if (mode == 0u) {
+    if (mode == 0) {
       // Separable-ish 2D gaussian sampled on a disc.
       let a = fi * 2.39996323;
       let rad = sqrt(fi / f32(taps));
       off = vec2<f32>(cos(a), sin(a)) * rad * radius_uv;
       w = exp(-rad * rad * 2.5);
-    } else if (mode == 1u) {
+    } else if (mode == 1) {
       off = vec2<f32>(cos(p_angle()), sin(p_angle())) * f * radius_uv;
-    } else if (mode == 2u) {
+    } else if (mode == 2) {
       off = (uv - vec2<f32>(0.5)) * f * length(radius_uv) * 2.0;
     } else {
       off = vec2<f32>(0.0);
@@ -270,15 +270,15 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   for (var i = 0; i < taps; i = i + 1) {
     let a = f32(i) / f32(taps) * 6.2831853;
     var off = vec2<f32>(cos(a), sin(a)) * radius_uv;
-    if (mode == 1u) { off = off + vec2<f32>(p_offset(), 0.0); }
+    if (mode == 1) { off = off + vec2<f32>(p_offset(), 0.0); }
     let s = textureSampleLevel(src_tex, src_sampler, clamp(uv + off, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
     collect += s;
     wsum += 1.0;
   }
-  collect = collect / taps;
+  collect = collect / f32(taps);
   var glow = unpremul(collect) * collect.a;
   var ga = collect.a;
-  if (mode == 2u) {
+  if (mode == 2) {
     // Light rays: radial streak sampling from center.
     let dir = uv - vec2<f32>(0.5);
     var ray = vec3<f32>(0.0);
@@ -288,7 +288,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     }
     glow = ray / 6.0;
     ga = clamp(length(glow), 0.0, 1.0);
-  } else if (mode == 3u) {
+  } else if (mode == 3) {
     let leak = fbm(uv * 3.0 + vec2<f32>(time_seconds() * 0.05), 4, 2.0, 0.5);
     glow = p_color().rgb * smoothstep(0.4, 1.0, leak);
     ga = smoothstep(0.4, 1.0, leak) * 0.6;
@@ -323,11 +323,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let dir = vec2<f32>(cos(p_angle()), sin(p_angle()));
   var off = dir * d;
   var r = 0.0; var g = 0.0; var b = 0.0;
-  if (p_mode() == 0u) {
+  if (p_mode() == 0) {
     r = textureSampleLevel(src_tex, src_sampler, clamp(uv + off, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).r;
     g = src.g;
     b = textureSampleLevel(src_tex, src_sampler, clamp(uv - off, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).b;
-  } else if (p_mode() == 1u) {
+  } else if (p_mode() == 1) {
     let radial = (uv - vec2<f32>(0.5)) * 2.0;
     r = textureSampleLevel(src_tex, src_sampler, clamp(uv + radial * p_amount() * 0.01, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0).r;
     g = src.g;
@@ -423,9 +423,9 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // Phosphor mask (output-pixel aware RGB stripe)
   let px = floor(uv * vec2<f32>(frame.dims.xy));
   let mask = vec3<f32>(
-    select(0.7, 1.0, mod(px.x, 3.0) < 1.0),
-    select(0.7, 1.0, mod(px.x, 3.0) >= 1.0 && mod(px.x, 3.0) < 2.0),
-    select(0.7, 1.0, mod(px.x, 3.0) >= 2.0)
+    select(0.7, 1.0, fmod(px.x, 3.0) < 1.0),
+    select(0.7, 1.0, fmod(px.x, 3.0) >= 1.0 && fmod(px.x, 3.0) < 2.0),
+    select(0.7, 1.0, fmod(px.x, 3.0) >= 2.0)
   );
   col *= mix(vec3<f32>(1.0), mask, p_phosphor());
   col *= p_brightness();
@@ -461,13 +461,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let grid = floor(uv * nb);
   let h = hash21(grid + vec2<f32>(cellt * 7.0, seedf() * 30.0));
   var u = uv;
-  if (p_mode() == 0u) {
+  if (p_mode() == 0) {
     if (h < p_intensity()) { u.x = fract(u.x + hash21(grid + vec2<f32>(3.0)) * p_intensity()); }
-  } else if (p_mode() == 1u) {
+  } else if (p_mode() == 1) {
     let q = 0.12;
     u = floor(uv / q) * q + q * 0.5;
     if (h < p_intensity() && hash21(grid + vec2<f32>(11.0)) > p_intensity()) { u = uv; }
-  } else if (p_mode() == 2u) {
+  } else if (p_mode() == 2) {
     let row = floor(uv.y * f32(frame.dims.y) / 4.0);
     let rh = hash21(vec2<f32>(row, cellt));
     if (rh < p_intensity()) { u.x += (rh - 0.5) * 0.2; }
@@ -475,7 +475,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     if (h < p_intensity()) { u = fract(u + vec2<f32>(h, h)); }
   }
   let s = textureSampleLevel(src_tex, src_sampler, clamp(u, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
-  if (p_mode() == 1u) {
+  if (p_mode() == 1) {
     let n = f32(p_blocks());
     let q = floor(s.rgb * n + 0.5) / n;
     return premul(q, s.a);
@@ -506,11 +506,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let cs = max(p_cellSize(), 1.0);
   let cell = floor(uv * vec2<f32>(frame.dims.xy) / cs);
   let cuv = (cell + 0.5) * cs / vec2<f32>(frame.dims.xy);
-  if (mode == 0u) {
+  if (mode == 0) {
     let h = hash21(cell);
     if (h < p_amount()) { return vec4<f32>(0.0); }
     return textureSampleLevel(src_tex, src_sampler, cuv, 0.0);
-  } else if (mode == 1u) {
+  } else if (mode == 1) {
     // Bounded per-segment sort along x by luma within the cell row.
     let n = 16;
     var min_l = 2.0;
@@ -520,8 +520,9 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
       let l = sample_luma(su);
       min_l = min(min_l, l); max_l = max(max_l, l);
     }
-    return textureSampleLevel(src_tex, src_sampler, cuv, 0.0) * vec3<f32>(mix(1.0, max_l, p_amount()));
-  } else if (mode == 2u) {
+    let s = textureSampleLevel(src_tex, src_sampler, cuv, 0.0);
+    return vec4<f32>(s.rgb * mix(1.0, max_l, p_amount()), s.a);
+  } else if (mode == 2) {
     let l = sample_luma(cuv);
     let r = length(fract(uv * vec2<f32>(frame.dims.xy) / cs) - 0.5);
     let dotm = 1.0 - smoothstep(0.2, 0.5, r);
@@ -553,9 +554,9 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   if (ext <= 0.0001) { return src; }
   let mode = p_mode();
   var u = uv;
-  if (mode == 0u) {
+  if (mode == 0) {
     u.x = mix(uv.x, p_origin(), ext);
-  } else if (mode == 1u) {
+  } else if (mode == 1) {
     let dir = normalize(vec2<f32>(1.0, 0.5));
     u = uv - dir * (uv - vec2<f32>(0.5)) * ext;
   } else {
@@ -588,22 +589,22 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let t = time_seconds() * p_speed();
   var u = uv;
   let m = p_mode();
-  if (m == 0u) {
+  if (m == 0) {
     let r = length(c);
     u = uv + normalize(c + vec2<f32>(0.0001)) * sin(r * p_frequency() - t * 6.28) * p_amount() * 0.05;
-  } else if (m == 1u) {
+  } else if (m == 1) {
     u.y = uv.y + sin(uv.x * p_frequency() + t * 6.28) * p_amount() * 0.2;
-  } else if (m == 2u) {
+  } else if (m == 2) {
     let a = atan2(c.y, c.x);
     let seg = 6.2831853 / max(p_frequency() * 0.5, 2.0);
-    let folded = mod(a, seg);
+    let folded = fmod(a, seg);
     let r = length(c);
     u = vec2<f32>(cos(folded), sin(folded)) * r + vec2<f32>(0.5);
-  } else if (m == 3u) {
+  } else if (m == 3) {
     let a = atan2(c.y, c.x);
     let r = length(c) * 2.0;
-    u = vec2<f32>(mod(a / 6.2831853 + 0.5, 1.0), clamp(r, 0.0, 1.0));
-  } else if (m == 4u) {
+    u = vec2<f32>(fmod(a / 6.2831853 + 0.5, 1.0), clamp(r, 0.0, 1.0));
+  } else if (m == 4) {
     let q = max(p_frequency() * 0.25, 1.0);
     u = fract(uv * q) / q;
   } else {
@@ -635,11 +636,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let sc = max(p_scale(), 2.0);
   let prof = p_profile();
   var off = vec2<f32>(0.0);
-  if (prof == 0u) {
+  if (prof == 0) {
     off = vec2<f32>(cos(px.x / sc * 6.28) * p_strength(), 0.0);
-  } else if (prof == 1u) {
+  } else if (prof == 1) {
     off = vec2<f32>(0.0, cos(px.y / sc * 6.28) * p_strength());
-  } else if (prof == 2u) {
+  } else if (prof == 2) {
     off = vec2<f32>(triangle_wave(px.x / sc) * p_strength(), triangle_wave(px.y / sc) * p_strength());
   } else {
     let n = fbm(uv * 80.0, 3, 2.0, 0.5) - 0.5;
@@ -695,14 +696,14 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let base = unpremul(src);
   var col = base;
   let m = p_material();
-  if (m == 0u) {
+  if (m == 0) {
     col = vec3<f32>(diff) * vec3<f32>(0.8, 0.85, 0.9) + vec3<f32>(spec) + fres * vec3<f32>(0.3) * base;
-  } else if (m == 1u) {
+  } else if (m == 1) {
     let t = time_seconds() * 0.1;
     col = hsv(fract(diff * 0.6 + n.y * 0.2 + t), 0.6, diff) + vec3<f32>(spec);
-  } else if (m == 2u) {
+  } else if (m == 2) {
     col = vec3<f32>(diff) * 0.5 + 0.5;
-  } else if (m == 3u) {
+  } else if (m == 3) {
     col = hsv(fract(fres * 1.5 + time_seconds() * 0.05), 0.8, 0.6 + spec);
   } else {
     col = base * diff + vec3<f32>(spec * 1.5);
@@ -734,12 +735,12 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let m = p_material();
   var t = 0.0;
   var col = vec3<f32>(0.8, 0.75, 0.65);
-  if (m == 0u) { t = fbm(p * 30.0, 4, 2.0, 0.5); col = vec3<f32>(0.92, 0.9, 0.85) * (0.8 + t * 0.3); }
-  else if (m == 1u) { t = fbm(p * 15.0, 4, 2.0, 0.6); col = vec3<f32>(0.6, 0.45, 0.3) * (0.6 + t * 0.6); }
-  else if (m == 2u) { let n = length(vec2<f32>(gradient_noise(p * 20.0), gradient_noise(p * 20.0 + 5.0))); t = smoothstep(0.2, 0.8, n); col = vec3<f32>(0.7) * (0.6 + t * 0.6); }
-  else if (m == 3u) { let grid = modular_wave(uv * sc * 20.0); t = grid; col = vec3<f32>(0.4, 0.2, 0.3) * (0.5 + t * 0.8); }
-  else if (m == 4u) { let s = hash21(floor(uv * sc * 200.0)); t = pow(s, 8.0); col = vec3<f32>(1.0) * (0.3 + t); }
-  else if (m == 5u) { let rings = fract(length(uv * sc * 0.5) * 8.0 + fbm(p * 4.0, 3, 2.0, 0.5) * 4.0); t = rings; col = vec3<f32>(0.55, 0.35, 0.18) * (0.5 + rings * 0.5); }
+  if (m == 0) { t = fbm(p * 30.0, 4, 2.0, 0.5); col = vec3<f32>(0.92, 0.9, 0.85) * (0.8 + t * 0.3); }
+  else if (m == 1) { t = fbm(p * 15.0, 4, 2.0, 0.6); col = vec3<f32>(0.6, 0.45, 0.3) * (0.6 + t * 0.6); }
+  else if (m == 2) { let n = length(vec2<f32>(gradient_noise(p * 20.0), gradient_noise(p * 20.0 + 5.0))); t = smoothstep(0.2, 0.8, n); col = vec3<f32>(0.7) * (0.6 + t * 0.6); }
+  else if (m == 3) { let grid = modular_wave(uv * sc * 20.0); t = grid; col = vec3<f32>(0.4, 0.2, 0.3) * (0.5 + t * 0.8); }
+  else if (m == 4) { let s = hash21(floor(uv * sc * 200.0)); t = pow(s, 8.0); col = vec3<f32>(1.0) * (0.3 + t); }
+  else if (m == 5) { let rings = fract(length(uv * sc * 0.5) * 8.0 + fbm(p * 4.0, 3, 2.0, 0.5) * 4.0); t = rings; col = vec3<f32>(0.55, 0.35, 0.18) * (0.5 + rings * 0.5); }
   else { let vein = abs(sin(p.x * 3.0 + fbm(p * 2.0, 5, 2.0, 0.5) * 6.0)); t = smoothstep(0.7, 1.0, vein); col = mix(vec3<f32>(0.9, 0.9, 0.92), vec3<f32>(0.35, 0.35, 0.4), t); }
   return premul(mix(unpremul(src), col, p_mix()), src.a);
 }
@@ -792,11 +793,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   col = mix(col, vec3<f32>(0.9, 0.1, 0.5), md);
   col = mix(col, vec3<f32>(1.0, 0.95, 0.2), yd);
   col = mix(col, vec3<f32>(0.1), kd);
-  if (p_mode() == 2u) {
+  if (p_mode() == 2) {
     col = mix(p_inkA().rgb, p_inkB().rgb, cy);
     col = mix(col, vec3<f32>(0.95, 0.92, 0.85), 1.0 - max(max(cd, md), yd) * 0.7);
   }
-  if (p_mode() == 3u) {
+  if (p_mode() == 3) {
     let e = px_to_uv(2.0);
     let lx = abs(sample_luma(uv + vec2<f32>(e.x, 0.0)) - sample_luma(uv - vec2<f32>(e.x, 0.0)));
     let ly = abs(sample_luma(uv + vec2<f32>(0.0, e.y)) - sample_luma(uv - vec2<f32>(0.0, e.y)));
@@ -828,18 +829,18 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let l = luminance_from_rgb(unpremul(src));
   let m = p_mode();
   var col = vec3<f32>(l);
-  if (m == 0u) {
+  if (m == 0) {
     let band = fract(l * p_banding() + time_seconds() * p_sweep());
     col = mix(vec3<f32>(0.0), vec3<f32>(0.85), smoothstep(0.45, 0.55, band)) * (1.0 - l * 0.6);
     let sweep_y = fract(time_seconds() * p_sweep());
     col += vec3<f32>(0.3, 0.6, 1.0) * smoothstep(0.02, 0.0, abs(uv.y - sweep_y)) * 0.6;
-  } else if (m == 1u) {
+  } else if (m == 1) {
     col = clamp(vec3<f32>(l * 1.8, l * l * 1.4 - 0.1, smoothstep(0.6, 1.0, l)), vec3<f32>(0.0), vec3<f32>(1.0));
-  } else if (m == 2u) {
+  } else if (m == 2) {
     let gx = abs(sample_luma(uv + px_to_uv(1.0)) - sample_luma(uv - px_to_uv(1.0)));
     let g = smoothstep(0.05, 0.2, gx);
     col = mix(vec3<f32>(0.05, 0.15, 0.4), vec3<f32>(0.7, 0.85, 1.0), g);
-  } else if (m == 3u) {
+  } else if (m == 3) {
     let c = fract(l * p_banding());
     let contour = 1.0 - smoothstep(0.0, 0.04, min(c, 1.0 - c));
     col = mix(vec3<f32>(0.1) + vec3<f32>(l) * 0.2, vec3<f32>(1.0), contour);
@@ -876,9 +877,9 @@ const GLYPHS: array<u32, 16> = array<u32, 16>(
   0x1E2E2Eu, 0x1E2E2Eu, 0x111155u, 0x2A4A4Au, 0x444444u, 0x555555u, 0x222222u, 0x0Au
 );
 fn glyph_bit(g: u32, x: u32, y: u32) -> f32 {
-  if (x >= 3u || y >= 5u) { return 0.0; }
+  if (x >= 3 || y >= 5) { return 0.0; }
   let shift = (y * 3u + x);
-  return select(0.0, 1.0, ((GLYPHS[g] >> shift) & 1u) == 1u);
+  return select(0.0, 1.0, ((GLYPHS[g] >> shift) & 1u) == 1);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let cs = max(p_cellSize(), 4.0);
@@ -887,13 +888,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let f = fract(grid);
   let l = sample_luma((cell + 0.5) * cs / vec2<f32>(frame.dims.xy));
   let mode = p_mode();
-  if (mode == 3u) {
+  if (mode == 3) {
     let h = hash21(cell);
     let r = length(f - 0.5);
     let dotm = 1.0 - smoothstep(0.25, 0.35, r);
     return premul(vec3<f32>(l), dotm * l);
   }
-  if (mode == 1u) {
+  if (mode == 1) {
     let col_t = fract((floor(time_seconds() * p_speed() * 4.0) + cell.y * 0.1) * 0.1);
     let ch = select(0.0, 1.0, hash21(vec2<f32>(cell.x, floor(time_seconds() * p_speed() * 8.0) - cell.y)) < 0.3);
     let g = (hash21(cell) * 15.0);
@@ -901,7 +902,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     let glow = bit * (0.4 + col_t * 0.6);
     return premul(vec3<f32>(0.2, 1.0, 0.4) * glow, glow);
   }
-  if (mode == 2u) {
+  if (mode == 2) {
     let c = fract(l * 20.0);
     let contour = 1.0 - smoothstep(0.0, 0.05, min(c, 1.0 - c));
     return premul(vec3<f32>(contour), contour);
@@ -938,7 +939,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let prev = textureSampleLevel(src_tex, src_sampler, uv, 0.0);
   let k = clamp(p_decay(), 0.0, 1.0);
   let mode = p_mode();
-  if (mode == 2u) {
+  if (mode == 2) {
     return vec4<f32>(max(src.rgb, prev.rgb * k), max(src.a, prev.a * k));
   }
   return mix(src, prev, k);
@@ -999,10 +1000,10 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let soft = max(p_softness(), 0.0001);
   var keep = 0.0;
   let m = p_mode();
-  if (m == 0u) {
+  if (m == 0) {
     let l = luminance_from_rgb(c);
     keep = smoothstep(p_threshold() - soft, p_threshold() + soft, l);
-  } else if (m == 1u) {
+  } else if (m == 1) {
     let kc = p_keyColor().rgb;
     let d = length(c - kc);
     keep = smoothstep(p_threshold() * 0.5 + soft, p_threshold() * 0.5, d);
@@ -1076,16 +1077,16 @@ pub fn fx122_composite() -> (&'static str, Manifest, &'static str) {
         r#"
 fn blend_fn(b: vec3<f32>, s: vec3<f32>) -> vec3<f32> {
   let m = p_blend();
-  if (m == 1u) { return b + s; }
-  if (m == 2u) { return 1.0 - (1.0 - b) * (1.0 - s); }
-  if (m == 3u) { return b * s; }
-  if (m == 4u) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(0.5, b)); }
-  if (m == 5u) { return mix(2.0 * b * s + b * b * (1.0 - 2.0 * s), sqrt(b) * (2.0 * s - 1.0) + 2.0 * b * (1.0 - s), step(0.5, s)); }
-  if (m == 6u) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(0.5, s)); }
-  if (m == 7u) { return abs(b - s); }
-  if (m == 8u) { return b + s - 2.0 * b * s; }
-  if (m == 9u) { return b / max(1.0 - s, 0.001); }
-  return 1.0 - (1.0 - b) / max(s, 0.001);
+  if (m == 1) { return b + s; }
+  if (m == 2) { return 1.0 - (1.0 - b) * (1.0 - s); }
+  if (m == 3) { return b * s; }
+  if (m == 4) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(vec3<f32>(0.5), b)); }
+  if (m == 5) { return mix(2.0 * b * s + b * b * (1.0 - 2.0 * s), sqrt(b) * (2.0 * s - 1.0) + 2.0 * b * (1.0 - s), step(vec3<f32>(0.5), s)); }
+  if (m == 6) { return mix(2.0 * b * s, 1.0 - 2.0 * (1.0 - b) * (1.0 - s), step(vec3<f32>(0.5), s)); }
+  if (m == 7) { return abs(b - s); }
+  if (m == 8) { return b + s - 2.0 * b * s; }
+  if (m == 9) { return b / max(vec3<f32>(1.0) - s, vec3<f32>(0.001)); }
+  return 1.0 - (vec3<f32>(1.0) - b) / max(s, vec3<f32>(0.001));
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // The destination is the current source (the node has one image plus an
@@ -1118,7 +1119,7 @@ pub fn fx123_transforms() -> (&'static str, Manifest, &'static str) {
         ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
-  if (p_mode() == 1u) {
+  if (p_mode() == 1) {
     let cm = p_cropMin(); let cx = p_cropMax();
     if (uv.x < cm.x || uv.y < cm.y || uv.x > cx.x || uv.y > cx.y) { return vec4<f32>(0.0); }
     let su = (uv - cm) / max(cx - cm, vec2<f32>(0.0001));

@@ -93,12 +93,12 @@ pub fn fx021_concentric() -> (&'static str, Manifest, &'static str) {
     let body = r#"
 fn shape_dist(p: vec2<f32>) -> f32 {
   let shape = p_shape();
-  if (shape == 0u) { return length(p); }
-  if (shape == 1u) { return max(abs(p.x), abs(p.y)); }
+  if (shape == 0) { return length(p); }
+  if (shape == 1) { return max(abs(p.x), abs(p.y)); }
   let n = max(p_sides(), 3.0);
   let a = atan2(p.y, p.x);
   let seg = 6.2831853 / n;
-  let d = abs(mod(a + seg * 0.5, seg) - seg * 0.5);
+  let d = abs(fmod(a + seg * 0.5, seg) - seg * 0.5);
   return length(p) * cos(seg * 0.5) / max(cos(d), 0.0001);
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
@@ -109,7 +109,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let d = shape_dist(px);
   let ph = fract(p_phase() + time_seconds() * p_speed());
   let sp = max(p_spacing(), 1.0);
-  let rad = mod(d + ph * sp, sp);
+  let rad = fmod(d + ph * sp, sp);
   let th = max(p_thickness(), 0.5);
   let edge = abs(rad - sp * 0.5);
   let mask = 1.0 - smoothstep(th * 0.5 - 0.5, th * 0.5 + 0.5, edge);
@@ -154,8 +154,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   } else {
     let p = uv * sc + vec2<f32>(t);
     let ty = p_type();
-    if (ty == 0u) { n = fbm(p, p_octaves(), p_lacunarity(), p_persistence()); }
-    else if (ty == 1u) {
+    if (ty == 0) { n = fbm(p, p_octaves(), p_lacunarity(), p_persistence()); }
+    else if (ty == 1) {
       // gradient-dominant fBm
       var q = p; var amp = 0.5; var sum = 0.0; var norm = 0.0;
       for (var i = 0; i < p_octaves(); i = i + 1) {
@@ -163,8 +163,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
       }
       n = sum / max(norm, 0.0001);
     }
-    else if (ty == 2u) { n = ridged(p, p_octaves(), p_lacunarity(), p_persistence()); }
-    else if (ty == 3u) { n = turbulence(p, p_octaves(), p_lacunarity(), p_persistence()); }
+    else if (ty == 2) { n = ridged(p, p_octaves(), p_lacunarity(), p_persistence()); }
+    else if (ty == 3) { n = turbulence(p, p_octaves(), p_lacunarity(), p_persistence()); }
     else {
       // Cellular: nearest feature distance.
       let ip = floor(p);
@@ -214,8 +214,8 @@ fn height_at(x: f32) -> f32 {
   let f = p_frequency() * 6.2831853;
   let curve = p_curve();
   var h = 0.0;
-  if (curve == 0u) { h = sin(x * f + t); }
-  else if (curve == 1u) { h = (sin(x * f + t) + 0.5 * sin(x * f * 2.3 - t * 1.7)) / 1.5; }
+  if (curve == 0) { h = sin(x * f + t); }
+  else if (curve == 1) { h = (sin(x * f + t) + 0.5 * sin(x * f * 2.3 - t * 1.7)) / 1.5; }
   else { h = audio_rms() * 4.0 * sin(x * f + t); }
   return h * p_amplitude() * 0.5;
 }
@@ -310,10 +310,10 @@ pub fn fx025_moire() -> (&'static str, Manifest, &'static str) {
 fn field_value(uv: vec2<f32>, freq: f32, angle: f32) -> f32 {
   let aspect = f32(frame.dims.x) / max(f32(frame.dims.y), 1.0);
   let p = (uv - vec2<f32>(0.5)) * vec2<f32>(aspect, 1.0);
-  if (p_field() == 0u) {
+  if (p_field() == 0) {
     let r = rot2(angle) * p;
     return sin((r.x * freq + p_phase()) * 6.2831853) * 0.5 + 0.5;
-  } else if (p_field() == 1u) {
+  } else if (p_field() == 1) {
     let r = rot2(angle) * p;
     return sin((length(r) * freq + p_phase()) * 6.2831853) * 0.5 + 0.5;
   }
@@ -325,8 +325,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let a = field_value(uv, p_frequency1(), 0.0 + t);
   let b = field_value(uv, p_frequency2(), radians(p_relativeAngle()) + t * 0.5);
   var v = 0.0;
-  if (p_blend() == 0u) { v = a * b; }
-  else if (p_blend() == 1u) { v = abs(a - b); }
+  if (p_blend() == 0) { v = a * b; }
+  else if (p_blend() == 1) { v = abs(a - b); }
   else { v = clamp(a + b, 0.0, 1.0); }
   let col = p_color().rgb * v;
   return premul(col, 1.0);
@@ -420,12 +420,12 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let gap = p_gap() * 0.5;
   var in_cell = 0.0;
   let shape = p_shape();
-  if (shape == 0u) {
+  if (shape == 0) {
     in_cell = select(0.0, 1.0, max(abs(ff.x), abs(ff.y)) < 0.5 - gap);
-  } else if (shape == 1u) {
+  } else if (shape == 1) {
     let hh = max(abs(ff.x) * 0.866 + abs(ff.y) * 0.5, abs(ff.y));
     in_cell = select(0.0, 1.0, hh < 0.5 - gap);
-  } else if (shape == 2u) {
+  } else if (shape == 2) {
     in_cell = select(0.0, 1.0, (ff.y + 0.5) > abs(ff.x) * 2.0 + gap && ff.y < 0.5 - gap);
   } else {
     in_cell = select(0.0, 1.0, length(ff) < 0.5 - gap);
@@ -435,7 +435,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   var col = mix(p_fill().rgb, p_stroke().rgb, 1.0 - inner);
   col = col * mix(1.0, anim, 0.2);
   if (p_alternate()) {
-    let parity = mod(cell.x + cell.y, 2.0);
+    let parity = fmod(cell.x + cell.y, 2.0);
     col = mix(col, p_stroke().rgb, parity * 0.25);
   }
   let a = select(0.0, 1.0, in_cell > 0.5);

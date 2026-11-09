@@ -29,6 +29,10 @@ pub enum SlotKind {
 pub struct ParamLayout {
     pub slots: Vec<ParamSlot>,
     pub vec4_count: usize,
+    /// Number of vec4 slots in the `f` array.
+    pub f_count: usize,
+    /// Number of vec4 slots in the `u` array.
+    pub u_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +43,8 @@ pub struct ParamSlot {
     pub vec4_index: usize,
     /// Component index within the vec4 for scalars.
     pub component: usize,
+    /// True for boolean parameters (accessor returns WGSL `bool`).
+    pub is_bool: bool,
 }
 
 impl ParamLayout {
@@ -51,7 +57,7 @@ impl ParamLayout {
 /// parameter descriptors. Returns (struct/accessor source, layout).
 pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayout) {
     let mut src = String::new();
-    let mut layout = ParamLayout { slots: vec![], vec4_count: 0 };
+    let mut layout = ParamLayout { slots: vec![], vec4_count: 0, f_count: 0, u_count: 0 };
     let mut f32_components_used = 0usize;
     let mut u32_components_used = 0usize;
     let mut f32_vec4 = 0usize;
@@ -96,12 +102,15 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
             }
         };
         let component = component;
-        layout.slots.push(ParamSlot { id: p.id.clone(), kind: slot_kind, vec4_index, component });
+        let is_bool = matches!(p.kind, Bool);
+        layout.slots.push(ParamSlot { id: p.id.clone(), kind: slot_kind, vec4_index, component, is_bool });
     }
     // Uniform is padded: one array for floats, then one array for ints.
     let f_count = if f32_components_used > 0 { f32_vec4 + 1 } else { f32_vec4 };
     let u_count = if u32_components_used > 0 { u32_vec4 + 1 } else { u32_vec4 };
     layout.vec4_count = f_count + u_count;
+    layout.f_count = f_count.max(1);
+    layout.u_count = u_count.max(1);
 
     src.push_str("struct NodeParams {\n");
     src.push_str(&format!("  f: array<vec4<f32>, {}>,\n", f_count.max(1)));
@@ -135,12 +144,23 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
                 src.push_str(&format!("fn p_{id}() -> vec4<f32> {{ return np.f[{}]; }}\n", slot.vec4_index, id = slot.id));
             }
             SlotKind::U32 => {
-                src.push_str(&format!(
-                    "fn p_{id}() -> u32 {{ return np.u[{}].{}; }}\n",
-                    slot.vec4_index,
-                    comp_name(slot.component),
-                    id = slot.id
-                ));
+                if slot.is_bool {
+                    src.push_str(&format!(
+                        "fn p_{id}() -> bool {{ return np.u[{}].{} != 0; }}\n",
+                        slot.vec4_index,
+                        comp_name(slot.component),
+                        id = slot.id
+                    ));
+                } else {
+                    // Int/enum parameters are exposed to shader code as i32 so
+                    // they compose with loop counters and comparisons.
+                    src.push_str(&format!(
+                        "fn p_{id}() -> i32 {{ return i32(np.u[{}].{}); }}\n",
+                        slot.vec4_index,
+                        comp_name(slot.component),
+                        id = slot.id
+                    ));
+                }
             }
         }
     }

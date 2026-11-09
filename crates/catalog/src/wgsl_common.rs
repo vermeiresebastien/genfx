@@ -97,8 +97,8 @@ fn periodic_value_noise(p: vec2<f32>, period: vec2<f32>) -> f32 {
   let f = fract(p);
   let u = f * f * (3.0 - 2.0 * f);
   let pp = max(period, vec2<f32>(1.0));
-  let i0 = mod(i, pp);
-  let i1 = mod(i + vec2<f32>(1.0, 1.0), pp);
+  let i0 = fmodv(i, pp);
+  let i1 = fmodv(i + vec2<f32>(1.0, 1.0), pp);
   let a = hash21(i0);
   let b = hash21(vec2<f32>(i1.x, i0.y));
   let c = hash21(vec2<f32>(i0.x, i1.y));
@@ -138,7 +138,7 @@ fn sample_repeat(uv: vec2<f32>) -> vec4<f32> {
 fn mirror_uv(uv: vec2<f32>) -> vec2<f32> {
   let i = floor(uv);
   let f = fract(uv);
-  let even = mod(i, vec2<f32>(2.0)) == vec2<f32>(0.0);
+  let even = fmodv(i, vec2<f32>(2.0)) == vec2<f32>(0.0);
   let m = select(f, vec2<f32>(1.0) - f, even);
   return m;
 }
@@ -153,6 +153,12 @@ fn sample_luma(uv: vec2<f32>) -> f32 {
 "#;
 
 pub const COMMON: &str = r#"
+// WGSL lacks a math `fmod()` builtin (it has `%`), so provide the float and
+// vector helpers our kernels use. `%` in WGSL is the remainder; these give the
+// Euclidean modulo expected by the effect math.
+fn fmod_f(a: f32, b: f32) -> f32 { return a - b * floor(a / b); }
+fn fmod(a: f32, b: f32) -> f32 { return a - b * floor(a / b); }
+fn fmodv(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> { return a - b * floor(a / b); }
 fn rot2(a: f32) -> mat2x2<f32> {
   let c = cos(a);
   let s = sin(a);

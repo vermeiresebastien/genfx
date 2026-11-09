@@ -60,8 +60,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let d = uv - p_origin();
   let k = p_kind();
   var t = 0.0;
-  if (k == 0u) { t = dot(d, vec2<f32>(cos(p_angle()), sin(p_angle()))) + 0.5; }
-  else if (k == 1u) { t = length(d) / max(p_radius(), 0.0001); }
+  if (k == 0) { t = dot(d, vec2<f32>(cos(p_angle()), sin(p_angle()))) + 0.5; }
+  else if (k == 1) { t = length(d) / max(p_radius(), 0.0001); }
   else { t = fract(atan2(d.y, d.x) / 6.2831853 + 0.5); }
   if (p_repeat()) { t = fract(t); } else { t = clamp(t, 0.0, 1.0); }
   var col = p_stop1().rgb;
@@ -98,8 +98,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let t = time_seconds() * p_speed();
   var n = 0.0;
   if (p_periodic()) { n = periodic_fbm(uv * p_scale() * 8.0 + vec2<f32>(t * 8.0), vec2<f32>(p_scale() * 8.0), p_octaves()); }
-  else if (p_kind() == 0u) { n = fbm(uv * p_scale() + vec2<f32>(t), p_octaves(), 2.0, 0.5); }
-  else if (p_kind() == 1u) { n = turbulence(uv * p_scale() + vec2<f32>(t), p_octaves(), 2.0, 0.5); }
+  else if (p_kind() == 0) { n = fbm(uv * p_scale() + vec2<f32>(t), p_octaves(), 2.0, 0.5); }
+  else if (p_kind() == 1) { n = turbulence(uv * p_scale() + vec2<f32>(t), p_octaves(), 2.0, 0.5); }
   else { n = ridged(uv * p_scale() + vec2<f32>(t), p_octaves(), 2.0, 0.5); }
   return premul(vec3<f32>(n), select(1.0, smoothstep(0.0, 0.02, abs(n - 0.5)), p_transparent()));
 }
@@ -134,9 +134,9 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     }
   }
   var v = 0.0;
-  if (p_mode() == 0u) { v = cid; }
-  else if (p_mode() == 1u) { v = smoothstep(0.02, 0.0, f2 - f1); }
-  else if (p_mode() == 2u) { v = f2; }
+  if (p_mode() == 0) { v = cid; }
+  else if (p_mode() == 1) { v = smoothstep(0.02, 0.0, f2 - f1); }
+  else if (p_mode() == 2) { v = f2; }
   else { v = f2 - f1; }
   return premul(vec3<f32>(v), 1.0);
 }
@@ -190,10 +190,10 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let lw = p_lineWidth() / sc;
   let k = p_kind();
   var v = 0.0;
-  if (k == 0u) { v = select(0.0, 1.0, min(abs(f.x), abs(f.y)) < lw * 0.5 || abs(f.x) > 0.5 - lw * 0.5 || abs(f.y) > 0.5 - lw * 0.5); }
-  else if (k == 1u) { v = 1.0 - smoothstep(0.1, 0.14, length(f)); }
-  else if (k == 2u) { v = select(0.0, 1.0, mod(floor(g.x) + floor(g.y), 2.0) > 0.5); }
-  else if (k == 3u) { v = select(0.0, 1.0, abs(f.y) * 2.0 < (0.5 - abs(f.x)) * 1.6); }
+  if (k == 0) { v = select(0.0, 1.0, min(abs(f.x), abs(f.y)) < lw * 0.5 || abs(f.x) > 0.5 - lw * 0.5 || abs(f.y) > 0.5 - lw * 0.5); }
+  else if (k == 1) { v = 1.0 - smoothstep(0.1, 0.14, length(f)); }
+  else if (k == 2) { v = select(0.0, 1.0, fmod(floor(g.x) + floor(g.y), 2.0) > 0.5); }
+  else if (k == 3) { v = select(0.0, 1.0, abs(f.y) * 2.0 < (0.5 - abs(f.x)) * 1.6); }
   else {
     let hh = max(abs(f.x) * 0.866 + abs(f.y) * 0.5, abs(f.y));
     v = select(0.0, 1.0, hh < 0.5 - lw * 0.5);
@@ -225,8 +225,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let t = time_seconds() * p_speed();
   var v = 0.0;
   let k = p_kind();
-  if (k == 0u) { let n = f32(p_rays()); v = select(0.0, 1.0, fract(a * n + t) < p_strokeWidth()); }
-  else if (k == 1u) { v = select(0.0, 1.0, fract(r * f32(p_rays()) * 0.1 - t) < p_strokeWidth()); }
+  if (k == 0) { let n = f32(p_rays()); v = select(0.0, 1.0, fract(a * n + t) < p_strokeWidth()); }
+  else if (k == 1) { v = select(0.0, 1.0, fract(r * f32(p_rays()) * 0.1 - t) < p_strokeWidth()); }
   else { v = select(0.0, 1.0, fract(a * p_turns() + r * 8.0 - t * 3.0) < p_strokeWidth()); }
   return premul(vec3<f32>(v), select(1.0, v, p_transparent()));
 }
@@ -274,8 +274,8 @@ pub fn g010_pattern_fill() -> (&'static str, Manifest, &'static str) {
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   var tone = p_tone();
-  if (p_driver() == 1u) { tone = uv.x; }
-  else if (p_driver() == 2u) { tone = fbm(uv * 6.0, 4, 2.0, 0.5); }
+  if (p_driver() == 1) { tone = uv.x; }
+  else if (p_driver() == 2) { tone = fbm(uv * 6.0, 4, 2.0, 0.5); }
   let cs = max(p_cellSize(), 2.0);
   let g = uv * vec2<f32>(frame.dims.xy) / cs;
   let f = fract(g) - vec2<f32>(0.5);
@@ -415,12 +415,12 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   var z = vec2<f32>(0.0);
   var jc = p_juliaC();
   jc = jc + vec2<f32>(cos(t * 6.28) * 0.1, sin(t * 6.28) * 0.1);
-  if (p_kind() == 1u) { z = c; c = jc; }
+  if (p_kind() == 1) { z = c; c = jc; }
   var iter = 0;
   let maxi = p_iterations();
   for (var i = 0; i < maxi; i = i + 1) {
     if (dot(z, z) > 4.0) { break; }
-    if (p_kind() == 2u) { z = vec2<f32>(abs(z.x), abs(z.y)); }
+    if (p_kind() == 2) { z = vec2<f32>(abs(z.x), abs(z.y)); }
     z = vec2<f32>(z.x * z.x - z.y * z.y + c.x, 2.0 * z.x * z.y + c.y);
     iter = i;
   }
@@ -447,8 +447,8 @@ pub fn g016_lissajous() -> (&'static str, Manifest, &'static str) {
 fn curve(t: f32) -> vec2<f32> {
   let a = t * 6.2831853;
   let r = p_ratios();
-  if (p_kind() == 0u) { return vec2<f32>(sin(a * r.x + p_phase()), sin(a * r.y)); }
-  if (p_kind() == 1u) { return vec2<f32>(cos(a * r.x) * cos(a * r.y), sin(a * r.x) * cos(a * r.y)); }
+  if (p_kind() == 0) { return vec2<f32>(sin(a * r.x + p_phase()), sin(a * r.y)); }
+  if (p_kind() == 1) { return vec2<f32>(cos(a * r.x) * cos(a * r.y), sin(a * r.x) * cos(a * r.y)); }
   return vec2<f32>(cos(a) + 0.5 * cos(a * 6.0), sin(a) + 0.5 * sin(a * 7.0)) * 0.6;
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
@@ -540,11 +540,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let p = uv * sc;
   let m = p_material();
   var col = vec3<f32>(0.5);
-  if (m == 0u) { let rings = sin(length(p) * 6.0 + fbm(p, 3, 2.0, 0.5) * 8.0); col = mix(vec3<f32>(0.35, 0.2, 0.1), vec3<f32>(0.6, 0.4, 0.2), rings * 0.5 + 0.5); }
-  else if (m == 1u) { let v = abs(sin(p.x * 3.0 + fbm(p * 2.0, 4, 2.0, 0.5) * 8.0)); col = mix(vec3<f32>(0.9), vec3<f32>(0.2, 0.25, 0.3), smoothstep(0.85, 1.0, v)); }
-  else if (m == 2u) { col = vec3<f32>(0.9) * (0.85 + fbm(p * 40.0, 3, 2.0, 0.5) * 0.3); }
-  else if (m == 3u) { let w = sin(p.x * 60.0) * sin(p.y * 60.0); col = vec3<f32>(0.4, 0.2, 0.5) * (0.8 + w * 0.2); }
-  else if (m == 4u) { col = vec3<f32>(0.7) * (0.7 + turbulence(p * 30.0, 4, 2.0, 0.5) * 0.6); }
+  if (m == 0) { let rings = sin(length(p) * 6.0 + fbm(p, 3, 2.0, 0.5) * 8.0); col = mix(vec3<f32>(0.35, 0.2, 0.1), vec3<f32>(0.6, 0.4, 0.2), rings * 0.5 + 0.5); }
+  else if (m == 1) { let v = abs(sin(p.x * 3.0 + fbm(p * 2.0, 4, 2.0, 0.5) * 8.0)); col = mix(vec3<f32>(0.9), vec3<f32>(0.2, 0.25, 0.3), smoothstep(0.85, 1.0, v)); }
+  else if (m == 2) { col = vec3<f32>(0.9) * (0.85 + fbm(p * 40.0, 3, 2.0, 0.5) * 0.3); }
+  else if (m == 3) { let w = sin(p.x * 60.0) * sin(p.y * 60.0); col = vec3<f32>(0.4, 0.2, 0.5) * (0.8 + w * 0.2); }
+  else if (m == 4) { col = vec3<f32>(0.7) * (0.7 + turbulence(p * 30.0, 4, 2.0, 0.5) * 0.6); }
   else { let h = hash21(floor(p * 200.0)); col = vec3<f32>(0.9) * pow(h, 12.0) + vec3<f32>(0.1); }
   return premul(col, 1.0);
 }
@@ -569,7 +569,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let density = f32(p_points()) / 5000.0;
   let p = (uv - vec2<f32>(0.5)) * p_depth();
   var v = 0.0;
-  if (p_kind() == 1u) {
+  if (p_kind() == 1) {
     let a = atan2(p.y, p.x);
     let r = max(length(p), 0.001);
     let tunnel = fbm(vec2<f32>(a * 3.0, 1.0 / r + time_seconds() * p_speed()), 4, 2.0, 0.5);
@@ -578,7 +578,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     let g = floor(uv * 600.0 * sqrt(density));
     let h = hash21(g + floor(time_seconds() * p_speed() * 10.0));
     if (h > 0.995) { let d = length(fract(uv * 600.0 * sqrt(density)) - 0.5); v = exp(-d * 40.0); }
-    if (p_kind() == 2u) {
+    if (p_kind() == 2) {
       let arm = fbm(vec2<f32>(atan2(p.y, p.x) * 2.0, length(p) * 4.0) + f32(time_seconds()) * 0.05, 4, 2.0, 0.5);
       v += smoothstep(0.5, 0.9, arm) * 0.5 * smoothstep(0.6, 0.1, length(p));
     }
@@ -601,19 +601,19 @@ pub fn g021_test_signal() -> (&'static str, Manifest, &'static str) {
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let k = p_kind();
   var col = vec3<f32>(0.0);
-  if (k == 0u) {
+  if (k == 0) {
     let i = floor(uv.x * 7.0);
     let bars = array<vec3<f32>, 7>(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(1.0, 1.0, 0.0), vec3<f32>(0.0, 1.0, 1.0), vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 1.0), vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0));
     col = bars[i32(min(i, 6.0))];
     if (uv.y > 0.85) { col = vec3<f32>(uv.x); }
-  } else if (k == 1u) { col = vec3<f32>(uv.x); }
-  else if (k == 2u) { 
+  } else if (k == 1) { col = vec3<f32>(uv.x); }
+  else if (k == 2) { 
     let n = floor(time_seconds() * 60.0);
     let x = floor(uv.x * 8.0);
     let y = floor(uv.y * 8.0);
     let bit = fract(n / pow(2.0, x + y * 8.0) / 2.0) > 0.5;
     col = select(vec3<f32>(0.02), vec3<f32>(0.9), bit);
-  } else { col = vec3<f32>(mod(floor(uv.x * 16.0) + floor(uv.y * 9.0), 2.0)); }
+  } else { col = vec3<f32>(fmod(floor(uv.x * 16.0) + floor(uv.y * 9.0), 2.0)); }
   // Moving marker
   let mx = fract(time_seconds() * p_markerSpeed());
   let md = length((uv - vec2<f32>(mx, 0.5)) * vec2<f32>(f32(frame.dims.x) / f32(frame.dims.y), 1.0));
@@ -722,16 +722,16 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // burn-in
   for (var i = 0; i < 100; i = i + 1) {
     let k = p_kind();
-    if (k == 0u) { let dx = 10.0 * (y - x); let dy = x * (28.0 - z) - y; let dz = x * y - 2.6667 * z; x += dx * step; y += dy * step; z += dz * step; }
-    else if (k == 1u) { let dx = -y - z; let dy = x + 0.2 * y; let dz = 0.2 + z * (x - 5.7); x += dx * step * 5.0; y += dy * step * 5.0; z += dz * step * 5.0; }
+    if (k == 0) { let dx = 10.0 * (y - x); let dy = x * (28.0 - z) - y; let dz = x * y - 2.6667 * z; x += dx * step; y += dy * step; z += dz * step; }
+    else if (k == 1) { let dx = -y - z; let dy = x + 0.2 * y; let dz = 0.2 + z * (x - 5.7); x += dx * step * 5.0; y += dy * step * 5.0; z += dz * step * 5.0; }
     else { let nx = sin(-1.4 * y) + 2.0 * cos(1.6 * x); let ny = sin(2.2 * x) + 2.0 * cos(1.8 * y); x = nx * 0.5; y = ny * 0.5; }
   }
   var v = 0.0;
   let p = (uv - vec2<f32>(0.5)) * 2.0;
   for (var i = 0; i < pts; i = i + 1) {
     let k = p_kind();
-    if (k == 0u) { let dx = 10.0 * (y - x); let dy = x * (28.0 - z) - y; let dz = x * y - 2.6667 * z; x += dx * step; y += dy * step; z += dz * step; }
-    else if (k == 1u) { let dx = -y - z; let dy = x + 0.2 * y; let dz = 0.2 + z * (x - 5.7); x += dx * step * 5.0; y += dy * step * 5.0; z += dz * step * 5.0; }
+    if (k == 0) { let dx = 10.0 * (y - x); let dy = x * (28.0 - z) - y; let dz = x * y - 2.6667 * z; x += dx * step; y += dy * step; z += dz * step; }
+    else if (k == 1) { let dx = -y - z; let dy = x + 0.2 * y; let dz = 0.2 + z * (x - 5.7); x += dx * step * 5.0; y += dy * step * 5.0; z += dz * step * 5.0; }
     else { let nx = sin(-1.4 * y) + 2.0 * cos(1.6 * x); let ny = sin(2.2 * x) + 2.0 * cos(1.8 * y); x = nx * 0.5; y = ny * 0.5; }
     let sp = vec2<f32>(x * p_scale(), z * p_scale() - 0.5);
     v += exp(-length(p - sp) * 40.0);
@@ -759,7 +759,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   var a = atan2(c.y, c.x) + time_seconds() * p_spin() * 6.28;
   let r = length(c);
   let seg = 6.2831853 / f32(p_symmetry());
-  a = mod(a, seg);
+  a = fmod(a, seg);
   if (p_mirror() && a > seg * 0.5) { a = seg - a; }
   let p = vec2<f32>(cos(a), sin(a)) * r * p_radialScale();
   let v = fbm(p, 4, 2.0, 0.5);
@@ -778,26 +778,32 @@ pub fn g026_recursive_tiling() -> (&'static str, Manifest, &'static str) {
             p_int("depth", "Depth", 4, 1, 8),
         ],
         r#"
-fn sierpinski(p: vec2<f32>, d: i32) -> f32 {
-  // p in unit triangle; returns 0 inside void.
-  if (d <= 0) { return 1.0; }
-  let m = (vec2<f32>(0.0) + vec2<f32>(1.0) + vec2<f32>(0.5, 0.866)) / 3.0;
-  let s = 0.5;
-  let r = (p - m) * 2.0;
-  if (abs(r.y) < 0.45 && length(p - m) < 0.28) { return 0.0; }
-  return sierpinski(r * 2.0, d - 1);
+// Iterative Sierpinski: replace the void-detection points instead of recursing
+// (WGSL forbids recursion). Each iteration scales p toward the nearest child.
+fn sierpinski(p_in: vec2<f32>, d: i32) -> f32 {
+  var p = p_in;
+  for (var i = 0; i < d; i = i + 1) {
+    let m = (vec2<f32>(0.0) + vec2<f32>(1.0) + vec2<f32>(0.5, 0.866)) / 3.0;
+    let r = (p - m) * 2.0;
+    if (abs(r.y) < 0.45 && length(p - m) < 0.28) { return 0.0; }
+    p = r * 2.0;
+  }
+  return 1.0;
 }
-fn carpet(p: vec2<f32>, d: i32) -> f32 {
-  if (d <= 0) { return 1.0; }
-  let c = floor(p * 3.0);
-  if (c.x == 1.0 && c.y == 1.0) { return 0.0; }
-  return carpet(fract(p * 3.0), d - 1);
+fn carpet(p_in: vec2<f32>, d: i32) -> f32 {
+  var p = p_in;
+  for (var i = 0; i < d; i = i + 1) {
+    let c = floor(p * 3.0);
+    if (c.x == 1.0 && c.y == 1.0) { return 0.0; }
+    p = fract(p * 3.0);
+  }
+  return 1.0;
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let p = uv - vec2<f32>(0.5);
   var v = 0.0;
-  if (p_kind() == 0u) { v = sierpinski(p * 1.5 + vec2<f32>(0.25, -0.4), p_depth()); }
-  else if (p_kind() == 1u) { v = carpet(p + vec2<f32>(0.5), p_depth()); }
+  if (p_kind() == 0) { v = sierpinski(p * 1.5 + vec2<f32>(0.25, -0.4), p_depth()); }
+  else if (p_kind() == 1) { v = carpet(p + vec2<f32>(0.5), p_depth()); }
   else {
     let ang = atan2(p.y, p.x);
     let koch = abs(sin(ang * f32(p_depth() * 2)));

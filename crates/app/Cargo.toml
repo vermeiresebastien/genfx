@@ -1,0 +1,31 @@
+[package]
+name = "flux-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "flux"
+path = "src/main.rs"
+
+[features]
+default = ["gui"]
+gui = ["dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:winit"]
+
+[dependencies]
+flux-domain = { path = "../domain" }
+flux-engine = { path = "../engine" }
+flux-catalog = { path = "../catalog" }
+flux-render = { path = "../render" }
+flux-media = { path = "../media" }
+flux-audio = { path = "../audio" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+pollster = { workspace = true }
+egui = { version = "0.37", optional = true }
+egui-wgpu = { version = "0.37", optional = true }
+egui-winit = { version = "0.37", optional = true }
+winit = { version = "0.30", optional = true }
