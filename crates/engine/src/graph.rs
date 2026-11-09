@@ -89,6 +89,13 @@ impl<'a> Registry<'a> {
     }
 }
 
+/// Image ports are interchangeable at the binding level: a Texture2D output can
+/// feed a Mask input (the shader reads its red channel) and vice-versa.
+fn is_image_port(t: flux_catalog::manifest::PortType) -> bool {
+    use flux_catalog::manifest::PortType::{Mask, Texture2D};
+    matches!(t, Texture2D | Mask)
+}
+
 pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
     let mut issues = Vec::new();
     if g.nodes.len() > MAX_NODES {
@@ -190,7 +197,7 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
             .find(|p| p.id == e.to_port)
             .map(|p| p.port_type);
         match (out_ty, in_ty) {
-            (Some(a), Some(b)) if a == b => {}
+            (Some(a), Some(b)) if a == b || (is_image_port(a) && is_image_port(b)) => {}
             (Some(_), Some(_)) => issues.push(GraphIssue {
                 code: ErrorCode::GraphTypeMismatch,
                 message: format!(

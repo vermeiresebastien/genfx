@@ -6,7 +6,7 @@
 //! simulation or renderer.
 
 use flux_app::commands::{CommandHost, GuiCommand, Request, Response};
-use flux_app::export::{export_project, ExportOptions, PreviewRenderer};
+use flux_app::export::{export_project_with_frames, ExportOptions, PreviewRenderer};
 use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -97,9 +97,33 @@ fn b64(data: &[u8]) -> String {
     out
 }
 
-/// Start an export on a background thread. Progress and completion are reported
-/// through events (`export-progress`, `export-done`, `export-error`) so the
-/// webview can keep playing the preview loop while frames are rendered.
+/// Nearest-neighbour downscale of packed RGBA for the live export preview.
+fn downscale_rgba(src: &[u8], w: u32, h: u32, max_w: u32) -> (u32, u32, Vec<u8>) {
+    if w == 0 || h == 0 || w <= max_w {
+        return (w, h, src.to_vec());
+    }
+    let dw = max_w;
+    let dh = (((h as u64) * (dw as u64) + (w as u64) / 2) / (w as u64)).max(1) as u32;
+    let mut out = vec![0u8; (dw as usize) * (dh as usize) * 4];
+    let need = (dw as usize) * (dh as usize) * 4;
+    if src.len() < need {
+        return (w, h, src.to_vec());
+    }
+    for y in 0..dh {
+        let sy = (y as u64 * h as u64 / dh as u64) as u32;
+        for x in 0..dw {
+            let sx = (x as u64 * w as u64 / dw as u64) as u32;
+            let si = ((sy as usize) * (w as usize) + (sx as usize)) * 4;
+            let di = ((y as usize) * (dw as usize) + (x as usize)) * 4;
+            out[di..di + 4].copy_from_slice(&src[si..si + 4]);
+        }
+    }
+    (dw, dh, out)
+}
+
+/// Start an export on a background thread. Progress, live frames and completion
+/// are reported through events (`export-progress`, `export-frame`, `export-done`,
+/// `export-error`) so the webview can show the real output while rendering.
 #[tauri::command]
 fn export_project_cmd(
     app: tauri::AppHandle,
@@ -118,6 +142,11 @@ fn export_project_cmd(
         return Err("an export is already running".into());
     }
     let exporting = state.exporting.clone();
+    // Release the live preview GPU device before exporting so only one device is
+    // active at a time (two concurrent wgpu devices can crash some drivers).
+    if let Ok(mut guard) = state.preview.lock() {
+        *guard = None;
+    }
     // Resolve relative output dirs against the process CWD so the reported path
     // is absolute and the user can find the file.
     let out_dir = {
@@ -150,8 +179,33 @@ fn export_project_cmd(
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         };
-        match export_project(&project, &opts, Some(progress)) {
-            Ok(res) => {
+        // Stream the actual export frames to the monitor while rendering. The UI
+        // pauses its own preview loop during export, so only one GPU device is
+        // doing work at a time.
+        let frame_app = app.clone();
+        let last_emit = std::cell::Cell::new(std::time::Instant::now());
+        let frame_cb: flux_app::export::FrameFn = Box::new(move |done, total, rgba, w, h| {
+            if done < total && last_emit.get().elapsed().as_millis() < 90 {
+                return;
+            }
+            last_emit.set(std::time::Instant::now());
+            let (dw, dh, small) = downscale_rgba(rgba, w, h, 480);
+            if let Ok(png) = flux_media::encode_png_rgba(dw, dh, &small) {
+                let _ = frame_app.emit(
+                    "export-frame",
+                    serde_json::json!({
+                        "dataUrl": format!("data:image/png;base64,{}", b64(&png)),
+                        "done": done,
+                        "total": total,
+                    }),
+                );
+            }
+        });
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            export_project_with_frames(&project, &opts, Some(progress), Some(frame_cb))
+        }));
+        match outcome {
+            Ok(Ok(res)) => {
                 exporting.store(false, Ordering::SeqCst);
                 // A PNG sequence is an implementation detail of encoding; remove it
                 // unless the caller explicitly asked to keep it (or there is no video).
@@ -173,11 +227,18 @@ fn export_project_cmd(
                     }),
                 );
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 exporting.store(false, Ordering::SeqCst);
                 let _ = app.emit(
                     "export-error",
                     serde_json::json!({ "message": format!("{e:?}") }),
+                );
+            }
+            Err(_) => {
+                exporting.store(false, Ordering::SeqCst);
+                let _ = app.emit(
+                    "export-error",
+                    serde_json::json!({ "message": "export thread panicked" }),
                 );
             }
         }

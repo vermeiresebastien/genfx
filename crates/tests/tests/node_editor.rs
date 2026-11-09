@@ -118,6 +118,55 @@ fn center(px: &[u8], w: u32, h: u32) -> (u8, u8, u8, u8) {
 }
 
 #[test]
+fn texture_to_mask_edge_is_allowed() {
+    let catalog = flux_catalog::build_catalog();
+    let reg = flux_engine::graph::Registry::new(&catalog);
+
+    let node = |id: &str, type_id: &str| GraphNode {
+        id: id.into(),
+        type_id: type_id.into(),
+        type_version: 1,
+        position: [0.0, 0.0],
+        params: BTreeMap::new(),
+        bypass: false,
+        missing_type: false,
+    };
+    let graph = Graph {
+        id: "tex-mask".into(),
+        name: "tex-mask".into(),
+        nodes: vec![
+            node("solid", "gen.solid"),
+            node("noise", "gen.noise"),
+            node("out", "flux.output"),
+        ],
+        edges: vec![
+            GraphEdge {
+                from_node: "solid".into(),
+                from_port: "color".into(),
+                to_node: "noise".into(),
+                to_port: "mask".into(),
+            },
+            GraphEdge {
+                from_node: "noise".into(),
+                from_port: "color".into(),
+                to_node: "out".into(),
+                to_port: "source".into(),
+            },
+        ],
+        output_node: "out".into(),
+        keyframes: BTreeMap::new(),
+    };
+
+    let issues = flux_engine::graph::validate(&graph, &reg);
+    let mismatches: Vec<_> = issues
+        .iter()
+        .filter(|i| format!("{:?}", i.code).contains("GraphTypeMismatch"))
+        .map(|i| i.message.clone())
+        .collect();
+    assert!(mismatches.is_empty(), "texture→mask should be legal: {mismatches:?}");
+}
+
+#[test]
 fn every_preset_validates() {
     let catalog = flux_catalog::build_catalog();
     let reg = flux_engine::graph::Registry::new(&catalog);

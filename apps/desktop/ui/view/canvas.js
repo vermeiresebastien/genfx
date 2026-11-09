@@ -388,16 +388,23 @@ export function initCanvas(opts) {
     if (!pending) return;
     const t = (typeId) => opts.manifestOf(typeId);
     if (pending.dir === "out") {
-      // We were dragging an output; connect it to the new node's first compatible input.
+      // Connect to the new node's first input of the *same* type. Never fall back
+      // to an incompatible port (that produced engine port-type-mismatch errors).
       const newM = t(pending.meta.typeId);
-      const inPort =
-        (newM?.inputs || []).find((p) => p.type === pending.ptype) ||
-        (newM?.inputs || [])[0];
-      if (inPort) opts.commands.replaceConnect(pending.node.id, pending.port.id, newNodeId, inPort.id);
+      const inPort = (newM?.inputs || []).find((p) => portsCompatible(pending.ptype, p.type));
+      if (inPort) {
+        opts.commands.replaceConnect(pending.node.id, pending.port.id, newNodeId, inPort.id);
+      } else {
+        opts.onStatus(`No ${pending.ptype} input on ${pending.meta.typeId}`, true);
+      }
     } else {
       const newM = t(pending.meta.typeId);
-      const outPort = (newM?.outputs || [])[0];
-      if (outPort) opts.commands.replaceConnect(newNodeId, outPort.id, pending.node.id, pending.port.id);
+      const outPort = (newM?.outputs || []).find((p) => portsCompatible(p.type, pending.ptype)) || null;
+      if (outPort) {
+        opts.commands.replaceConnect(newNodeId, outPort.id, pending.node.id, pending.port.id);
+      } else {
+        opts.onStatus(`No ${pending.ptype} output on ${pending.meta.typeId}`, true);
+      }
     }
   }
 

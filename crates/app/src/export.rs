@@ -56,12 +56,36 @@ pub fn codec_from_name(name: &str) -> EncodeCodec {
     }
 }
 
+/// Per-frame preview callback: (done, total, rgba, width, height). Lets the GUI
+/// show the actual export output while it renders.
+pub type FrameFn = Box<dyn Fn(u64, u64, &[u8], u32, u32) + Send>;
+
 /// Render the whole timeline at project resolution into a PNG sequence + WAV and
 /// optionally encode an MP4. Returns exact counts.
 pub fn export_project(
     project: &Project,
     opts: &ExportOptions,
     progress: Option<ProgressFn>,
+) -> FluxResult<ExportResult> {
+    export_project_impl(project, opts, progress, None)
+}
+
+/// Same as [`export_project`], additionally invoking `frame_cb` with each rendered
+/// frame for a live preview.
+pub fn export_project_with_frames(
+    project: &Project,
+    opts: &ExportOptions,
+    progress: Option<ProgressFn>,
+    frame_cb: Option<FrameFn>,
+) -> FluxResult<ExportResult> {
+    export_project_impl(project, opts, progress, frame_cb)
+}
+
+fn export_project_impl(
+    project: &Project,
+    opts: &ExportOptions,
+    progress: Option<ProgressFn>,
+    frame_cb: Option<FrameFn>,
 ) -> FluxResult<ExportResult> {
     let gpu = Gpu::new(BackendPref::Auto)?;
     let catalog = build_catalog();
@@ -116,6 +140,9 @@ pub fn export_project(
             opts.height,
             None,
         )?;
+        if let Some(cb) = &frame_cb {
+            cb(i + 1, total, &px, opts.width, opts.height);
+        }
         let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
         // Encode PNG in-process. Shelling out to ffmpeg per frame dominated
         // export time (one process spawn per frame) and made progress feel frozen.

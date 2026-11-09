@@ -13,6 +13,7 @@ import { initInspector, render as renderInspector } from "./view/inspector.js";
 import { initTimeline, render as renderTimeline } from "./view/timeline.js";
 import { initOverlay } from "./view/overlay.js";
 import { nodeRect } from "./view/node.js";
+import { portsCompatible } from "./view/cable.js";
 
 let canvas;
 let library;
@@ -131,6 +132,10 @@ function fillThumb(img, nodeId) {
 }
 
 function requestPreviews() {
+  // While exporting, the export thread owns the GPU and streams its own frames to
+  // the monitor. Rendering previews concurrently created a second device and
+  // could crash the driver.
+  if (state.exporting) return;
   if (previewBusy) { previewPending = true; return; }
   previewBusy = true;
   (async () => {
@@ -177,30 +182,48 @@ async function addAt(typeId, pt, skipAutoWire = false) {
   return id;
 }
 
-/** Wire a newly-created node into the composition sensibly:
- *  - a generator with no source feeding Output becomes the output's source;
- *  - a single-input effect is inserted between the current source and Output. */
+/** Wire a newly-created node into the composition sensibly, using matching port
+ *  types only:
+ *  - a generator with a texture output feeds Output;
+ *  - a single-source effect is inserted between the current provider and Output. */
 async function autoWire(newId, typeId) {
   const g = state.graph;
   const m = manifestOf(typeId);
   if (!g || !m) return;
   const out = g.nodes.find((n) => n.typeId === "flux.output");
   if (!out) return;
+
+  const outType =
+    (manifestOf("flux.output")?.inputs || []).find((p) => p.id === "source")?.type || "texture2d";
   const outEdge = g.edges.find((e) => e.toNode === out.id && e.toPort === "source");
   const provider = outEdge ? outEdge.fromNode : null;
 
+  const outPortOfType = (type, want) =>
+    (manifestOf(type)?.outputs || []).find((p) => portsCompatible(p.type, want))?.id || null;
+
   if (m.kind === "generator") {
+    const op = outPortOfType(typeId, outType);
+    if (!op) {
+      setStatus(`${typeId} has no ${outType} output`, true);
+      return;
+    }
     if (outEdge) await commands.disconnect(out.id, "source");
-    await commands.connect(newId, "color", out.id, "source");
+    await commands.connect(newId, op, out.id, "source");
     return;
   }
 
-  const hasSource = (m.inputs || []).some((p) => p.id === "source");
-  if (hasSource && provider && provider !== newId) {
-    await commands.disconnect(out.id, "source");
-    await commands.connect(provider, "color", newId, "source");
-    await commands.connect(newId, "color", out.id, "source");
+  const srcIn = (m.inputs || []).find((p) => p.id === "source");
+  if (!srcIn || !provider || provider === newId) return;
+  const provNode = g.nodes.find((n) => n.id === provider);
+  const provOut = provNode ? outPortOfType(provNode.typeId, srcIn.type) : null;
+  const newOut = outPortOfType(typeId, outType);
+  if (!provOut || !newOut) {
+    setStatus(`Cannot auto-wire ${typeId}: no matching ports`, true);
+    return;
   }
+  if (outEdge) await commands.disconnect(out.id, "source");
+  await commands.connect(provider, provOut, newId, srcIn.id);
+  await commands.connect(newId, newOut, out.id, "source");
 }
 
 // ---- duplicate ------------------------------------------------------------
@@ -315,6 +338,7 @@ function toggleMinimap() {
 // ---- transport ------------------------------------------------------------
 
 let playTimer = null;
+state.exporting = false;
 state.loopMode = (() => {
   try { return localStorage.getItem("flux.loopMode") || "forward"; } catch (e) { return "forward"; }
 })();
@@ -504,12 +528,15 @@ async function onExport() {
   }
   startPlayback();
 
+  state.exporting = true;
   setStatus(`exporting ${codec.toUpperCase()}…`);
   try {
     const msg = await exportProject(outDir, w, h, codec, keepFrames);
     if (msg === "export started") setStatus("exporting… rendering frames");
     else setStatus(String(msg));
   } catch (e) {
+    state.exporting = false;
+    requestPreviews();
     setStatus("export failed: " + (e?.message || e), true);
   }
 }
@@ -631,8 +658,15 @@ async function boot() {
   document.getElementById("openFile").addEventListener("change", onOpenFile);
   document.getElementById("exportBtn").onclick = onExport;
 
-  // Export runs on a background thread; progress arrives as events so the
-  // preview loop keeps playing while frames are rendered.
+  // Export runs on a background thread; the monitor shows the real rendered
+  // output frames while the composition is processed.
+  listen("export-frame", (p) => {
+    if (!overlay.isMonitorOpen()) {
+      overlay.toggleMonitor(true);
+      document.getElementById("monitorBtn").classList.add("on");
+    }
+    if (p?.dataUrl) overlay.setMonitorImage(p.dataUrl);
+  });
   listen("export-progress", (p) => {
     const total = Number(p.total) || 0;
     const done = Number(p.done) || 0;
@@ -640,11 +674,17 @@ async function boot() {
     setStatus(`exporting… ${pct}% (${done}/${total} frames)`);
   });
   listen("export-done", (p) => {
+    state.exporting = false;
     if (p.video) setStatus(`video → ${p.video}`);
     else if (p.framesDir) setStatus(`frames → ${p.framesDir} (no video produced)`);
     else setStatus(`export done: ${p.frames} frames`);
+    requestPreviews();
   });
-  listen("export-error", (p) => setStatus("export error: " + (p.message || "unknown"), true));
+  listen("export-error", (p) => {
+    state.exporting = false;
+    setStatus("export error: " + (p.message || "unknown"), true);
+    requestPreviews();
+  });
 
   const vp = document.getElementById("viewport");
   vp.addEventListener("contextmenu", onContextMenu);
