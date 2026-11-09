@@ -43,6 +43,13 @@ Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
+# Optional Ableton Link check — only when a prebuilt abl_link.lib is available.
+if ($env:FLUX_ABLETON_LINK_LIB) {
+    Step 'link-integration' { cargo test -p flux-integrations --features link link:: }
+} else {
+    Write-Host "== link-integration: skipped (FLUX_ABLETON_LINK_LIB not set) =="
+    $results['link-integration'] = @{ ok = $true; skipped = $true; reason = 'FLUX_ABLETON_LINK_LIB unset' }
+}
 
 $evidence = Join-Path $root 'implementation/evidence'
 New-Item -ItemType Directory -Force -Path $evidence | Out-Null

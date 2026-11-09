@@ -17,3 +17,4 @@ smoke/
 "apps/desktop/src-tauri/gen/"  
 "apps/shader-harness/shaders.json"  
 _upstream/  
+"target_link/"  
