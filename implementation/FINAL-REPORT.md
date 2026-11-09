@@ -35,6 +35,10 @@ is green. Verified suites:
 - **maxpat structure** (Node): both source patches valid, passthrough wired, OSC encoder aligned.
 - **shader harness** (xtask): 216 WGSL emitted + Naga-validated (0 failures).
 
+Launched and screenshotted: library populates with all 216 entries by category, preview
+renders real GPU plasma, inspector lists editable parameter controls, timeline shows one
+clip per scene. `implementation/evidence/gui-release.png` is the release build running.
+
 Produced this run:
 - **Tauri 2 + web GUI** (`apps/desktop`): builds, links, launches; Rust owns state/validation/
   rendering; webview submits typed requests (`CommandHost`), shows preview frames.

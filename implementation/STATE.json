@@ -10,7 +10,21 @@
     "ffmpeg": "9.0-full_build",
     "tauri": "2"
   },
-  "test_totals": { "passed": 159, "failed": 0, "suites_failed": 0 },
+  "test_totals": { "passed": 161, "failed": 0, "suites_failed": 0 },
+  "gui_status": {
+    "dev_binary": "target/debug/flux-desktop.exe (works, screenshotted)",
+    "release_binary": "target/release/flux-desktop.exe (works, screenshotted)",
+    "evidence": "implementation/evidence/gui-release.png",
+    "verified": [
+      "launches with a visible window on Windows x64 (WebView2 157)",
+      "library populates with all 216 catalog entries grouped by category",
+      "preview renders real GPU plasma frames",
+      "inspector lists catalog parameter declarations (Opacity/Frequency/Speed/Colors/) with editable controls",
+      "timeline shows exactly one clip per added scene",
+      "GUI-backend e2e test: create/catalog/add/edit/export passes"
+    ],
+    "root_cause_fixed": "serde rename_all (tag only) vs rename_all_fields (fields) on GuiCommand/Command made all camelCase IPC payloads fail; GUI showed empty library + broken preview. Fixed + regression test."
+  },
   "current_task": "T27 reconcile and deliver",
   "delivered": [
     "Engine + GPU renderer + 216-entry catalog (all shaders compile on GPU, 0 failures)",
