@@ -244,7 +244,19 @@ async function setParam(node, paramId, value, kind) {
   requestPreview();
 }
 
+let _previewBusy = false;
+let _previewPending = false;
+
 async function requestPreview() {
+  // Single-flight + coalesce: never more than one render in flight. If a render
+  // is already running, mark pending and let it re-run once when done. This
+  // prevents the render queue from backing up (each render is heavy: it reuses
+  // the GPU path and can take 100ms+).
+  if (_previewBusy) {
+    _previewPending = true;
+    return;
+  }
+  _previewBusy = true;
   try {
     const url = await invoke("render_preview", {
       timeSeconds: state.time,
@@ -254,6 +266,12 @@ async function requestPreview() {
     document.getElementById("preview").src = url;
   } catch (e) {
     setStatus(`preview: ${e}`);
+  } finally {
+    _previewBusy = false;
+    if (_previewPending) {
+      _previewPending = false;
+      requestPreview();
+    }
   }
 }
 
@@ -274,10 +292,13 @@ function setupPlayback() {
     state.playing = !state.playing;
     btn.textContent = state.playing ? "Pause" : "Play";
     if (state.playing) {
+      // Playback preview at ~10fps (not 30): each frame is a real GPU render,
+      // and 30fps of full renders saturates the CPU. Single-flight prevents
+      // queue buildup if a render runs long.
       state.previewTimer = setInterval(() => {
         state.time += 1 / 30;
         requestPreview();
-      }, 33);
+      }, 100);
     } else {
       clearInterval(state.previewTimer);
     }

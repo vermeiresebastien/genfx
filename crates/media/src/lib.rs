@@ -615,6 +615,24 @@ fn tempfile_path(prefix: &str, ext: &str) -> PathBuf {
     std::env::temp_dir().join(format!("{prefix}_{}_{n}.{ext}", std::process::id()))
 }
 
+/// Encode raw RGBA8 to PNG bytes in memory (pure Rust, no FFmpeg). Fast enough
+/// for live previews; used by the desktop preview path.
+pub fn encode_png_rgba(width: u32, height: u32, rgba: &[u8]) -> FluxResult<Vec<u8>> {
+    let mut out = Vec::with_capacity((width as usize) * (height as usize) / 2 + 1024);
+    {
+        let mut enc = png::Encoder::new(&mut out, width, height);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut writer = enc
+            .write_header()
+            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", format!("png: {e}")))?;
+        writer
+            .write_image_data(rgba)
+            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", format!("png: {e}")))?;
+    }
+    Ok(out)
+}
+
 /// Write raw RGBA to a PNG file (used by export image sequence).
 pub fn write_png_rgba(path: &Path, width: u32, height: u32, rgba: &[u8]) -> FluxResult<()> {
     let ffmpeg =

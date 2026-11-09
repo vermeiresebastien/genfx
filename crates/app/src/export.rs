@@ -171,6 +171,56 @@ pub fn export_project(
     })
 }
 
+/// A reusable preview renderer: holds the GPU device, shader compiler, router and
+/// graph cache across frames so the live editor does NOT recreate a GPU device
+/// (and recompile shaders) on every preview. Rendering one frame is then cheap
+/// (~a few ms) instead of hundreds.
+pub struct PreviewRenderer {
+    gpu: Gpu,
+    catalog: Catalog,
+    compiler: EffectCompiler,
+    router: Router,
+    roots_cache: HashMap<String, RuntimeGraph>,
+}
+
+impl PreviewRenderer {
+    pub fn new() -> FluxResult<Self> {
+        let gpu = Gpu::new(BackendPref::Auto)?;
+        let catalog = build_catalog();
+        let compiler = EffectCompiler::new(&gpu);
+        Ok(Self {
+            gpu,
+            catalog,
+            compiler,
+            router: Router::default(),
+            roots_cache: HashMap::new(),
+        })
+    }
+
+    /// Render a single frame of `project` at `time` to packed RGBA8.
+    pub fn render(
+        &mut self,
+        project: &Project,
+        time: RationalTime,
+        width: u32,
+        height: u32,
+    ) -> FluxResult<Vec<u8>> {
+        let frame_ctx = FrameContext::for_project(project, time, 0);
+        render_single_frame(
+            &self.gpu,
+            &self.catalog,
+            &mut self.compiler,
+            project,
+            &frame_ctx,
+            &mut self.roots_cache,
+            &mut self.router,
+            None,
+            width,
+            height,
+        )
+    }
+}
+
 fn render_single_frame(
     gpu: &Gpu,
     catalog: &Catalog,

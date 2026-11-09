@@ -6,13 +6,17 @@
 //! simulation or renderer.
 
 use flux_app::commands::{CommandHost, GuiCommand, Request, Response};
-use flux_app::export::{export_project, ExportOptions};
+use flux_app::export::{export_project, ExportOptions, PreviewRenderer};
 use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
 use std::sync::Mutex;
 
 struct AppState {
     host: Mutex<CommandHost>,
+    /// Cached GPU preview renderer (created lazily on first preview so a missing
+    /// GPU doesn't break app startup). Reusing it avoids recreating the device
+    /// and recompiling shaders on every frame.
+    preview: Mutex<Option<PreviewRenderer>>,
 }
 
 #[tauri::command]
@@ -22,8 +26,7 @@ fn dispatch(state: tauri::State<AppState>, request: Request) -> Response {
 }
 
 /// Render a single preview frame of the active project at time `t` (seconds)
-/// at reduced resolution; returns base64-free raw PNG bytes via a data URL path
-/// handled on the JS side with a returned base64 *only over IPC* (bounded size).
+/// at reduced resolution; returns a PNG data URL for the webview.
 #[tauri::command]
 fn render_preview(
     state: tauri::State<AppState>,
@@ -35,33 +38,23 @@ fn render_preview(
         let host = state.host.lock().unwrap();
         host.dispatcher.project.clone()
     };
-    let dir = std::env::temp_dir().join(format!("flux-preview-{}", std::process::id()));
     let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
         .map_err(|e| e.to_string())?;
-    // Render one frame range [t, t+1/fps) via the export path into a single PNG.
-    let mut proj = project;
-    proj.timeline.range = flux_domain::TimeRange::new(t, RationalTime::new(1, 60).unwrap());
-    let res = export_project(
-        &proj,
-        &ExportOptions {
-            out_dir: dir.clone(),
-            project_name: "preview".into(),
-            codec: flux_media::EncodeCodec::None,
-            width,
-            height,
-            range: None,
-            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
-        },
-        None,
-    )
-    .map_err(|e| format!("{e:?}"))?;
-    let png = res.frames_dir.join("frame_000001.png");
-    let bytes = std::fs::read(&png).map_err(|e| e.to_string())?;
-    // Bound the payload; the preview is small (<= 960x540).
-    if bytes.len() > 4 * 1024 * 1024 {
+    let mut guard = state.preview.lock().unwrap();
+    if guard.is_none() {
+        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
+    }
+    let renderer = guard.as_mut().unwrap();
+    let rgba = renderer
+        .render(&project, t, width, height)
+        .map_err(|e| format!("render: {e:?}"))?;
+    // Encode the RGBA to PNG in memory (no disk round-trip).
+    let png =
+        flux_media::encode_png_rgba(width, height, &rgba).map_err(|e| format!("png: {e:?}"))?;
+    if png.len() > 4 * 1024 * 1024 {
         return Err("preview too large".into());
     }
-    Ok(format!("data:image/png;base64,{}", b64(&bytes)))
+    Ok(format!("data:image/png;base64,{}", b64(&png)))
 }
 
 fn b64(data: &[u8]) -> String {
@@ -162,6 +155,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState {
             host: Mutex::new(host),
+            preview: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             dispatch,
