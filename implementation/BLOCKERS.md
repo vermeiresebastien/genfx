@@ -24,7 +24,11 @@
 - **Max for Live**: host not installed; `.maxpat`-equivalent source only, `.amxd` blocked.
 - **macOS hosts**: unavailable; macOS-only paths unverified.
 - **Code signing / notarization**: no identity; builds are unsigned.
-- **Optional vision models (G170–G177)**: not present; conditional nodes stay editable.
+- **Optional vision models (G170–G177)**: **behavior implemented and verified** — a model
+  registry (`crates/catalog/src/models.rs`) reports present/missing/incompatible; a missing
+  model is a **non-fatal `SdkMissing` graph diagnostic** so the node stays editable and never
+  renders fake output (`flux models`, 6 tests, AT077 verified). Only the **model weights**
+  are external (AT075) — the user installs them via `FLUX_MODEL_<ID>` or `FLUX_MODELS_DIR`.
 
 ## Implemented, device/host-dependent for full verification
 - **Windows capture**: WASAPI endpoint + PnP camera enumeration is real and verified on

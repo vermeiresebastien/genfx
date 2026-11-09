@@ -267,7 +267,7 @@ fn blocker_for(id: &str) -> Option<&'static str> {
         "R006" => Some("NDI SDK/Spout SDK/Syphon(macOS) not available"),
         "R015" => Some("Ableton Link built+verified (feature `link`); licensing resolved (not sold)"),
         "R021" => Some("external creative-code runtimes not installed"),
-        "R022" => Some("vision models not installed; conditional"),
+        "R022" => Some("model registry + unavailable/incompatible behavior verified; model files not shipped (optional, user-installed)"),
         _ => None,
     }
 }
@@ -399,6 +399,22 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         "AT052" | "AT053" => (
             "verified",
             vec!["crates/app control tests (map/coalesce/apply)".into()],
+        ),
+        // AT077: conditional model/source absent -> preserved editable node,
+        // actionable dependency error, never fake output. Implemented via the
+        // model registry + non-fatal SdkMissing graph diagnostic.
+        "AT077" => (
+            "verified",
+            vec![
+                "crates/catalog models tests (missing/available/incompatible/invalid)".into(),
+                "crates/engine missing_model_reports_warning_but_still_compiles".into(),
+                "flux models CLI (actionable per-node install message)".into(),
+            ],
+        ),
+        // AT075 (actual vision inference) needs real model weights -> external.
+        "AT075" => (
+            "blocked_external",
+            vec!["model files not shipped; behavior verified via AT077".into()],
         ),
         "AT074" => (
             "verified",

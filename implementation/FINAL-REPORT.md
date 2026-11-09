@@ -133,6 +133,23 @@ Build: set `FLUX_ABLETON_LINK_LIB` (dir containing `abl_link.lib`) and
 `cargo build --features link`. With the feature off, `protocol_status` reports
 `unavailable` truthfully (SDK-less machines still build).
 
+### 6c. Vision/model nodes (G170–G177) — unavailable behavior verified
+The model-backed conditional nodes have a real **model registry**
+(`crates/catalog/src/models.rs`): it reports each model as **Available / Missing /
+Incompatible**, is configured via `FLUX_MODEL_<ID>` or `FLUX_MODELS_DIR`, and never
+fabricates a model. A missing or incompatible model is a **non-fatal `SdkMissing` graph
+diagnostic** — the node stays fully editable and never renders fake output. `flux models`
+prints an actionable per-node install message. Verified with 6 tests (missing/available/
+incompatible/invalid-manifest) + an engine test proving compile still succeeds; AT077 is
+verified. Only the actual **model weights** are external (AT075) — the user installs them.
+
+### 6d. Max for Live — source verified, `.amxd` packaging documented
+Two `.maxpat` source devices + `bridge-osc.js` + `check-maxpat.cjs` (structural conformance
+PASS) are provided and verified. The `.amxd` binary requires a Max/Max-for-Live host; the
+full reproducible packaging procedure is documented in `apps/max-for-live/README.md`
+(open → save as Max for Live device → metadata → load test). The `.amxd` bytes remain an
+external step.
+
 ## 7. Honest overall status
 A runnable Windows x64 development build: exact-time editing, native wgpu renderer running
 the whole 216-entry catalog, deterministic export to real H.264/HEVC/ProRes/GIF/JPEG/WAV,

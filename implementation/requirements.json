@@ -282,7 +282,7 @@
       ],
       "test_ids": [],
       "evidence_paths": [],
-      "blocker": "vision models not installed; conditional"
+      "blocker": "model registry + unavailable/incompatible behavior verified; model files not shipped (optional, user-installed)"
     },
     {
       "id": "R023",
@@ -3923,10 +3923,12 @@
       "id": "AT075",
       "title": "Conditional actual vision inference; known landmarks/mask/depth and stale/cancel states; exact model/runtime hashes.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "blocked_external",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "model files not shipped; behavior verified via AT077"
+      ],
       "blocker": null
     },
     {
@@ -3943,10 +3945,14 @@
       "id": "AT077",
       "title": "Conditional model/source absent; preserved editable node, actionable dependency error, never fake successful output.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/catalog models tests (missing/available/incompatible/invalid)",
+        "crates/engine missing_model_reports_warning_but_still_compiles",
+        "flux models CLI (actionable per-node install message)"
+      ],
       "blocker": null
     },
     {

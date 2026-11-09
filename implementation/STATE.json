@@ -10,7 +10,18 @@
     "ffmpeg": "9.0-full_build",
     "tauri": "2"
   },
-  "test_totals": { "passed": 161, "failed": 0, "suites_failed": 0, "note": "default; +6 link and +2 ndi when features enabled (34 with both)" },
+  "test_totals": { "passed": 167, "failed": 0, "suites_failed": 0, "note": "default; +link/ndi/spout when features enabled" },
+  "models": {
+    "status": "registry implemented + verified behavior (AT077 verified)",
+    "nodes": "G170-G177 model-backed conditional rows stay editable; report MODEL status",
+    "states_verified": "missing / available / incompatible / invalid-manifest (6 tests)",
+    "cli": "flux models (actionable per-node install message)",
+    "not_shipped": "actual model weights (AT075 blocked_external); user installs via FLUX_MODEL_<ID> / FLUX_MODELS_DIR"
+  },
+  "max_for_live": {
+    "source": "2 .maxpat + bridge-osc.js + check-maxpat.cjs (structural conformance PASS)",
+    "amxd": "packaging procedure fully documented in apps/max-for-live/README.md; .amxd bytes need a Max host (external)"
+  },
   "integrations": {
     "osc": "verified (real UDP loopback)",
     "midi": "verified (message parsing)",

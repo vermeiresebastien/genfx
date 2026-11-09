@@ -14,6 +14,7 @@ pub mod generators_b;
 pub mod generators_c;
 pub mod generators_d;
 pub mod manifest;
+pub mod models;
 pub mod pack;
 pub mod presets;
 pub mod shader_gen;

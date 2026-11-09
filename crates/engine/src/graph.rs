@@ -135,6 +135,25 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
         }
     }
 
+    // Model-backed conditional nodes: report missing/incompatible models as a
+    // NON-fatal diagnostic (editability preserved; the node renders a placeholder).
+    for n in &g.nodes {
+        if let Some(m) = reg.manifest(&n.type_id) {
+            for req in &m.requirement_ids {
+                if let Some(status) = flux_catalog::models::status_for(req) {
+                    if status.state != flux_catalog::models::ModelState::Available {
+                        issues.push(GraphIssue {
+                            code: ErrorCode::SdkMissing,
+                            message: status.message.clone(),
+                            node_id: Some(n.id.clone()),
+                            port_id: None,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     // Type-check edges.
     let mut incoming: BTreeMap<(&str, &str), &GraphEdge> = BTreeMap::new();
     for e in &g.edges {
@@ -497,6 +516,23 @@ mod tests {
         let c = compile(&g, &reg, 1).unwrap();
         assert_eq!(c.passes.len(), 3);
         assert_eq!(c.passes.last().unwrap().type_id, "flux.output");
+    }
+
+    #[test]
+    fn missing_model_reports_warning_but_still_compiles() {
+        // A G173 depth-model node with no model installed must produce a
+        // non-fatal SdkMissing diagnostic and still compile (stays editable).
+        std::env::remove_var("FLUX_MODEL_DEPTH");
+        std::env::remove_var("FLUX_MODELS_DIR");
+        let cat = reg_catalog();
+        let reg = Registry::new(&cat);
+        let g = simple_chain("gen.depth_model", "flux.source");
+        let issues = validate(&g, &reg);
+        let has_sdk_missing = issues.iter().any(|i| i.code == ErrorCode::SdkMissing);
+        assert!(has_sdk_missing, "expected SdkMissing issue, got {issues:?}");
+        // Must NOT be fatal: compile succeeds.
+        let c = compile(&g, &reg, 1);
+        assert!(c.is_ok(), "missing model must not block compile: {c:?}");
     }
 
     #[test]

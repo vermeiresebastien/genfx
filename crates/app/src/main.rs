@@ -95,6 +95,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "caps" => cmd_caps(),
         "capture" => cmd_capture(),
         "diagnostics" => cmd_diagnostics(),
+        "models" => cmd_models(),
         "integrations" => cmd_integrations(),
         "link" => cmd_link(),
         "ndi" => cmd_ndi(),
@@ -897,6 +898,15 @@ fn cmd_capture() -> FluxResult<()> {
         c.camera_available, c.loopback_available
     );
     println!("note: {}", c.limitation);
+    Ok(())
+}
+
+fn cmd_models() -> FluxResult<()> {
+    let statuses = flux_catalog::models::all_statuses();
+    println!("Model-backed conditional nodes ({}):", statuses.len());
+    for s in &statuses {
+        println!("  {:?}  {}  {}", s.state, s.requirement, s.message);
+    }
     Ok(())
 }
 
