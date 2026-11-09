@@ -13,6 +13,7 @@ path = "src/main.rs"
 name = "requirements"
 path = "src/bin/requirements.rs"
 
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

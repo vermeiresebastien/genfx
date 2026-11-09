@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 2,
+  "projectId": "47122cd1-8dc2-4740-a52e-27d89b95f462",
+  "name": "Media test_10s_60fps.mp4",
+  "createdUtc": "2026-11-09T01:38:40Z",
+  "modifiedUtc": "2026-11-09T01:38:40Z",
+  "settings": {
+    "size": {
+      "width": 1920,
+      "height": 1080
+    },
+    "frame_rate": {
+      "num": 60,
+      "den": 1
+    },
+    "pixel_aspect": {
+      "num": 1,
+      "den": 1
+    },
+    "audio": {
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    "working_color": "linear_rec709",
+    "seed": "777",
+    "simulation_step": {
+      "numerator": "1",
+      "denominator": 120
+    }
+  },
+  "assets": {
+    "b4aae761-2ba2-4b1f-984b-b85375399f41": {
+      "id": "b4aae761-2ba2-4b1f-984b-b85375399f41",
+      "kind": "video",
+      "name": "test_10s_60fps.mp4",
+      "originalPath": "fixtures\\generated\\test_10s_60fps.mp4",
+      "relativePath": null,
+      "fingerprint": "212405-1794185579587664000",
+      "sizeBytes": 212405,
+      "sha256": null,
+      "duration": {
+        "numerator": "10",
+        "denominator": 1
+      },
+      "streams": [
+        {
+          "index": 0,
+          "kind": "video",
+          "codec": "h264",
+          "width": 160,
+          "height": 90,
+          "sampleRate": null,
+          "channels": null
+        }
+      ],
+      "rotationDeg": 0,
+      "sampleAspect": {
+        "num": 1,
+        "den": 1
+      },
+      "missing": false
+    }
+  },
+  "timeline": {
+    "range": {
+      "start": {
+        "numerator": "0",
+        "denominator": 1
+      },
+      "duration": {
+        "numerator": "3",
+        "denominator": 1
+      }
+    },
+    "trackOrder": [
+      "5f7f0af3-76c9-4738-a6b2-77b67a3923c4"
+    ],
+    "tracks": {
+      "5f7f0af3-76c9-4738-a6b2-77b67a3923c4": {
+        "id": "5f7f0af3-76c9-4738-a6b2-77b67a3923c4",
+        "name": "V1",
+        "kind": "video",
+        "clipOrder": [
+          "1d8b9fe9-934a-42f3-beb0-0a4c0332e415"
+        ],
+        "locked": false,
+        "muted": false,
+        "solo": false,
+        "visible": true,
+        "gainDb": 0.0,
+        "opacity": 1.0,
+        "blendMode": "normal",
+        "graphId": null
+      }
+    },
+    "clips": {
+      "1d8b9fe9-934a-42f3-beb0-0a4c0332e415": {
+        "id": "1d8b9fe9-934a-42f3-beb0-0a4c0332e415",
+        "name": "clip",
+        "source": {
+          "kind": "asset",
+          "asset_id": "b4aae761-2ba2-4b1f-984b-b85375399f41"
+        },
+        "range": {
+          "start": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "duration": {
+            "numerator": "3",
+            "denominator": 1
+          }
+        },
+        "sourceRange": {
+          "start": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "duration": {
+            "numerator": "3",
+            "denominator": 1
+          }
+        },
+        "rate": {
+          "numerator": "1",
+          "denominator": 1
+        },
+        "loopPolicy": "loop",
+        "graphId": "1537f9b7-c2e9-4359-a0ec-51433d847a6e",
+        "transform": {
+          "position": [
+            0.5,
+            0.5
+          ],
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "rotation": 0.0,
+          "anchor": [
+            0.5,
+            0.5
+          ]
+        },
+        "opacity": 1.0,
+        "audio": {
+          "gainDb": 0.0,
+          "pan": 0.0,
+          "fadeIn": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "fadeOut": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "muted": false
+        },
+        "linkedGroup": null
+      }
+    },
+    "masterGraphId": null
+  },
+  "graphs": {
+    "1537f9b7-c2e9-4359-a0ec-51433d847a6e": {
+      "id": "1537f9b7-c2e9-4359-a0ec-51433d847a6e",
+      "name": "flux.source chain",
+      "nodes": [
+        {
+          "id": "10b3f91f-34b2-44fa-ba8b-b5e8e1d6b83d",
+          "typeId": "flux.source",
+          "typeVersion": 1,
+          "position": [
+            0.0,
+            0.0
+          ],
+          "params": {},
+          "bypass": false,
+          "missingType": false
+        },
+        {
+          "id": "592da3d7-bc7e-4d47-aea7-828882754f30",
+          "typeId": "flux.output",
+          "typeVersion": 1,
+          "position": [
+            240.0,
+            0.0
+          ],
+          "params": {},
+          "bypass": false,
+          "missingType": false
+        }
+      ],
+      "edges": [
+        {
+          "fromNode": "10b3f91f-34b2-44fa-ba8b-b5e8e1d6b83d",
+          "fromPort": "color",
+          "toNode": "592da3d7-bc7e-4d47-aea7-828882754f30",
+          "toPort": "source"
+        }
+      ],
+      "outputNode": "592da3d7-bc7e-4d47-aea7-828882754f30",
+      "keyframes": {}
+    }
+  },
+  "mappings": {},
+  "markers": [],
+  "extensions": {}
+}

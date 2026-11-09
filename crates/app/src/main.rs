@@ -40,6 +40,13 @@ fn run(args: &[String]) -> FluxResult<()> {
             let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
             cmd_demo_render(&gen, &dir)
         }
+        "demo-media" => {
+            let video = PathBuf::from(
+                args.get(1).cloned().ok_or_else(|| FluxError::new(flux_domain::ErrorCode::InvalidCommand, "cli", "demo-media needs a video path"))?,
+            );
+            let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
+            cmd_demo_media(&video, &dir)
+        }
         "render" => {
             let project = PathBuf::from(
                 args.get(1).cloned().ok_or_else(|| FluxError::new(flux_domain::ErrorCode::InvalidCommand, "cli", "render needs a project path"))?,
@@ -137,6 +144,39 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
     }
     if let Some(w) = &result.wav {
         println!("wav:   {}", w.display());
+    }
+    Ok(())
+}
+
+/// Save project modal-free helper used by cmd_new_demo.
+pub use save_project as save;
+
+fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<()> {
+    let project = samples::demo_media_project(video, 3);
+    std::fs::create_dir_all(dir)?;
+    let path = dir.join(format!("{}.flux.json", sanitize(&project.name)));
+    save_project(&project, &path)?;
+    println!("wrote {}", path.display());
+    let result = export::export_project(
+        &project,
+        &export::ExportOptions {
+            out_dir: dir.to_path_buf(),
+            project_name: project.name.clone(),
+            codec: flux_media::EncodeCodec::H264,
+            width: 640,
+            height: 360,
+            range: None,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        },
+        Some(Box::new(|i, n| {
+            if i == n {
+                println!("frame {i}/{n}");
+            }
+        })),
+    )?;
+    println!("rendered {} frames, {} samples", result.frames, result.samples);
+    if let Some(v) = &result.video {
+        println!("video: {}", v.display());
     }
     Ok(())
 }

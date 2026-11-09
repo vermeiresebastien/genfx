@@ -254,7 +254,19 @@ impl RuntimeGraph {
             };
 
             let has_source = entry.manifest.inputs.iter().any(|p| p.id == "source");
-            let src_binding: &wgpu::TextureView = if has_source { input_view } else { &compiler.dummy_tex };
+            // Scope-source nodes present the external texture even though they
+            // declare no typed input port.
+            let is_scope_source = pass.type_id == "flux.source" || pass.type_id == "flux.mask_input";
+            let src_binding: &wgpu::TextureView = if has_source || is_scope_source {
+                // For a scope source, the passed-in `source` view is the frame.
+                if is_scope_source {
+                    source
+                } else {
+                    input_view
+                }
+            } else {
+                &compiler.dummy_tex
+            };
             let input_layout = make_input_layout(gpu);
             let input_bg = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("per-pass-input"),

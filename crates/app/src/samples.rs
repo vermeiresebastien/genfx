@@ -141,6 +141,72 @@ pub fn insert_preset(preset: &Preset) -> Graph {
     }
 }
 
+/// Build a project with a single imported video asset on a video track and a
+/// clip graph that presents the decoded frames through `fx.color_adjustment`.
+pub fn demo_media_project(video_path: &std::path::Path, seconds: i64) -> Project {
+    let worker = flux_media::MediaWorker::new().ok();
+    let mut p = Project::new(
+        format!("Media {}", video_path.file_name().and_then(|s| s.to_str()).unwrap_or("clip")),
+        777,
+    );
+    let dur = RationalTime::from_secs(seconds.max(1));
+    p.timeline.range = TimeRange::new(RationalTime::ZERO, dur);
+
+    let asset_id = if let Some(worker) = &worker {
+        if let Ok(probe) = worker.probe(video_path) {
+            let asset = worker.asset_from_probe(video_path, &probe).unwrap();
+            let id = asset.id.clone();
+            p.assets.insert(id.clone(), asset);
+            id
+        } else {
+            "missing".into()
+        }
+    } else {
+        "missing".into()
+    };
+
+    // Clip graph: source -> output (pure presentation of decoded frames).
+    let graph = chain_graph("flux.source", &[]);
+    // chain_graph starts with the given "generator" id as the first node; for
+    // media that first node is flux.source which presents the decoded frame.
+    let graph_id = graph.id.clone();
+    p.graphs.insert(graph_id.clone(), graph);
+
+    let clip = Clip {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "clip".into(),
+        source: ClipSource::Asset { asset_id },
+        range: TimeRange::new(RationalTime::ZERO, dur),
+        source_range: TimeRange::new(RationalTime::ZERO, dur),
+        rate: RationalTime::new(1, 1).unwrap(),
+        loop_policy: LoopPolicy::Loop,
+        graph_id: Some(graph_id),
+        transform: Transform2D::default(),
+        opacity: 1.0,
+        audio: AudioControls::default(),
+        linked_group: None,
+    };
+    let track_id = uuid::Uuid::new_v4().to_string();
+    let track = Track {
+        id: track_id.clone(),
+        name: "V1".into(),
+        kind: TrackKind::Video,
+        clip_order: vec![clip.id.clone()],
+        locked: false,
+        muted: false,
+        solo: false,
+        visible: true,
+        gain_db: 0.0,
+        opacity: 1.0,
+        blend_mode: BlendMode::Normal,
+        graph_id: None,
+    };
+    p.timeline.tracks.insert(track_id.clone(), track);
+    p.timeline.track_order = vec![track_id];
+    p.timeline.clips.insert(clip.id.clone(), clip);
+    p
+}
+
 /// The list of demo compositions shipped with the app and used by tests.
 pub fn demo_catalog() -> Vec<(String, String, Vec<String>)> {
     let c = build_catalog();

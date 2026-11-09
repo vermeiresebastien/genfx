@@ -70,6 +70,7 @@ pub fn export_project(
     // graph id) so we do not rebuild pipelines.
     let mut roots_cache: HashMap<String, RuntimeGraph> = HashMap::new();
     let mut router = Router::default();
+    let media_worker = MediaWorker::new().ok();
 
     let mut rendered = 0u64;
     for i in 0..total {
@@ -80,7 +81,18 @@ pub fn export_project(
             .add(frame_time(i, fps)?)
             .map_err(FluxError::new_internal)?;
         let frame_ctx = FrameContext::for_project(project, t, i);
-        let px = render_single_frame(&gpu, &catalog, &mut compiler, project, &frame_ctx, &mut roots_cache, &mut router, opts.width, opts.height)?;
+        let px = render_single_frame(
+            &gpu,
+            &catalog,
+            &mut compiler,
+            project,
+            &frame_ctx,
+            &mut roots_cache,
+            &mut router,
+            media_worker.as_ref(),
+            opts.width,
+            opts.height,
+        )?;
         let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
         flux_media::write_png_rgba(&path, opts.width, opts.height, &px)?;
         rendered += 1;
@@ -125,12 +137,21 @@ fn render_single_frame(
     catalog: &Catalog,
     compiler: &mut EffectCompiler,
     project: &Project,
-    ctx: &FrameContext,
+    ctx_in: &FrameContext,
     roots_cache: &mut HashMap<String, RuntimeGraph>,
     router: &mut Router,
+    worker: Option<&MediaWorker>,
     width: u32,
     height: u32,
 ) -> FluxResult<Vec<u8>> {
+    // The render targets are at the export resolution, so the frame context's
+    // dimensions must match them (otherwise full-frame source sampling is wrong).
+    let mut ctx = ctx_in.clone();
+    ctx.output_width = width;
+    ctx.output_height = height;
+    ctx.source_width = width;
+    ctx.source_height = height;
+    let ctx = &ctx;
     // Build the display graph: pick the top-most visible clip and render its
     // clip graph (or a solid generator). This is the composition path the live
     // editor uses; multi-track compositing is handled by graph scope nodes.
@@ -147,6 +168,8 @@ fn render_single_frame(
     let graph = if let Some(gid) = chosen_graph_id {
         if let Some(stripped) = gid.strip_prefix("generator:") {
             Some(generator_graph(stripped))
+        } else if gid == "asset" {
+            Some(asset_passthrough_graph())
         } else {
             project.graphs.get(&gid).cloned()
         }
@@ -195,8 +218,31 @@ fn render_single_frame(
         resolved.insert(pass.node_id.clone(), buf);
     }
 
-    // Source texture: transparent (external scope input is not used in export
-    // for generator clips). Media clips would decode their frame here.
+    // Source texture: decode the chosen asset clip's frame at its exact source
+    // time; otherwise transparent (generator clips ignore the source).
+    let mut source_pixels: Option<Vec<u8>> = None;
+    if let Some(worker) = worker {
+        for it in &items {
+            if let RenderItem::Clip { clip, .. } = it {
+                if let flux_engine::timeline::ResolvedSource::Asset { asset_id, source_time } = &clip.source {
+                    if let Some(asset) = project.assets.get(asset_id) {
+                        let cancel = Arc::new(AtomicBool::new(false));
+                        if let Ok(frame) = worker.decode_rgba_frame(
+                            std::path::Path::new(&asset.original_path),
+                            *source_time,
+                            width,
+                            height,
+                            cancel,
+                        ) {
+                            source_pixels = Some(frame.rgba);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let src_pixels = source_pixels.unwrap_or_else(|| vec![0u8; (width * height * 4) as usize]);
     let src_tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("export-src"),
         size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
@@ -209,7 +255,7 @@ fn render_single_frame(
     });
     gpu.queue.write_texture(
         wgpu::TexelCopyTextureInfo { texture: &src_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
-        &vec![0u8; (width * height * 4) as usize],
+        &src_pixels,
         wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) },
         wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
     );
@@ -227,13 +273,30 @@ fn clip_graph_for(project: &Project, clip: &flux_engine::VisibleClip) -> Option<
         if let Some(gid) = &c.graph_id {
             return Some(gid.clone());
         }
-        // Synthesize a graph keyed by generator id for scene clips: callers
-        // construct one on demand; here we return None to use the fallback.
-        if let ClipSource::GeneratorScene { generator_id } = &c.source {
-            return Some(format!("generator:{}", generator_id));
+        match &c.source {
+            ClipSource::GeneratorScene { generator_id } => return Some(format!("generator:{}", generator_id)),
+            ClipSource::Asset { .. } => return Some("asset".into()),
+            _ => {}
         }
     }
     None
+}
+
+/// A graph that presents the decoded source texture unchanged.
+pub fn asset_passthrough_graph() -> flux_domain::Graph {
+    use flux_domain::{Graph, GraphEdge, GraphNode};
+    use std::collections::BTreeMap;
+    Graph {
+        id: "export.asset".into(),
+        name: "asset".into(),
+        nodes: vec![
+            GraphNode { id: "src".into(), type_id: "flux.source".into(), type_version: 1, position: [0.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
+            GraphNode { id: "out".into(), type_id: "flux.output".into(), type_version: 1, position: [240.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
+        ],
+        edges: vec![GraphEdge { from_node: "src".into(), from_port: "color".into(), to_node: "out".into(), to_port: "source".into() }],
+        output_node: "out".into(),
+        keyframes: BTreeMap::new(),
+    }
 }
 
 /// A transparent solid plate used when no clip is at the frame.
