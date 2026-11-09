@@ -219,32 +219,48 @@ impl CommandHost {
                 effects,
                 seconds,
             } => {
-                let p = crate::samples::demo_generator_project(
+                let demo = crate::samples::demo_generator_project(
                     &generator_id,
                     &effect_refs(&effects),
                     seconds,
                 );
-                // Merge into the live document as a new track + clip via commands.
-                for (_, track) in p.timeline.tracks.iter() {
-                    self.dispatcher.apply(
-                        Command::AddTrack {
-                            track: track.clone(),
-                        },
-                        None,
-                    )?;
-                }
-                for (id, clip) in p.timeline.clips.iter() {
-                    let _ = id;
-                    let track_id = p.timeline.track_order.first().cloned().unwrap_or_default();
+                // Create exactly one fresh track and clip (consistent ids), then
+                // attach the demo's chain graph. Never re-add the demo's whole
+                // structure, which caused duplicate clips.
+                let track_id = format!("track-{}", uuid::Uuid::new_v4());
+                let mut track = demo
+                    .timeline
+                    .tracks
+                    .values()
+                    .next()
+                    .cloned()
+                    .ok_or_else(|| {
+                        FluxError::new(ErrorCode::InvalidCommand, "gui", "demo has no track")
+                    })?;
+                track.id = track_id.clone();
+                track.clip_order.clear();
+                let n = self.dispatcher.project.timeline.tracks.len() + 1;
+                track.name = format!("V{n}");
+                self.dispatcher.apply(Command::AddTrack { track }, None)?;
+
+                // Take the demo's single clip, re-id it, place on the new track.
+                if let Some((_old, mut clip)) = demo
+                    .timeline
+                    .clips
+                    .iter()
+                    .next()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                {
+                    clip.id = format!("clip-{}", uuid::Uuid::new_v4());
                     self.dispatcher.apply(
                         Command::AddClip {
-                            track_id,
-                            clip: clip.clone(),
+                            track_id: track_id.clone(),
+                            clip,
                         },
                         None,
                     )?;
                 }
-                for (gid, graph) in p.graphs.iter() {
+                for (gid, graph) in demo.graphs.iter() {
                     self.dispatcher
                         .project
                         .graphs
@@ -419,6 +435,8 @@ mod tests {
         });
         assert!(r.error.is_none(), "{:?}", r.error);
         assert_eq!(h.dispatcher.project.timeline.tracks.len(), 1);
+        // Exactly one clip — the earlier merge double-added the demo's clip.
+        assert_eq!(h.dispatcher.project.timeline.clips.len(), 1);
         let rev = h.revision();
         // Undo the clips/track.
         while h.dispatcher.can_undo() {
