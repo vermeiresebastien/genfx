@@ -198,6 +198,10 @@ impl PreviewRenderer {
     }
 
     /// Render a single frame of `project` at `time` to packed RGBA8.
+    ///
+    /// If `time` is past the end of the timeline content, it is clamped to the
+    /// last sampleable instant so the preview holds the final frame instead of
+    /// rendering blank (which showed as white in the editor).
     pub fn render(
         &mut self,
         project: &Project,
@@ -205,7 +209,20 @@ impl PreviewRenderer {
         width: u32,
         height: u32,
     ) -> FluxResult<Vec<u8>> {
-        let frame_ctx = FrameContext::for_project(project, time, 0);
+        let range = flux_engine::timeline::export_range(project);
+        let start = range.start;
+        let end = start.add(range.duration).unwrap_or(start);
+        let mut t = time;
+        if t < start {
+            t = start;
+        } else if t >= end {
+            let one_us = RationalTime::new(1, 1_000_000).unwrap_or(start);
+            t = end.sub(one_us).unwrap_or(start);
+            if t < start {
+                t = start;
+            }
+        }
+        let frame_ctx = FrameContext::for_project(project, t, 0);
         render_single_frame(
             &self.gpu,
             &self.catalog,

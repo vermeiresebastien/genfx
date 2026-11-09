@@ -286,6 +286,22 @@ async function exportProject() {
   }
 }
 
+function timelineSeconds() {
+  const p = state.project;
+  if (!p || !p.timeline || !p.timeline.range || !p.timeline.range.duration) return 8;
+  const d = p.timeline.range.duration;
+  const s = d.numerator / d.denominator;
+  return s > 0 ? s : 8;
+}
+
+// Keep the playhead inside [0, duration) so the preview never samples past the
+// last clip (which would render blank/white).
+function clampTime() {
+  const dur = timelineSeconds();
+  if (state.time < 0) state.time = 0;
+  if (state.time >= dur) state.time = state.time % dur;
+}
+
 function setupPlayback() {
   const btn = document.getElementById("playBtn");
   btn.onclick = () => {
@@ -297,6 +313,7 @@ function setupPlayback() {
       // queue buildup if a render runs long.
       state.previewTimer = setInterval(() => {
         state.time += 1 / 30;
+        clampTime();
         requestPreview();
       }, 100);
     } else {
@@ -305,10 +322,12 @@ function setupPlayback() {
   };
   document.getElementById("prevBtn").onclick = () => {
     state.time = Math.max(0, state.time - 1 / 30);
+    clampTime();
     requestPreview();
   };
   document.getElementById("nextBtn").onclick = () => {
     state.time += 1 / 30;
+    clampTime();
     requestPreview();
   };
 }
