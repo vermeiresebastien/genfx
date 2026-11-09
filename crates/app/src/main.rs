@@ -47,6 +47,10 @@ fn run(args: &[String]) -> FluxResult<()> {
             let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
             cmd_demo_media(&video, &dir)
         }
+        "contact-sheet" => {
+            let dir = PathBuf::from(args.get(1).cloned().unwrap_or_else(|| "out".into()));
+            cmd_contact_sheet(&dir)
+        }
         "render" => {
             let project = PathBuf::from(
                 args.get(1).cloned().ok_or_else(|| FluxError::new(flux_domain::ErrorCode::InvalidCommand, "cli", "render needs a project path"))?,
@@ -178,6 +182,22 @@ fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
+    Ok(())
+}
+
+fn cmd_contact_sheet(dir: &std::path::Path) -> FluxResult<()> {
+    let catalog = build_catalog();
+    let effects: Vec<String> = catalog
+        .entries
+        .iter()
+        .filter(|e| (e.manifest.id.starts_with("fx.") || e.manifest.id.starts_with("preset.")) && e.manifest.implementation.kind == "fragment")
+        .map(|e| e.manifest.id.clone())
+        .collect();
+    std::fs::create_dir_all(dir)?;
+    let (w, h, px) = export::contact_sheet(&effects, 160, 90, 8)?;
+    let path = dir.join("effects_contact_sheet.png");
+    flux_media::write_png_rgba(&path, w, h, &px)?;
+    println!("contact sheet ({} effects, {}x{}) -> {}", effects.len(), w, h, path.display());
     Ok(())
 }
 

@@ -445,6 +445,76 @@ impl FluxErrorInternal for FluxError {
     }
 }
 
+/// Render a contact sheet: each requested effect applied to gen.plasma, tiled
+/// into a single RGBA image with `cells_x` columns. Returns (w, h, rgba).
+pub fn contact_sheet(
+    effects: &[String],
+    cell_w: u32,
+    cell_h: u32,
+    cells_x: u32,
+) -> FluxResult<(u32, u32, Vec<u8>)> {
+    let gpu = Gpu::new(BackendPref::Auto)?;
+    let catalog = build_catalog();
+    let mut compiler = EffectCompiler::new(&gpu);
+    let rows = (effects.len() as u32).div_ceil(cells_x.max(1));
+    let out_w = cells_x * cell_w;
+    let out_h = rows * cell_h;
+    let mut sheet = vec![0u8; (out_w * out_h * 4) as usize];
+    let mut cache: HashMap<String, RuntimeGraph> = HashMap::new();
+    let mut router = Router::default();
+    let project = flux_domain::Project::new("sheet", 3);
+    let ctx = FrameContext::for_project(&project, RationalTime::new(1, 2).unwrap(), 0);
+
+    for (i, eff) in effects.iter().enumerate() {
+        let graph = crate::samples::chain_graph("gen.plasma", &[eff.as_str()]);
+        let key = graph.id.clone();
+        if !cache.contains_key(&key) {
+            let rt = RuntimeGraph::activate(&gpu, &mut compiler, &catalog, &graph, cell_w, cell_h, 1)?;
+            cache.insert(key.clone(), rt);
+        }
+        let rt = cache.get_mut(&key).unwrap();
+        let mut resolved = HashMap::new();
+        let snap = flux_domain::params::FeatureSnapshot::default();
+        for pass in &rt.compiled.passes {
+            if let Some(e) = catalog.get(&pass.type_id) {
+                let mut buf = NodeParamsBuffer::defaults(&e.manifest);
+                let vals = router.resolve_node(&graph, &pass.node_id, ctx.project_time, &snap, ctx.sim_dt, &project)?;
+                let (_, layout) = flux_catalog::pack::params_wgsl(&e.manifest.parameters);
+                for slot in &layout.slots {
+                    if let Some(v) = vals.get(&slot.id) {
+                        match slot.kind {
+                            flux_catalog::pack::SlotKind::F32 => buf.floats[slot.vec4_index][slot.component] = *v as f32,
+                            flux_catalog::pack::SlotKind::U32 => buf.uints[slot.vec4_index][slot.component] = (*v).max(0.0) as u32,
+                            _ => {}
+                        }
+                    }
+                }
+                resolved.insert(pass.node_id.clone(), buf);
+            }
+        }
+        let src = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d { width: cell_w, height: cell_h, depth_or_array_layers: 1 },
+            mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let sv = src.create_view(&Default::default());
+        rt.execute(&gpu, &compiler, &catalog, &ctx, &sv, &resolved, 1.0)?;
+        let (_, _, px) = read_full(&gpu, &rt.target_texture(), cell_w, cell_h)?;
+        // blit into sheet
+        let cx = (i as u32 % cells_x) * cell_w;
+        let cy = (i as u32 / cells_x) * cell_h;
+        for y in 0..cell_h {
+            let dst = (((cy + y) * out_w + cx) * 4) as usize;
+            let s = ((y * cell_w) * 4) as usize;
+            sheet[dst..dst + (cell_w * 4) as usize].copy_from_slice(&px[s..s + (cell_w * 4) as usize]);
+        }
+    }
+    Ok((out_w, out_h, sheet))
+}
+
 /// Convenience: render with the default encode codec.
 pub fn export_default(project: &Project, out_dir: &Path) -> FluxResult<ExportResult> {
     export_project(
