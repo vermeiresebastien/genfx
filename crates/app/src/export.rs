@@ -258,16 +258,14 @@ fn render_single_frame(
     ctx.source_width = width;
     ctx.source_height = height;
     let ctx = &ctx;
-    // Build the display graph: pick the top-most visible clip and render its
-    // clip graph (or a solid generator). This is the composition path the live
-    // editor uses; multi-track compositing is handled by graph scope nodes.
+    // Pick the TOP-MOST visible clip at this time (last in bottom-to-top order),
+    // matching normal compositor semantics: a newly added scene on a higher track
+    // is what you see, and it changes when you click a different generator/effect.
+    // (Full multi-track blending is a larger feature; this renders the active clip
+    // faithfully so edits are visible immediately.)
     let items = render_items(project, ctx.project_time);
-    let chosen_graph_id = items.iter().find_map(|it| match it {
-        RenderItem::Clip { clip, .. } => {
-            // Prefer a clip graph if present; otherwise synthesize a graph from
-            // the clip's generator/asset.
-            clip_graph_for(project, clip)
-        }
+    let chosen_graph_id = items.iter().rev().find_map(|it| match it {
+        RenderItem::Clip { clip, .. } => clip_graph_for(project, clip),
         _ => None,
     });
 
