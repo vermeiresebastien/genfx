@@ -1,53 +1,54 @@
 {
   "spec_version": "2.0",
   "spec_date": "2026-11-09",
-  "active_platform": "windows-x64 (10.0.19045)",
+  "active_platform": "windows-x64",
   "host": {
-    "os": "Windows 11-class (10.0.19045)",
-    "cpu": "AMD Ryzen 9 3900X",
-    "gpu": "NVIDIA GeForce RTX 2080 Ti (Vulkan backend selected by wgpu auto; DX12 available)",
-    "rustc": "1.99.0 stable (x86_64-pc-windows-msvc)",
+    "os": "Windows 10.0.19045 (Windows 11-class)",
+    "cpu": "AMD Ryzen 9 3900X (12c/24t)",
+    "gpu": "NVIDIA GeForce RTX 2080 Ti, driver 32.0.15.6094 (wgpu auto-selected Vulkan backend)",
+    "rustc": "1.99.0 stable x86_64-pc-windows-msvc",
     "node": "24.19.0",
     "pnpm": "11.21.0",
     "ffmpeg": "9.0-full_build (libx264/libx265/prores/aac/gif/png/wav)"
   },
   "selected_dependencies": {
-    "serde": "1", "serde_json": "1", "uuid": "1", "thiserror": "2", "tracing": "0.1",
-    "wgpu": "27.0.1", "naga": "27 (wgsl-in)", "bytemuck": "1", "pollster": "0.4",
-    "crossbeam-channel": "0.5", "rustfft": "6", "egui": "0.37", "egui-wgpu": "0.37",
-    "egui-winit": "0.37", "winit": "0.30"
+    "wgpu": "27.0.1", "naga": "27", "serde": "1", "serde_json": "1", "uuid": "1",
+    "thiserror": "2", "bytemuck": "1", "pollster": "0.4", "rustfft": "6"
   },
-  "current_task": "Core engine/render/export verified; building GUI + xtask + docs + evidence",
-  "completed_core": [
-    "T00 toolchain inventory + spike",
-    "T01 domain (rational time, document, commands/undo, params) - 30 tests",
-    "Catalog: 216 entries (28 FX + 24 families + all G rows + utilities), presets - 8 tests",
-    "Engine: graph validation/compile, timeline mapping, modulation router - 21 tests",
-    "Media: ffmpeg probe/decode/encode/PNG/WAV round-trips - 6 tests",
-    "Audio: FFT analysis, bands, onset, tempo, mixer, ring - 14 tests",
-    "Render: wgpu device, all-catalog shader compile on GPU, solid color oracle, preview - 8 tests",
-    "Export: real 1280x720 H.264+AAC MP4 (240 frames, 384000 samples) verified via ffprobe",
-    "CLI: flux list/doctor/new-demo/demo-render/render"
+  "current_task": "T27 reconcile and deliver",
+  "verified_core": [
+    "domain: rational time/document/commands/undo/modulation (30 tests pass)",
+    "catalog: 216 entries (28 requested FX + 24 families + all 142 required + 14 conditional G rows + utilities); 8 tests",
+    "engine: graph validation/compile (type/cycle/missing/limits), timeline mapping, router (21 tests)",
+    "media: FFmpeg probe/decode RGBA/audio/encode + PNG/WAV round-trips (6 tests)",
+    "audio: FFT bands/RMS/onset/tempo/chroma/mixer/ring (14 tests)",
+    "render: wgpu device, all 216 shaders compile into pipelines on GPU, solid color oracle, preview/full readback (8 tests)",
+    "integration: 123 generators render without panic, 24 effects over plasma produce varied output, determinism, time variation, solid oracle (6 tests)",
+    "export: real H.264+AAC MP4 (generator 1280x720/240f/384000 samples; media 640x360/180f), ffprobe verified; contact sheet of 43 effects",
+    "xtask: doctor/fixtures/catalog/check/test-gpu/scenario/benchmark/report/package",
+    "requirements.json generated (345 records)"
   ],
   "gates_passed": [
-    "cargo test -p flux-domain (30)",
-    "cargo test -p flux-catalog (8)",
-    "cargo test -p flux-engine (21)",
-    "cargo test -p flux-media (6)",
-    "cargo test -p flux-audio (14)",
-    "cargo test -p flux-render --lib (8, includes GPU catalog shader compile)",
-    "flux demo-render -> MP4 240f/384000 samples, ffprobe codec h264/aac 1280x720 4.0s"
+    "87 unit tests + 6 integration tests green",
+    "cargo xtask test-gpu: 216 shaders compiled, 0 failures",
+    "cargo xtask doctor: PASS",
+    "cargo xtask benchmark: 30 generators 1080p p50 ~2.5ms",
+    "demo-render plasma+bloom -> valid MP4 (ffprobe 240f, 4.0s)",
+    "demo-media testsrc2 -> valid MP4 180f, faithful frame"
+  ],
+  "known_gaps": [
+    "Native GUI editor not built: egui 0.37 requires wgpu 30; stack pinned to wgpu 27 (blocker below)",
+    "SDF/mesh/particle/physics/fluid rows: shaders compile & present; their CPU/3D producers are manifest-complete but not fully wired to render distinct geometry in export (presentation passthrough)",
+    "Vector/text/SVG/Lottie rows: presentation passthrough; rasterizers not wired",
+    "OS capture, Spout/Syphon/NDI, Max, Link: external blockers",
+    "WebGPU harness not built",
+    "No golden-image tolerance suite (metamorphic tests used instead)"
   ],
   "commands_to_resume": [
-    "cargo test --workspace --exclude flux-app",
-    "cargo run -p flux-app --no-default-features -- demo-render gen.plasma out",
-    "cargo run -p flux-app -- doctor"
-  ],
-  "next_steps": [
-    "Finish egui GUI (feature gui) or document as experimental",
-    "xtask: doctor/fixtures/check/catalog/test-gpu/scenario/report/package",
-    "requirements.json generation from catalog",
-    "WebGPU harness (apps/shader-harness)",
-    "Evidence files, FINAL-REPORT, platform matrix, blockers"
+    "cargo test --workspace",
+    "cargo run -p flux-app -- demo-render gen.plasma out",
+    "cargo run -p flux-app -- demo-media <video> out",
+    "cargo run -p flux-app -- contact-sheet out",
+    "cargo xtask test-gpu --profile baseline"
   ]
 }

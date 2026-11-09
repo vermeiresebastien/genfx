@@ -1,0 +1,17 @@
+codec_name=h264
+width=640
+height=360
+duration=3.000000
+nb_frames=180
+codec_name=aac
+duration=3.000000
+nb_frames=142
+--- 
+codec_name=h264
+width=1280
+height=720
+duration=4.000000
+nb_frames=240
+codec_name=aac
+duration=4.000000
+nb_frames=189

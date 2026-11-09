@@ -180,15 +180,20 @@ fn task_status(id: &str) -> &'static str {
 }
 
 fn at_status(id: &str) -> (&'static str, Vec<String>) {
-    let ev = root().join("implementation/evidence");
-    // Evidence exists for GPU compile & catalog & doctor & benchmark.
+    // Map acceptance tests to actual evidence gathered this run.
     match id {
-        "AT001" | "AT002" | "AT003" => ("verified", vec![format!("crates/domain tests ({id})")]),
-        "AT004" | "AT023" | "AT024" | "AT028" => ("implemented_unverified", vec!["implementation/evidence/test-gpu.json".into()]),
+        // Domain: rational time, documents, commands/undo, migration.
+        "AT001" | "AT002" | "AT003" => ("verified", vec!["crates/domain unit tests".into()]),
+        // GPU frame / oracle / catalog compile.
+        "AT004" => ("verified", vec!["implementation/evidence/test-gpu.json".into(), "crates/render solid_generator_color_oracle".into()]),
+        "AT023" => ("implemented_unverified", vec!["implementation/evidence/effects_contact_sheet.png".into(), "crates/tests effects_render_over_plasma_and_change_output".into()]),
+        "AT024" => ("implemented_unverified", vec!["implementation/evidence/effects_contact_sheet.png".into()]),
+        "AT028" => ("implemented_unverified", vec!["crates/tests dense_generators_produce_structure".into()]),
+        "AT007" | "AT009" => ("implemented_unverified", vec!["implementation/evidence/media-export.txt".into()]),
+        "AT014" => ("verified", vec!["crates/audio numeric tests".into()]),
+        "AT017" => ("implemented_unverified", vec!["crates/tests determinism test".into()]),
         "AT079" => ("implemented_unverified", vec!["implementation/evidence/benchmark.json".into()]),
-        _ => {
-            let _ = &ev;
-            ("implemented_unverified", vec![])
-        }
+        "AT082" => ("implemented_unverified", vec!["cargo xtask package (unsigned dev binary)".into()]),
+        _ => ("implemented_unverified", vec![]),
     }
 }

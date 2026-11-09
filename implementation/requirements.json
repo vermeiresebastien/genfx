@@ -3067,7 +3067,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/domain tests (AT001)"
+        "crates/domain unit tests"
       ],
       "blocker": null
     },
@@ -3079,7 +3079,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/domain tests (AT002)"
+        "crates/domain unit tests"
       ],
       "blocker": null
     },
@@ -3091,7 +3091,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/domain tests (AT003)"
+        "crates/domain unit tests"
       ],
       "blocker": null
     },
@@ -3099,11 +3099,12 @@
       "id": "AT004",
       "title": "Headless/native GPU frame; analytic color/alpha oracle, row stride, first frame initialized, no double transfer encoding.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/test-gpu.json"
+        "implementation/evidence/test-gpu.json",
+        "crates/render solid_generator_color_oracle"
       ],
       "blocker": null
     },
@@ -3134,7 +3135,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
@@ -3154,7 +3157,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
@@ -3201,10 +3206,12 @@
       "id": "AT014",
       "title": "Silence/bass/sine/treble analysis; bands/window normalization/onset time match numeric expectations.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/audio numeric tests"
+      ],
       "blocker": null
     },
     {
@@ -3234,7 +3241,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests determinism test"
+      ],
       "blocker": null
     },
     {
@@ -3295,7 +3304,8 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/test-gpu.json"
+        "implementation/evidence/effects_contact_sheet.png",
+        "crates/tests effects_render_over_plasma_and_change_output"
       ],
       "blocker": null
     },
@@ -3307,7 +3317,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/test-gpu.json"
+        "implementation/evidence/effects_contact_sheet.png"
       ],
       "blocker": null
     },
@@ -3349,7 +3359,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/test-gpu.json"
+        "crates/tests dense_generators_produce_structure"
       ],
       "blocker": null
     },
@@ -3892,7 +3902,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "cargo xtask package (unsigned dev binary)"
+      ],
       "blocker": null
     },
     {

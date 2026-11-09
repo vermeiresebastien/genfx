@@ -1,24 +1,26 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **NDI SDK/runtime** (R006, G185, AT060): no authorized official SDK or licensed runtime
-  installed. Adapter interface + loader implemented; real send/receive verification is
-  `blocked_external`.
-- **Spout2 / Syphon** (R006, AT058/AT059): Spout requires the Spout2 native SDK build;
-  Syphon is macOS-only and no macOS host exists here. Interface implemented; runtime
-  verification blocked.
-- **Ableton Link license** (R015, AT063): no license decision; Link adapter is not enabled.
-  Max/MIDI transport forwarding implemented separately.
-- **Max for Live host** (R002, AT062): no Max/Live install; `.maxpat` sources are produced
-  and structurally tested, `.amxd` packaging is blocked until a host exists.
-- **macOS hosts** (R001, AT083/AT084): no macOS environment; all macOS-only code paths are
-  `implemented_unverified`.
-- **Code signing / notarization**: no signing identity configured.
-- **Optional vision models** (G170–G177, AT075): no models/runtimes present; conditional
-  nodes report MODEL_MISSING and stay editable.
+- **Native GUI editor API mismatch** — the spec's editor UI (React Flow / Tauri) is not
+  used. A native egui editor was attempted but egui 0.37 pins `wgpu 30`, while the
+  verified renderer is pinned to `wgpu 27`; mixing both aborts on a windows-crate
+  conflict inside wgpu-hal D3D12. The verified product path is the headless CLI
+  (`flux render` / `demo-render` / `demo-media` / `contact-sheet`) which exercises the
+  full engine, renderer, effects, generators, media and export. A GUI requires either
+  upgrading the renderer to wgpu 30 (a rework) or adopting the Tauri 2 + React shell.
+- **NDI SDK/runtime**, **Spout2 SDK (Windows)**, **Syphon (macOS)**: not installed;
+  real send/receive verification blocked.
+- **Ableton Link** license not resolved; audio transport uses internal/MIDI only.
+- **Max for Live host**: not installed; `.amxd` packaging blocked.
+- **macOS hosts**: unavailable; macOS-only paths unverified.
+- **Code signing / notarization**: no identity.
+- **Optional vision models** (G170–G177): not present; conditional nodes stay editable.
 
-## Documented deviations
-- Desktop shell is a native egui/wgpu editor rather than Tauri+React (see D001). The
-  engine, commands, validation and determinism contracts are unchanged; React Flow is
-  replaced by an equivalent native node canvas.
-- Media uses an FFmpeg process worker rather than in-process `ffmpeg-next` (see D004).
+## Implemented but unverified
+- SDF/mesh/particle/physics/fluid/vector/text generator rows: manifests complete, WGSL
+  pipelines compile and present; their CPU/3D/raster producers are specified but not
+  fully wired into export (they render as presentation passthrough of an uploaded
+  texture, which is transparent without a producer). The 2D/math analytic generators
+  (123 rows) render real content and are covered by integration tests.
+- OS capture adapters (Windows camera/screen/WASAPI loopback): platform cfg scaffolding
+  only; not runtime-verified on a device in this run.
