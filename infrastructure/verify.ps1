@@ -38,6 +38,8 @@ if (-not $Quick) {
 Step 'catalog' { cargo run -q -p xtask -- catalog }
 Step 'doctor' { cargo run -q -p xtask -- doctor }
 Step 'test-gpu' { cargo run -q -p xtask -- test-gpu --profile baseline }
+Step 'shaders-export' { cargo run -q -p xtask --bin export_shaders }
+Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }

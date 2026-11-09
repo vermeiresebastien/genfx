@@ -37,8 +37,14 @@ jobs:
         run: cargo run -q -p xtask -- doctor
       - name: GPU catalog shader compile
         run: cargo run -q -p xtask -- test-gpu --profile baseline
+      - name: Shader harness export (Naga validate)
+        run: cargo run -q -p xtask --bin export_shaders
+      - name: Max for Live patch structure
+        run: node apps/max-for-live/check-maxpat.cjs
       - name: Media fixtures
         run: cargo run -q -p xtask -- fixtures
+      - name: Desktop GUI build
+        run: cargo build -p flux-desktop
       - name: Release build
         run: cargo build --release -p flux-app
       - name: Upload evidence

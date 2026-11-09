@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-11-09T03:11:45.6604660Z",
+    "generatedAt":  "2026-11-09T03:18:43.7231624Z",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  true,
     "ok":  true,
@@ -24,6 +24,14 @@
                                    "exit":  0,
                                    "ok":  true
                                },
+                  "shaders-export":  {
+                                         "exit":  0,
+                                         "ok":  true
+                                     },
+                  "maxpat":  {
+                                 "exit":  0,
+                                 "ok":  true
+                             },
                   "fixtures":  {
                                    "exit":  0,
                                    "ok":  true

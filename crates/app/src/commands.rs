@@ -58,6 +58,23 @@ pub enum GuiCommand {
         node_id: String,
         time_seconds: f64,
     },
+    /// Learn a control binding for a node parameter (OSC/MIDI).
+    LearnBinding {
+        binding: crate::control::ControlBinding,
+        graph_id: String,
+    },
+    /// Apply a live OSC parameter control to the document.
+    LiveOsc {
+        node: String,
+        param: String,
+        value: f32,
+    },
+    /// Apply a live MIDI control to the document via learned bindings.
+    LiveMidi {
+        channel: u8,
+        cc: u8,
+        value: f32,
+    },
 }
 
 /// Response envelope.
@@ -96,6 +113,7 @@ impl ResponseError {
 pub struct CommandHost {
     pub dispatcher: Dispatcher,
     route: flux_engine::router::Router,
+    control_map: crate::control::ControlMap,
 }
 
 impl CommandHost {
@@ -103,6 +121,7 @@ impl CommandHost {
         Self {
             dispatcher: Dispatcher::new(project),
             route: Default::default(),
+            control_map: Default::default(),
         }
     }
 
@@ -268,6 +287,50 @@ impl CommandHost {
                     }
                 }
                 Err(FluxError::new(ErrorCode::NotFound, "gui", "node not found"))
+            }
+            GuiCommand::LearnBinding { binding, graph_id } => {
+                self.control_map.graph_id = graph_id;
+                self.control_map.bindings.push(binding);
+                Ok(serde_json::json!({ "bindings": self.control_map.bindings.len() }))
+            }
+            GuiCommand::LiveOsc { node, param, value } => {
+                let graph_id = self.control_map.graph_id.clone();
+                let changed = if graph_id.is_empty() {
+                    false
+                } else {
+                    crate::control::apply_to_dispatcher(
+                        &mut self.dispatcher,
+                        &graph_id,
+                        &node,
+                        &param,
+                        value,
+                    )?
+                };
+                Ok(serde_json::json!({ "changed": changed, "revision": self.revision() }))
+            }
+            GuiCommand::LiveMidi { channel, cc, value } => {
+                let graph_id = self.control_map.graph_id.clone();
+                let target = crate::control::apply_midi(
+                    &self.control_map,
+                    &flux_integrations::midi::MidiControl::Cc {
+                        channel,
+                        cc,
+                        value: value as f64,
+                    },
+                );
+                let changed = match target {
+                    Some((node, param, v)) if !graph_id.is_empty() => {
+                        crate::control::apply_to_dispatcher(
+                            &mut self.dispatcher,
+                            &graph_id,
+                            &node,
+                            &param,
+                            v,
+                        )?
+                    }
+                    _ => false,
+                };
+                Ok(serde_json::json!({ "changed": changed, "revision": self.revision() }))
             }
         }
     }

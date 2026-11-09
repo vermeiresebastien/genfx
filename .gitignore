@@ -15,3 +15,4 @@ smoke/
 "rec_out/"  
 "media_out/"  
 "apps/desktop/src-tauri/gen/"  
+"apps/shader-harness/shaders.json"  
