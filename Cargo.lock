@@ -5217,6 +5217,7 @@ dependencies = [
  "flux-engine",
  "flux-media",
  "flux-render",
+ "naga",
  "serde",
  "serde_json",
  "wgpu",

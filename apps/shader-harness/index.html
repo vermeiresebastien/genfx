@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Flux WebGPU shader conformance harness</title>
+  <style>
+    body { font: 13px/1.5 system-ui, sans-serif; background: #14161a; color: #d7dbe2; margin: 24px; }
+    h1 { font-size: 18px; }
+    #summary { margin: 12px 0; font-size: 15px; }
+    .ok { color: #46c07a; } .fail { color: #ff6b6b; } .muted { color: #8a919c; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { text-align: left; border-bottom: 1px solid #2c313a; padding: 4px 8px; }
+    th { color: #8a919c; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Flux WebGPU shader conformance harness</h1>
+  <p class="muted">Loads the same generated WGSL the native renderer uses and compiles each
+  shader module on the browser's WebGPU device. This is a conformance/tooling target; it
+  never runs an independent simulation and is not an output path.</p>
+  <div id="summary">Initializing WebGPU…</div>
+  <div id="progress" class="muted"></div>
+  <table><thead><tr><th>Shader</th><th>Status</th><th>Detail</th></tr></thead><tbody id="rows"></tbody></table>
+
+  <script>
+    const rows = document.getElementById("rows");
+    const summary = document.getElementById("summary");
+    const progress = document.getElementById("progress");
+
+    function row(id, ok, detail) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${id}</td><td class="${ok ? "ok" : "fail"}">${ok ? "compiled" : "failed"}</td><td class="muted">${detail ?? ""}</td>`;
+      rows.appendChild(tr);
+    }
+
+    async function main() {
+      const manifest = await (await fetch("shaders.json")).json();
+      if (!navigator.gpu) {
+        summary.innerHTML = `<span class="fail">WebGPU unavailable in this browser</span> — ${manifest.count} shaders present and Naga-validated natively; browser conformance is a real verification gap on this host.`;
+        return;
+      }
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        summary.innerHTML = `<span class="fail">No WebGPU adapter</span> — browser conformance unverified.`;
+        return;
+      }
+      const device = await adapter.requestDevice();
+      let pass = 0, fail = 0;
+      for (let i = 0; i < manifest.shaders.length; i++) {
+        const s = manifest.shaders[i];
+        try {
+          device.pushErrorScope("validation");
+          device.createShaderModule({ code: s.wgsl, label: s.id });
+          const err = await device.popErrorScope();
+          if (err) { fail++; row(s.id, false, err.message); }
+          else { pass++; }
+        } catch (e) {
+          fail++;
+          row(s.id, false, String(e));
+        }
+        if (i % 20 === 0) progress.textContent = `${i}/${manifest.shaders.length}`;
+      }
+      summary.innerHTML = `<span class="${fail === 0 ? "ok" : "fail"}">${pass} compiled, ${fail} failed</span> of ${manifest.count} (shader ABI v${manifest.shaderAbiVersion})`;
+      progress.textContent = "";
+    }
+    main().catch((e) => { summary.textContent = "harness error: " + e; });
+  </script>
+</body>
+</html>

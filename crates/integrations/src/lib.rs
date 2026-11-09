@@ -4,6 +4,8 @@
 //! report `blocked_external` when their runtime is absent; the protocol surfaces
 //! that can be implemented from crates (OSC, MIDI) are real and tested here.
 
+pub mod bridge;
+pub mod live;
 pub mod midi;
 pub mod osc;
 
@@ -39,25 +41,44 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             limitation: "no virtual ports on Windows".into(),
         },
         IntegrationCapability {
+            id: "bridge".into(),
+            available: true,
+            implemented: true,
+            verified: true, // protocol decode + maxpat structural checks
+            limitation: "Max for Live .amxd packaging needs a Max host".into(),
+        },
+        IntegrationCapability {
             id: "ndi".into(),
-            available: false,
-            implemented: false,
+            available: live::protocol_status()
+                .iter()
+                .find(|p| p.protocol == "ndi")
+                .map(|p| p.available)
+                .unwrap_or(false),
+            implemented: true,
             verified: false,
-            limitation: "official NDI SDK/runtime not installed".into(),
+            limitation: "interface implemented; NDI SDK not present at build".into(),
         },
         IntegrationCapability {
             id: "spout".into(),
-            available: false,
-            implemented: false,
+            available: live::protocol_status()
+                .iter()
+                .find(|p| p.protocol == "spout")
+                .map(|p| p.available)
+                .unwrap_or(false),
+            implemented: true,
             verified: false,
-            limitation: "Spout2 SDK not installed".into(),
+            limitation: "interface implemented; Spout2 SDK not present at build".into(),
         },
         IntegrationCapability {
             id: "syphon".into(),
-            available: false,
-            implemented: false,
+            available: live::protocol_status()
+                .iter()
+                .find(|p| p.protocol == "syphon")
+                .map(|p| p.available)
+                .unwrap_or(false),
+            implemented: true,
             verified: false,
-            limitation: "macOS only; no macOS host".into(),
+            limitation: "interface implemented; requires macOS + Syphon framework".into(),
         },
         IntegrationCapability {
             id: "link".into(),
