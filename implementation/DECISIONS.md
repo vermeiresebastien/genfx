@@ -108,5 +108,23 @@ its capability is reported as `available=true, implemented=true, verified=true` 
 build cleanly, but enabling it is the intended configuration for a Flux build that offers
 live tempo sync. `flux link` is documented in the user guide.
 
+## D013 — Node-graph compositor (replaces the clip timeline); true DAG executor
+The editor is now a node graph (TouchDesigner / Max style): generators and effects are
+nodes with typed input/output ports, wired arbitrarily (series AND parallel). The frontend
+draws an SVG node canvas; Rust stays authoritative (typed commands AddNode / Connect /
+Disconnect / RemoveNode / MoveNode). The GPU executor was rewritten from a linear
+two-target ping-pong into a **true DAG executor**: each non-terminal node renders into its
+own texture and each input binds to the source node's texture by edge. A second image
+binding (`aux_tex`, group 1 / binding 3) lets two-input nodes (`fx.composite`, `flux.blend`)
+merge parallel branches (both were previously single-input stubs). `render_preview` renders
+the active graph via `PreviewRenderer::render_graph`.
+
+Two correctness bugs found during this work and fixed: (1) **non-float params** (colour /
+enum / bool / vec) were never packed into uniforms from node params — only floats applied,
+which is why "clicking a generator/effect did nothing"; now all kinds pack correctly.
+(2) the runtime cache was keyed by graph **id**, so edits could render a stale/blank frame;
+it is now keyed by a **content hash** of the graph.
+
+
 
 
