@@ -34,3 +34,6 @@ apps/spout-bridge/*.obj
 apps/spout-bridge/dx_build.txt
 apps/spout-bridge/*.pdb
 apps/spout-bridge/*.ilk
+apps/spout-bridge/*.manifest
+apps/spout-bridge/*.txtx
+sp_out.txt
