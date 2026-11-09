@@ -11,3 +11,6 @@ shader_errors.txt
 solid.wgsl
 smoke/ 
 "osc_test.txt"  
+"demo_proj/"  
+"rec_out/"  
+"media_out/"  

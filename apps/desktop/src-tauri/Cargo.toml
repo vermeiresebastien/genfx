@@ -1,0 +1,29 @@
+[package]
+name = "flux-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.85"
+
+[lib]
+name = "flux_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+flux-domain = { path = "../../../crates/domain" }
+flux-engine = { path = "../../../crates/engine" }
+flux-catalog = { path = "../../../crates/catalog" }
+flux-app = { path = "../../../crates/app" }
+flux-media = { path = "../../../crates/media" }
+flux-platform = { path = "../../../crates/platform" }
+flux-integrations = { path = "../../../crates/integrations" }
+
+[[bin]]
+name = "flux-desktop"
+path = "src/main.rs"

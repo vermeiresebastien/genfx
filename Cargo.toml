@@ -12,6 +12,7 @@ members = [
   "crates/integrations",
   "crates/platform",
   "crates/tests",
+  "apps/desktop/src-tauri",
 ]
 [workspace.package]
 version = "0.1.0"
