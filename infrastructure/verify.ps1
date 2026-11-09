@@ -30,10 +30,10 @@ function Step($name, $block) {
 }
 
 Step 'fmt' { cargo fmt --all -- --check }
-Step 'unit-tests' { cargo test -p flux-domain -p flux-catalog -p flux-engine -p flux-media -p flux-audio -p flux-render -p flux-integrations -p flux-app --lib }
+Step 'unit-tests' { cargo test -p flux-domain -p flux-catalog -p flux-engine -p flux-media -p flux-audio -p flux-render -p flux-integrations -p flux-app --lib -- --test-threads=1 }
 if (-not $Quick) {
-    Step 'integration-tests' { cargo test -p flux-tests --test producer_tests; cargo test -p flux-tests --test export_matrix }
-    Step 'golden' { cargo test -p flux-tests --test golden }
+    Step 'integration-tests' { cargo test -p flux-tests --test producer_tests -- --test-threads=1; cargo test -p flux-tests --test export_matrix -- --test-threads=1; cargo test -p flux-tests --test dag_parallel -- --test-threads=1 }
+    Step 'golden' { cargo test -p flux-tests --test golden -- --test-threads=1 }
 }
 Step 'catalog' { cargo run -q -p xtask -- catalog }
 Step 'doctor' { cargo run -q -p xtask -- doctor }

@@ -30,7 +30,7 @@ jobs:
       - name: Clippy (no deny)
         run: cargo clippy --workspace --all-targets -- -A warnings
       - name: Workspace tests
-        run: cargo test --workspace
+        run: cargo test --workspace -- --test-threads=1
       - name: Catalog validation
         run: cargo run -q -p xtask -- catalog
       - name: Doctor (capabilities)

@@ -5,6 +5,16 @@
 use flux_app::export::PreviewRenderer;
 use flux_domain::{Graph, GraphEdge, GraphNode, ParamValue, Project, RationalTime};
 use std::collections::BTreeMap;
+use std::sync::{Mutex, OnceLock};
+
+/// GPU device creation is not safe concurrently from multiple test threads (it
+/// can deadlock). Serialize all GPU tests in this file.
+fn gpu_lock() -> std::sync::MutexGuard<'static, ()> {
+    static L: OnceLock<Mutex<()>> = OnceLock::new();
+    L.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
 
 fn node(id: &str, type_id: &str, params: BTreeMap<String, ParamValue>) -> GraphNode {
     GraphNode {
@@ -35,6 +45,7 @@ fn solid(color: [f64; 4]) -> BTreeMap<String, ParamValue> {
 
 #[test]
 fn parallel_branches_merge_through_composite() {
+    let _g = gpu_lock();
     let mut cp = BTreeMap::new();
     cp.insert("blend".to_string(), ParamValue::Int { value: 1 }); // 1 = add
     cp.insert("opacity".to_string(), ParamValue::Float { value: 1.0 });
@@ -81,6 +92,7 @@ fn parallel_branches_merge_through_composite() {
 
 #[test]
 fn series_chain_renders_non_blank() {
+    let _g = gpu_lock();
     let graph = Graph {
         id: "series-test".into(),
         name: "series".into(),
@@ -119,6 +131,7 @@ fn series_chain_renders_non_blank() {
 
 #[test]
 fn graph_edit_changes_output() {
+    let _g = gpu_lock();
     // Same graph id, different param → cache key must change and output differ.
     let mut r = match PreviewRenderer::new() {
         Ok(r) => r,
@@ -164,6 +177,7 @@ fn graph_edit_changes_output() {
 
 #[test]
 fn gui_command_flow_builds_renderable_graph() {
+    let _g = gpu_lock();
     // Drive the exact CommandHost command flow the node editor uses.
     use flux_app::commands::{CommandHost, GuiCommand, Request};
     let mk = |cmd: GuiCommand| Request {
