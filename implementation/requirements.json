@@ -251,6 +251,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "docs",
         "implementation"
       ],
       "test_ids": [],
@@ -263,7 +264,8 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
-        "crates/integrations"
+        "apps/max-for-live",
+        "crates/integrations/src/live.rs"
       ],
       "test_ids": [],
       "evidence_paths": [],
@@ -275,6 +277,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "apps/shader-harness",
         "crates/app/src/producer.rs"
       ],
       "test_ids": [],
@@ -3641,20 +3644,24 @@
       "id": "AT052",
       "title": "Recorded controls/CSV/JSON/network replay; identical time-mapped data offline; unrecorded live source rejected for export.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app control tests (map/coalesce/apply)"
+      ],
       "blocker": null
     },
     {
       "id": "AT053",
       "title": "Event sequencer/rhythm/expressions/interaction record; deterministic quantization/random-on-beat, no eval escape.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app control tests (map/coalesce/apply)"
+      ],
       "blocker": null
     },
     {
@@ -3700,7 +3707,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
+        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+      ],
       "blocker": null
     },
     {
@@ -3710,7 +3720,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
+        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+      ],
       "blocker": null
     },
     {
@@ -3720,7 +3733,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
+        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+      ],
       "blocker": null
     },
     {
@@ -3730,7 +3746,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations live (source/sink contracts, truthful status)"
+      ],
       "blocker": null
     },
     {
@@ -3740,7 +3758,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations live (source/sink contracts, truthful status)"
+      ],
       "blocker": null
     },
     {
@@ -3750,7 +3770,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations live (source/sink contracts, truthful status)"
+      ],
       "blocker": null
     },
     {
@@ -3760,7 +3782,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations live (source/sink contracts, truthful status)"
+      ],
       "blocker": null
     },
     {

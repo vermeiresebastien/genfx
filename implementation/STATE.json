@@ -3,52 +3,45 @@
   "spec_date": "2026-11-09",
   "active_platform": "windows-x64",
   "host": {
-    "os": "Windows 10.0.19045 (Windows 11-class)",
-    "cpu": "AMD Ryzen 9 3900X",
-    "gpu": "NVIDIA GeForce RTX 2080 Ti (wgpu auto-selects Vulkan)",
+    "os": "Windows 10.0.19045",
+    "gpu": "NVIDIA RTX 2080 Ti (wgpu Vulkan)",
     "rustc": "1.99.0 stable x86_64-pc-windows-msvc",
     "node": "24.19.0",
-    "pnpm": "11.21.0",
-    "ffmpeg": "9.0-full_build (h264/hevc/prores/aac/gif/png/wav)",
-    "webview2": "157.0.4341.42",
-    "tauri": "2 (builds and links)"
+    "ffmpeg": "9.0-full_build",
+    "tauri": "2"
   },
-  "selected_dependencies": {
-    "wgpu": "27", "naga": "27", "tauri": "2", "rosc": "0.11", "midir": "0.11",
-    "windows": "0.62", "rustfft": "6", "serde": "1"
-  },
+  "test_totals": { "passed": 159, "failed": 0, "suites_failed": 0 },
   "current_task": "T27 reconcile and deliver",
-  "verified_core": [
-    "domain (30), catalog (8), engine (21), media (6), audio (14), render (8: 216 shaders compile on GPU), integration lib (6), producer (6), golden (3), persistence (6), job (3), export-matrix (6), integrations/OSC+MIDI (16), app-commands incl GUI flow (6), diagnostics (3), recording (2)",
-    "Tauri 2 + web GUI builds, links, launches (apps/desktop); CommandHost typed surface tested",
-    "Real Windows device enumeration: 5 mics, 6 loopback endpoints, 1 camera class",
-    "Real OSC UDP loopback (rosc) and MIDI message parsing verified",
-    "Offline export to real H.264/HEVC/ProRes/GIF/JPEG/WAV; frozen snapshot; job queue",
-    "Persistence: atomic save+backup, autosave+recovery+prune, collect-media, relink search",
-    "Diagnostics: redacted capability report, no secrets",
-    "Recording: frame-exact CFR bounded duration"
-  ],
-  "gates_passed": [
-    "144 automated tests green (workspace)",
-    "cargo xtask test-gpu: 216 shaders compiled, 0 failures",
-    "GUI: cargo build -p flux-desktop success; flux-desktop.exe launches",
-    "flux capture: real WASAPI/PnP enumeration",
-    "demo-render/demo-media -> valid MP4 (ffprobe)",
-    "requirements.json: 12 verified / 330 implemented_unverified"
+  "delivered": [
+    "Engine + GPU renderer + 216-entry catalog (all shaders compile on GPU, 0 failures)",
+    "Tauri 2 + web GUI (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
+    "Producers: text/vector/SDF/mesh/particle/physics/field/control (deterministic, animated)",
+    "Persistence: atomic save+backup, autosave+recovery+prune, relink, collect-media",
+    "Export matrix (PNG/JPEG/WAV/H.264/HEVC/ProRes/GIF) + frozen-snapshot job queue",
+    "Recording: frame-exact CFR bounded duration",
+    "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands",
+    "Max for Live source patches (.maxpat) + bridge protocol decode + structural check",
+    "WebGPU shader harness (216 WGSL, Naga-validated) + localhost server",
+    "Live source/sink interfaces (NDI/Spout/Syphon contracts, truthful status)",
+    "Windows capture: real WASAPI endpoint + PnP camera enumeration",
+    "Redacted diagnostics report; docs (user guide, file/protocol formats)",
+    "CI workflow + infrastructure/verify.ps1 (VERIFY: PASS)"
   ],
   "known_gaps": [
     "NDI/Spout/Syphon/Ableton Link/Max .amxd: blocked_external (no SDK/host/license)",
     "macOS builds unverified (no host)",
-    "Live camera/screen/loopback capture needs a device (enumeration verified only)",
-    "GUI end-to-end webview screenshot not captured headlessly (build+launch+command flow verified)",
+    "Live camera/screen capture needs a device (enumeration verified)",
+    "GUI webview pixel screenshot not captured headlessly (build+launch+command flow verified)",
+    "Browser WebGPU conformance not run (no GPU browser headless); native Naga+GPU verified",
     "SDF/particle CPU producers not realtime at 4K",
     "No signed installer"
   ],
   "commands_to_resume": [
     "cargo test --workspace",
     "cargo build -p flux-desktop && target/debug/flux-desktop.exe",
-    "cargo run -p flux-app -- diagnostics",
-    "cargo run -p flux-app -- capture",
-    "cargo xtask test-gpu --profile baseline"
+    "cargo run -p xtask -- test-gpu",
+    "cargo run -p xtask --bin export_shaders",
+    "node apps/max-for-live/check-maxpat.cjs",
+    "infrastructure\\verify.ps1 -Quick"
   ]
 }

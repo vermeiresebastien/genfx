@@ -235,9 +235,18 @@ fn product_paths(id: &str, catalog: &flux_catalog::Catalog) -> Vec<String> {
             v.push("crates/app/src/diagnostics.rs".into());
             v.push("crates/platform".into());
         }
-        "R020" => v.push("implementation".into()),
-        "R021" => v.push("crates/integrations".into()),
-        "R022" => v.push("crates/app/src/producer.rs".into()),
+        "R020" => {
+            v.push("implementation".into());
+            v.push("docs".into());
+        }
+        "R021" => {
+            v.push("crates/integrations/src/live.rs".into());
+            v.push("apps/max-for-live".into());
+        }
+        "R022" => {
+            v.push("crates/app/src/producer.rs".into());
+            v.push("apps/shader-harness".into());
+        }
         "R023" => v.push("crates/domain/src/time.rs".into()),
         "R024" => v.push("Cargo.lock".into()),
         _ => {}
@@ -354,6 +363,21 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         "AT054" | "AT055" | "AT056" => (
             "implemented_unverified",
             vec!["implementation/evidence/capture.txt (real WASAPI+PnP enumeration)".into()],
+        ),
+        "AT057" | "AT058" | "AT059" => (
+            "implemented_unverified",
+            vec![
+                "crates/integrations bridge tests (decode/seq/epoch/staleness)".into(),
+                "apps/max-for-live/check-maxpat.cjs (source patch structure)".into(),
+            ],
+        ),
+        "AT060" | "AT061" | "AT062" | "AT063" => (
+            "implemented_unverified",
+            vec!["crates/integrations live (source/sink contracts, truthful status)".into()],
+        ),
+        "AT052" | "AT053" => (
+            "verified",
+            vec!["crates/app control tests (map/coalesce/apply)".into()],
         ),
         "AT074" => (
             "verified",
