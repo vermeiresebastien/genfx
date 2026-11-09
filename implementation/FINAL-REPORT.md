@@ -83,20 +83,23 @@ records present, `blocked_external`. macOS builds unverified. Live camera/screen
 and GUI webview pixel verification need a device/session. SDF/particle CPU producers not
 realtime at 4K.
 
-### 6b. NDI — runtime installed, live discovery verified
-NDI Tools v6.3.2 is installed (`C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll`),
-auto-detected by `crates/integrations/src/ndi.rs` (feature `ndi`). The adapter runtime-loads
-the DLL and defines only the two small, published discovery structs (`NDIlib_find_create_t`,
-`NDIlib_source_t`) — it never reconstructs opaque capture layouts.
+### 6b. NDI — fully working (discovery, send, receive verified)
+NDI Tools v6.3.2 is installed and auto-detected. `apps/ndi-bridge/ndi_shim.cpp` is
+compiled against the **official NDI SDK headers** (vendored by the `ndi-sdk` crate), so
+every struct layout is correct — no ABI guessing. `crates/integrations/src/ndi_io.rs`
+(feature `ndi`) runtime-loads the shim and exposes a live receiver and sender.
 
-**Live verification:** with NDI Test Patterns (and other apps) broadcasting, `flux ndi`
-found **5 real NDI sources** — including `Test Pattern` and the NVIDIA/Adobe senders
-(`implementation/evidence/ndi-discovery-live.txt`). 2 tests pass (load→initialize→discover).
+Verified on this host:
+- **Discovery**: `flux ndi` found **5 live sources** including the NDI Test Pattern
+  (`implementation/evidence/ndi-discovery-live.txt`).
+- **Send → receive (cross-process)**: `flux ndi-send FluxE2E` broadcast a 640×360
+  animated pattern; a second process `flux ndi-recv FluxE2E` connected by discovery and
+  received a **real 640×360 frame** written to PNG
+  (`implementation/evidence/ndi-received-frame.png`, 108,905 bytes) — pixel content
+  matches the sent gradients (`ndi-io.txt`).
+- 2 shim tests pass (load→init→create sender).
 
-**Remaining blocker:** live *send/receive* needs the NDI **SDK headers** (`NDIlib_recv_create_v3_t`,
-`NDIlib_video_frame_v2_t`, …). NDI Tools installs runtime + tools only — no headers or
-import libs — and reconstructing those larger struct layouts from memory is unsafe, so it
-is left unimplemented rather than guessed.
+No remaining NDI blocker.
 
 **Spout2**: prebuilt `SpoutLibrary.{dll,lib}` (x64, BSD-2) is present but exposes a **C++
 pure-virtual** interface, so `apps/spout-bridge/spout_shim.cpp` wraps it in a flat `extern

@@ -9,6 +9,7 @@ pub mod link;
 pub mod live;
 pub mod midi;
 pub mod ndi;
+pub mod ndi_io;
 pub mod osc;
 pub mod spout;
 
@@ -56,10 +57,9 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             implemented: cfg!(feature = "ndi"),
             verified: cfg!(feature = "ndi"),
             limitation: if cfg!(feature = "ndi") {
-                "discovery verified against installed NDI runtime; live send/receive needs a stream + full header ABI".into()
+                "discovery + live send/receive verified (cross-process, real frame)".into()
             } else {
-                "built without feature `ndi` (runtime-loadable discovery available when enabled)"
-                    .into()
+                "built without feature `ndi`".into()
             },
         },
         IntegrationCapability {

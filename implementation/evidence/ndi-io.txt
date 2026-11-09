@@ -1,0 +1,25 @@
+NDI live send/receive verification (2026-11-09)
+
+Built apps/ndi-bridge/ndi_shim.cpp against the official NDI SDK headers
+(vendored by the `ndi-sdk` crate at .../ndi-sdk-0.2.0/vendored/include), generating
+an import lib from the installed NDI 6.3.2 runtime and linking ndi_shim.dll.
+All NDI struct layouts are compiled from the real headers -> no ABI guessing.
+
+Rust adapter: crates/integrations/src/ndi_io.rs (feature `ndi`) runtime-loads
+ndi_shim.dll and exposes a live receiver (source -> packed RGBA8) and sender
+(RGBA8 -> NDI).
+
+Cross-process end-to-end test (two flux.exe processes):
+  Process A: flux ndi-send FluxE2E    -> "NDI sender 'FluxE2E' broadcasting 640x360"
+  Process B: flux ndi-recv FluxE2E     -> "connecting to: DESKTOP-... (FluxE2E)"
+                                          "received 640x360 NDI frame -> ndi_frame.png"
+
+Result: a real 640x360 RGBA frame was received over NDI and written to PNG
+(implementation/evidence/ndi-received-frame.png, 108,905 bytes). The image content
+matches the sent animated R/G gradients -> pixel data round-tripped correctly.
+
+Also verified separately: `flux ndi` discovered 5 live sources on the network
+including the NDI Test Pattern sender (evidence/ndi-discovery-live.txt).
+
+Conclusion: NDI discovery, send, and receive are all functional and verified
+against the real runtime on this host.

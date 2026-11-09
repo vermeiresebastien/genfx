@@ -98,6 +98,9 @@ fn run(args: &[String]) -> FluxResult<()> {
         "integrations" => cmd_integrations(),
         "link" => cmd_link(),
         "ndi" => cmd_ndi(),
+        "ndi-recv" => cmd_ndi_recv(args),
+        "ndi-loopback" => cmd_ndi_loopback(),
+        "ndi-send" => cmd_ndi_send(args),
         "spout" => cmd_spout(),
         "osc" => {
             let port = args
@@ -391,6 +394,239 @@ fn cmd_collect(project_path: &std::path::Path) -> FluxResult<()> {
         dir.join("media").display()
     );
     Ok(())
+}
+
+fn cmd_ndi_loopback() -> FluxResult<()> {
+    #[cfg(feature = "ndi")]
+    {
+        use flux_integrations::ndi::NdiRuntime;
+        use flux_integrations::ndi_io::NdiShim;
+        // End-to-end NDI video pipeline proof: create a sender AND a receiver in
+        // one process, send a known RGBA gradient, receive it back, and confirm
+        // dimensions + non-empty content. Self-contained (no third-party sender).
+        let Some(shim) = NdiShim::load() else {
+            println!("ndi_shim.dll not found (build apps/ndi-bridge).");
+            return Ok(());
+        };
+        if !shim.initialize() {
+            println!("NDI shim failed to initialize.");
+            return Ok(());
+        }
+        let name = format!("Flux Loopback {}", std::process::id());
+        let (w, h) = (640u32, 360u32);
+        let mut img = vec![0u8; (w * h * 4) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let i = ((y * w + x) * 4) as usize;
+                img[i] = (x * 255 / w) as u8; // R gradient
+                img[i + 1] = (y * 255 / h) as u8; // G gradient
+                img[i + 2] = 128; // B
+                img[i + 3] = 255; // A
+            }
+        }
+        let Some(sender) = shim.sender(&name, w, h) else {
+            println!("failed to create NDI sender");
+            shim.shutdown();
+            return Ok(());
+        };
+        // Give the sender a moment to advertise, then connect a receiver to it.
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let Some(recv) = shim.receiver(&name) else {
+            println!("failed to create NDI receiver for own sender");
+            drop(sender);
+            shim.shutdown();
+            return Ok(());
+        };
+        // Pump frames (sender must keep sending while the receiver waits).
+        let mut got = None;
+        for _ in 0..40 {
+            sender.send(&img, w, h);
+            match recv.next_frame(150) {
+                Ok(Some(f)) => {
+                    got = Some(f);
+                    break;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    println!("recv error: {e}");
+                    break;
+                }
+            }
+        }
+        drop(recv);
+        drop(sender);
+        shim.shutdown();
+        match got {
+            Some(f) => {
+                let nonzero = f.rgba.iter().any(|&b| b != 0);
+                println!(
+                    "NDI loopback OK: sent {}x{} RGBA, received {}x{} ({} bytes, nonzero={})",
+                    w,
+                    h,
+                    f.width,
+                    f.height,
+                    f.rgba.len(),
+                    nonzero
+                );
+            }
+            None => println!("NDI loopback: no frame received within timeout"),
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "ndi"))]
+    {
+        println!("NDI is not built into this binary (feature `ndi` off).");
+        Ok(())
+    }
+}
+
+fn cmd_ndi_send(args: &[String]) -> FluxResult<()> {
+    #[cfg(feature = "ndi")]
+    {
+        use flux_integrations::ndi_io::NdiShim;
+        let name = args
+            .get(1)
+            .cloned()
+            .unwrap_or_else(|| "Flux Test Sender".into());
+        let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(10);
+        let Some(shim) = NdiShim::load() else {
+            println!("ndi_shim.dll not found (build apps/ndi-bridge).");
+            return Ok(());
+        };
+        if !shim.initialize() {
+            println!("NDI shim failed to initialize.");
+            return Ok(());
+        }
+        let (w, h) = (640u32, 360u32);
+        let Some(sender) = shim.sender(&name, w, h) else {
+            println!("failed to create NDI sender");
+            shim.shutdown();
+            return Ok(());
+        };
+        println!(
+            "NDI sender '{}' broadcasting {}x{} for {}s",
+            name, w, h, secs
+        );
+        let start = std::time::Instant::now();
+        let mut img = vec![0u8; (w * h * 4) as usize];
+        while start.elapsed().as_secs() < secs {
+            // Animated gradient so the receiver sees live, changing content.
+            let t = start.elapsed().as_millis() as u32;
+            for y in 0..h {
+                for x in 0..w {
+                    let i = ((y * w + x) * 4) as usize;
+                    img[i] = ((x * 255 / w + t / 8) % 256) as u8;
+                    img[i + 1] = (y * 255 / h) as u8;
+                    img[i + 2] = 128;
+                    img[i + 3] = 255;
+                }
+            }
+            sender.send(&img, w, h);
+            std::thread::sleep(std::time::Duration::from_millis(33)); // ~30fps
+        }
+        drop(sender);
+        shim.shutdown();
+        println!("NDI sender stopped.");
+        Ok(())
+    }
+    #[cfg(not(feature = "ndi"))]
+    {
+        let _ = args;
+        println!("NDI is not built into this binary (feature `ndi` off).");
+        Ok(())
+    }
+}
+
+fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
+    #[cfg(feature = "ndi")]
+    {
+        use flux_integrations::ndi::NdiRuntime;
+        use flux_integrations::ndi_io::NdiShim;
+        // Discover sources, connect to one (by name substring or index), grab a
+        // frame, and write it as PNG. Proves real NDI receive end-to-end.
+        let Some(rt) = NdiRuntime::load() else {
+            println!("NDI runtime not found.");
+            return Ok(());
+        };
+        if !rt.initialize() {
+            println!("NDI runtime failed to initialize.");
+            return Ok(());
+        }
+        let sources = rt.discover(true, 1500);
+        rt.shutdown();
+        if sources.is_empty() {
+            println!("No NDI sources found. Start NDI Test Patterns or another sender.");
+            return Ok(());
+        }
+        let want = args.get(1).cloned();
+        let chosen = match &want {
+            Some(q) => sources
+                .iter()
+                .find(|s| s.name.to_lowercase().contains(&q.to_lowercase()))
+                .cloned(),
+            None => sources.first().cloned(),
+        };
+        let Some(src) = chosen else {
+            println!("No source matched {:?}. Available:", want);
+            for s in &sources {
+                println!("  {}", s.name);
+            }
+            return Ok(());
+        };
+        println!("connecting to: {}", src.name);
+        let Some(shim) = NdiShim::load() else {
+            println!("ndi_shim.dll not found (build apps/ndi-bridge).");
+            return Ok(());
+        };
+        if !shim.initialize() {
+            println!("NDI shim failed to initialize.");
+            return Ok(());
+        }
+        let Some(recv) = shim.receiver(&src.name) else {
+            println!("failed to create NDI receiver");
+            shim.shutdown();
+            return Ok(());
+        };
+        // Wait up to ~5s for the first frame.
+        let mut frame = None;
+        for _ in 0..10 {
+            match recv.next_frame(500) {
+                Ok(Some(f)) => {
+                    frame = Some(f);
+                    break;
+                }
+                Ok(None) => continue,
+                Err(e) => {
+                    println!("receive error: {e}");
+                    break;
+                }
+            }
+        }
+        shim.shutdown();
+        match frame {
+            Some(f) => {
+                let dir =
+                    std::path::PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
+                std::fs::create_dir_all(&dir)?;
+                let path = dir.join("ndi_frame.png");
+                flux_media::write_png_rgba(&path, f.width, f.height, &f.rgba)?;
+                println!(
+                    "received {}x{} NDI frame -> {}",
+                    f.width,
+                    f.height,
+                    path.display()
+                );
+            }
+            None => println!("no frame received within timeout (source may be idle)"),
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "ndi"))]
+    {
+        let _ = args;
+        println!("NDI is not built into this binary (feature `ndi` off).");
+        Ok(())
+    }
 }
 
 fn cmd_spout() -> FluxResult<()> {

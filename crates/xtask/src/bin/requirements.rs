@@ -372,10 +372,10 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             ],
         ),
         "AT060" => (
-            "implemented_unverified",
+            "verified",
             vec![
-                "crates/integrations ndi tests (runtime load + discovery)".into(),
-                "implementation/evidence/ndi-discovery.txt".into(),
+                "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io".into(),
+                "implementation/evidence/ndi-io.txt + ndi-received-frame.png (cross-process send/receive)".into(),
             ],
         ),
         "AT061" | "AT062" => (

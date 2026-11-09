@@ -3743,12 +3743,12 @@
       "id": "AT060",
       "title": "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations ndi tests (runtime load + discovery)",
-        "implementation/evidence/ndi-discovery.txt"
+        "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io",
+        "implementation/evidence/ndi-io.txt + ndi-received-frame.png (cross-process send/receive)"
       ],
       "blocker": null
     },

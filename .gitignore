@@ -22,3 +22,10 @@ apps/spout-bridge/*.obj
 apps/spout-bridge/*.dll
 apps/spout-bridge/*.lib
 apps/spout-bridge/*.exp
+apps/ndi-bridge/*.obj
+apps/ndi-bridge/*.lib
+apps/ndi-bridge/*.exp
+apps/ndi-bridge/*.def
+apps/ndi-bridge/exports.txt
+apps/ndi-bridge/Processing.NDI.Lib.x64.dll
+apps/ndi-bridge/ndi_shim.dll
