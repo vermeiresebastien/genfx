@@ -52,3 +52,25 @@ jobs:
         with:
           name: evidence-${{ matrix.os }}
           path: implementation/evidence/**
+
+  # Optional Ableton Link build. Runs only when a prebuilt abl_link.lib is present
+  # (e.g. uploaded as an artifact); otherwise skipped — never fails for a missing SDK.
+  link-integration:
+    name: ableton-link (optional)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch Ableton Link and build abl_link
+        run: |
+          git clone --depth 1 https://github.com/Ableton/link _upstream/link
+          cd _upstream/link
+          git submodule update --init --depth 1
+          cmake -G "Visual Studio 17 2022" -A x64 -S . -B build
+          cmake --build build --config Release --target abl_link
+      - name: Build and test flux with link feature (GPLv2+ — local verify only)
+        run: |
+          $env:FLUX_ABLETON_LINK_LIB = "$PWD\_upstream\link\build\Release"
+          cargo test -p flux-integrations --features link link::
+        shell: pwsh
