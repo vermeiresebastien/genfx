@@ -158,39 +158,75 @@ function renderInspector() {
     host.innerHTML = `<div class="muted">Select a node.</div>`;
     return;
   }
-  let node = null, manifest = null;
+  let node = null;
   for (const g of Object.values(p.graphs)) {
     const n = g.nodes.find((x) => x.id === state.selectedNode);
     if (n) { node = n; break; }
   }
   if (!node) { host.innerHTML = `<div class="muted">Node not found.</div>`; return; }
-  manifest = state.catalog.find((e) => e.id === node.typeId);
+  const manifest = state.catalog.find((e) => e.id === node.typeId);
+  const overrides = node.params || {};
   host.innerHTML = `<div><strong>${manifest?.name ?? node.typeId}</strong></div>
     <div class="muted">${node.typeId} v${node.typeVersion}</div><hr/>`;
-  // Parameter controls from the catalog manifest defaults + node overrides.
-  const params = node.params || {};
-  for (const [k, v] of Object.entries(params)) {
-    const row = document.createElement("div");
-    row.className = "inspector-param";
-    row.innerHTML = `<label>${k}</label>`;
-    if (v.kind === "float" || v.kind === "int") {
-      const input = document.createElement("input");
-      input.type = "number";
-      input.value = v.value;
-      input.step = v.kind === "int" ? "1" : "0.01";
-      input.onchange = () => setParam(node, k, Number(input.value), v.kind);
-      row.appendChild(input);
-    } else if (v.kind === "bool") {
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.checked = v.value;
-      input.onchange = () => setParam(node, k, input.checked, "bool");
-      row.appendChild(input);
-    } else {
-      row.innerHTML += `<span class="muted">${JSON.stringify(v)}</span>`;
+  // Render controls from the catalog manifest's parameter declarations,
+  // overlaid with this node's stored overrides. Nodes without a catalog entry
+  // fall back to showing their raw params.
+  const decls = manifest?.parameters || [];
+  if (decls.length === 0) {
+    const params = overrides;
+    if (Object.keys(params).length === 0) {
+      host.innerHTML += `<div class="muted">No editable parameters.</div>`;
     }
-    host.appendChild(row);
+    for (const [k, v] of Object.entries(params)) {
+      host.appendChild(makeParamRow(node, k, (v && v.kind) || "float", v && v.value, {}));
+    }
+    return;
   }
+  for (const d of decls) {
+    const ov = overrides[d.id];
+    const current = ov !== undefined ? ov.value : d.default;
+    host.appendChild(makeParamRow(node, d.id, d.kind, current, d));
+  }
+}
+
+function makeParamRow(node, paramId, kind, current, decl) {
+  const row = document.createElement("div");
+  row.className = "inspector-param";
+  const label = document.createElement("label");
+  label.textContent = decl.label || paramId;
+  row.appendChild(label);
+  if (kind === "float" || kind === "int") {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = current;
+    input.step = kind === "int" ? "1" : "0.01";
+    if (decl.min != null) input.min = decl.min;
+    if (decl.max != null) input.max = decl.max;
+    input.onchange = () => setParam(node, paramId, Number(input.value), kind);
+    row.appendChild(input);
+  } else if (kind === "bool") {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !!current;
+    input.onchange = () => setParam(node, paramId, input.checked, "bool");
+    row.appendChild(input);
+  } else if (kind === "enum") {
+    const sel = document.createElement("select");
+    (decl.options || []).forEach((opt, i) => {
+      const o = document.createElement("option");
+      o.value = i; o.textContent = opt;
+      sel.appendChild(o);
+    });
+    sel.value = current;
+    sel.onchange = () => setParam(node, paramId, Number(sel.value), "int");
+    row.appendChild(sel);
+  } else {
+    const span = document.createElement("span");
+    span.className = "muted";
+    span.textContent = JSON.stringify(current);
+    row.appendChild(span);
+  }
+  return row;
 }
 
 async function setParam(node, paramId, value, kind) {
@@ -281,8 +317,19 @@ async function boot() {
   // Add one starter scene so the preview shows something.
   const plasma = state.catalog.find((e) => e.id === "gen.plasma");
   if (plasma) await addScene({ ...plasma, kind: "generator" });
+  // Auto-select the first editable node so the inspector is populated.
+  selectFirstNode();
   renderInspector();
   requestPreview();
+}
+
+function selectFirstNode() {
+  const p = state.project;
+  if (!p) return;
+  for (const g of Object.values(p.graphs)) {
+    const n = g.nodes.find((x) => x.typeId !== "flux.output");
+    if (n) { state.selectedNode = n.id; return; }
+  }
 }
 
 window.addEventListener("DOMContentLoaded", boot);

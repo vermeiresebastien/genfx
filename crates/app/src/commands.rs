@@ -275,10 +275,35 @@ impl CommandHost {
                     .entries
                     .iter()
                     .map(|e| {
+                        let params: Vec<serde_json::Value> = e
+                            .manifest
+                            .parameters
+                            .iter()
+                            .filter(|p| !p.hidden)
+                            .map(|p| {
+                                serde_json::json!({
+                                    "id": p.id,
+                                    "kind": match p.kind {
+                                        flux_catalog::ParamKind::Float => "float",
+                                        flux_catalog::ParamKind::Int => "int",
+                                        flux_catalog::ParamKind::Bool => "bool",
+                                        flux_catalog::ParamKind::Enum => "enum",
+                                        flux_catalog::ParamKind::Color => "color",
+                                        flux_catalog::ParamKind::Vec2 => "vec2",
+                                        flux_catalog::ParamKind::Vec3 => "vec3",
+                                    },
+                                    "default": p.default,
+                                    "min": p.min,
+                                    "max": p.max,
+                                    "label": if p.label.is_empty() { p.id.clone() } else { p.label.clone() },
+                                    "options": p.options,
+                                })
+                            })
+                            .collect();
                         serde_json::json!({
                             "id": e.manifest.id, "name": e.manifest.name,
                             "category": e.manifest.category, "kind": if e.manifest.generator_id.is_empty() { "effect" } else { "generator" },
-                            "parameters": e.manifest.parameters.len(),
+                            "parameters": params,
                             "version": e.manifest.version,
                         })
                     })
