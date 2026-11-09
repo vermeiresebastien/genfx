@@ -1,0 +1,18 @@
+{
+  "scope": "Specification structure only; no application build or runtime verification",
+  "status": "passed",
+  "files": 10,
+  "counts": {
+    "product": 24,
+    "effects": 28,
+    "effectFamilies": 24,
+    "generators": 156,
+    "tasks": 28,
+    "acceptance": 85
+  },
+  "wordCount": 25325,
+  "failures": [],
+  "verificationType": "static_specification_review",
+  "applicationImplemented": false,
+  "applicationTestsRun": false
+}

@@ -1,0 +1,12 @@
+[package]
+name = "flux-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+flux-domain = { path = "../domain" }
+flux-catalog = { path = "../catalog" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }

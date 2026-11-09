@@ -1,0 +1,1908 @@
+{
+  "specVersion": "2.0",
+  "purpose": "Planning index; all application implementation and verification is initially pending.",
+  "status": "specified_not_implemented",
+  "counts": {
+    "product": 24,
+    "effects": 28,
+    "effectFamilies": 24,
+    "generators": 156,
+    "tasks": 28,
+    "acceptance": 85
+  },
+  "requirements": {
+    "product": [
+      {
+        "id": "R001",
+        "title": "Windows x64 and macOS arm64/x64 standalone builds",
+        "status": "pending"
+      },
+      {
+        "id": "R002",
+        "title": "Max for Live audio-analysis and MIDI/control companions",
+        "status": "pending"
+      },
+      {
+        "id": "R003",
+        "title": "Native GPU rendering and WebGPU-compatible shader core",
+        "status": "pending"
+      },
+      {
+        "id": "R004",
+        "title": "Video, image, audio, image-sequence, SVG, and Lottie import",
+        "status": "pending"
+      },
+      {
+        "id": "R005",
+        "title": "Webcam, display/window/region capture, microphone, system audio",
+        "status": "pending"
+      },
+      {
+        "id": "R006",
+        "title": "Spout on Windows, Syphon on macOS, NDI send and receive",
+        "status": "pending"
+      },
+      {
+        "id": "R007",
+        "title": "Typed node graph with macros, groups, feedback, and reusable presets",
+        "status": "pending"
+      },
+      {
+        "id": "R008",
+        "title": "Conventional timeline editing and audio mixing",
+        "status": "pending"
+      },
+      {
+        "id": "R009",
+        "title": "Every one of the 28 requested named effects/fills",
+        "status": "pending"
+      },
+      {
+        "id": "R010",
+        "title": "Analog, print, optical, material, glitch, and technical effects",
+        "status": "pending"
+      },
+      {
+        "id": "R011",
+        "title": "Procedural 2D, SVG animation, image animation, typography",
+        "status": "pending"
+      },
+      {
+        "id": "R012",
+        "title": "3D blobs/SDFs, meshes, cameras, lights, imported models",
+        "status": "pending"
+      },
+      {
+        "id": "R013",
+        "title": "GPU particles, physics, fluids, and evolving simulations",
+        "status": "pending"
+      },
+      {
+        "id": "R014",
+        "title": "Audio-driven visuals, control nodes, OSC/MIDI input and output",
+        "status": "pending"
+      },
+      {
+        "id": "R015",
+        "title": "Internal, external, and recorded musical synchronization",
+        "status": "pending"
+      },
+      {
+        "id": "R016",
+        "title": "Real-time editor preview, detached output, multiple monitors",
+        "status": "pending"
+      },
+      {
+        "id": "R017",
+        "title": "Recording and deterministic offline export",
+        "status": "pending"
+      },
+      {
+        "id": "R018",
+        "title": "Project/preset files, autosave, recovery, media relinking",
+        "status": "pending"
+      },
+      {
+        "id": "R019",
+        "title": "Performance diagnostics, resource limits, failure recovery",
+        "status": "pending"
+      },
+      {
+        "id": "R020",
+        "title": "Tests, sample projects, installers, documentation, evidence",
+        "status": "pending"
+      },
+      {
+        "id": "R021",
+        "title": "External creative-code sources and recorded live data",
+        "status": "pending"
+      },
+      {
+        "id": "R022",
+        "title": "Depth, motion, masking, and optional vision/model inputs",
+        "status": "pending"
+      },
+      {
+        "id": "R023",
+        "title": "Conventional rates, aspect ratios, sizes, and capability detection",
+        "status": "pending"
+      },
+      {
+        "id": "R024",
+        "title": "Repository reuse, pinned dependencies, distribution records",
+        "status": "pending"
+      }
+    ],
+    "effects": [
+      {
+        "id": "FX001",
+        "title": "Bloom",
+        "status": "pending"
+      },
+      {
+        "id": "FX002",
+        "title": "Bokeh blur",
+        "status": "pending"
+      },
+      {
+        "id": "FX003",
+        "title": "Channel mixer",
+        "status": "pending"
+      },
+      {
+        "id": "FX004",
+        "title": "Chromatic metal",
+        "status": "pending"
+      },
+      {
+        "id": "FX005",
+        "title": "Color adjustment",
+        "status": "pending"
+      },
+      {
+        "id": "FX006",
+        "title": "Colored edges",
+        "status": "pending"
+      },
+      {
+        "id": "FX007",
+        "title": "Dither",
+        "status": "pending"
+      },
+      {
+        "id": "FX008",
+        "title": "Filter presets",
+        "status": "pending"
+      },
+      {
+        "id": "FX009",
+        "title": "Gooey merge",
+        "status": "pending"
+      },
+      {
+        "id": "FX010",
+        "title": "Gradient map",
+        "status": "pending"
+      },
+      {
+        "id": "FX011",
+        "title": "Halftone",
+        "status": "pending"
+      },
+      {
+        "id": "FX012",
+        "title": "Hatching",
+        "status": "pending"
+      },
+      {
+        "id": "FX013",
+        "title": "Lens distortion",
+        "status": "pending"
+      },
+      {
+        "id": "FX014",
+        "title": "Outlines",
+        "status": "pending"
+      },
+      {
+        "id": "FX015",
+        "title": "Pattern refraction",
+        "status": "pending"
+      },
+      {
+        "id": "FX016",
+        "title": "Pixel stretch",
+        "status": "pending"
+      },
+      {
+        "id": "FX017",
+        "title": "Pixelate",
+        "status": "pending"
+      },
+      {
+        "id": "FX018",
+        "title": "Slice shift",
+        "status": "pending"
+      },
+      {
+        "id": "FX019",
+        "title": "Warp",
+        "status": "pending"
+      },
+      {
+        "id": "FX020",
+        "title": "Clouds",
+        "status": "pending"
+      },
+      {
+        "id": "FX021",
+        "title": "Concentric patterns",
+        "status": "pending"
+      },
+      {
+        "id": "FX022",
+        "title": "Fractal noise",
+        "status": "pending"
+      },
+      {
+        "id": "FX023",
+        "title": "Glowing wave",
+        "status": "pending"
+      },
+      {
+        "id": "FX024",
+        "title": "Mesh gradient",
+        "status": "pending"
+      },
+      {
+        "id": "FX025",
+        "title": "Moiré",
+        "status": "pending"
+      },
+      {
+        "id": "FX026",
+        "title": "Nebula",
+        "status": "pending"
+      },
+      {
+        "id": "FX027",
+        "title": "Pattern grid",
+        "status": "pending"
+      },
+      {
+        "id": "FX028",
+        "title": "Water caustic",
+        "status": "pending"
+      }
+    ],
+    "effectFamilies": [
+      {
+        "id": "FX100",
+        "title": "tone",
+        "status": "pending"
+      },
+      {
+        "id": "FX101",
+        "title": "color",
+        "status": "pending"
+      },
+      {
+        "id": "FX102",
+        "title": "noise",
+        "status": "pending"
+      },
+      {
+        "id": "FX103",
+        "title": "blur",
+        "status": "pending"
+      },
+      {
+        "id": "FX104",
+        "title": "glow",
+        "status": "pending"
+      },
+      {
+        "id": "FX105",
+        "title": "chromatic",
+        "status": "pending"
+      },
+      {
+        "id": "FX106",
+        "title": "VHS",
+        "status": "pending"
+      },
+      {
+        "id": "FX107",
+        "title": "CRT",
+        "status": "pending"
+      },
+      {
+        "id": "FX108",
+        "title": "glitch",
+        "status": "pending"
+      },
+      {
+        "id": "FX109",
+        "title": "pixel",
+        "status": "pending"
+      },
+      {
+        "id": "FX110",
+        "title": "smear",
+        "status": "pending"
+      },
+      {
+        "id": "FX111",
+        "title": "geometry",
+        "status": "pending"
+      },
+      {
+        "id": "FX112",
+        "title": "glass",
+        "status": "pending"
+      },
+      {
+        "id": "FX113",
+        "title": "materials",
+        "status": "pending"
+      },
+      {
+        "id": "FX114",
+        "title": "texture",
+        "status": "pending"
+      },
+      {
+        "id": "FX115",
+        "title": "print",
+        "status": "pending"
+      },
+      {
+        "id": "FX116",
+        "title": "technical",
+        "status": "pending"
+      },
+      {
+        "id": "FX117",
+        "title": "text/graphic",
+        "status": "pending"
+      },
+      {
+        "id": "FX118",
+        "title": "temporal",
+        "status": "pending"
+      },
+      {
+        "id": "FX119",
+        "title": "feedback",
+        "status": "pending"
+      },
+      {
+        "id": "FX120",
+        "title": "keys/mattes",
+        "status": "pending"
+      },
+      {
+        "id": "FX121",
+        "title": "masks",
+        "status": "pending"
+      },
+      {
+        "id": "FX122",
+        "title": "composite",
+        "status": "pending"
+      },
+      {
+        "id": "FX123",
+        "title": "transforms",
+        "status": "pending"
+      }
+    ],
+    "generators": [
+      {
+        "id": "G001",
+        "title": "Solid/color plate",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G002",
+        "title": "Linear/radial/conic gradient",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G003",
+        "title": "Mesh gradient",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G004",
+        "title": "Noise/fBm/turbulence/ridged",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G005",
+        "title": "Voronoi/cellular/crackle",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G006",
+        "title": "Plasma",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G007",
+        "title": "Grid/dots/checker/triangular/hex",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G008",
+        "title": "Concentric/radial rays/spiral",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G009",
+        "title": "Moiré/interference",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G010",
+        "title": "Halftone/hatching pattern fill",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G011",
+        "title": "Topographic contours",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G012",
+        "title": "Clouds/nebula/aurora",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G013",
+        "title": "Glowing wave/oscilloscope",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G014",
+        "title": "Water caustics/ripples",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G015",
+        "title": "Mandelbrot/Julia/Burning Ship",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G016",
+        "title": "Lissajous/rose/spirograph",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G017",
+        "title": "Superformula/superellipse",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G018",
+        "title": "Truchet tiles/maze",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G019",
+        "title": "Texture fields",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G020",
+        "title": "Starfield/galaxy/space tunnel",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G021",
+        "title": "Scan/test signal",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G022",
+        "title": "Polar tunnel/vortex",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G023",
+        "title": "Fractal tree/L-system",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G024",
+        "title": "Strange attractor plot",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G025",
+        "title": "Kaleidoscopic pattern",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G026",
+        "title": "Recursive geometry/tiling",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G027",
+        "title": "Cellular automata",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G028",
+        "title": "Reaction-diffusion",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G030",
+        "title": "SVG source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G031",
+        "title": "Primitive shape/path editor",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G032",
+        "title": "Trim paths/draw-on",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G033",
+        "title": "Follow path",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G034",
+        "title": "Path morph",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G035",
+        "title": "Shape morph",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G036",
+        "title": "Repeater",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G037",
+        "title": "Vector deform",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G038",
+        "title": "Stroke effects",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G039",
+        "title": "Gradient/fill animator",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G040",
+        "title": "Vector mask/clip animation",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G041",
+        "title": "Vector to particles",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G042",
+        "title": "Vector to mesh",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G043",
+        "title": "Lottie source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G044",
+        "title": "Animated icon/logo scene",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G045",
+        "title": "Hand-drawn vector loop",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G050",
+        "title": "Transform/Ken Burns",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G051",
+        "title": "Perspective/corner pin",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G052",
+        "title": "Mesh warp/puppet",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G053",
+        "title": "Displace/liquify",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G054",
+        "title": "2.5D layered parallax",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G055",
+        "title": "Heightfield image",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G056",
+        "title": "Image to particles",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G057",
+        "title": "Image fragmentation",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G058",
+        "title": "Image slices/accordion",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G059",
+        "title": "Slit scan/time displacement",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G060",
+        "title": "Polar/sphere/cylinder projection",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G061",
+        "title": "Collage/cutout",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G062",
+        "title": "Sprite/flipbook",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G063",
+        "title": "Motion brush/cinemagraph",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G064",
+        "title": "Optical-flow advection",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G065",
+        "title": "Image morph/dissolve",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G066",
+        "title": "Image field extraction",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G067",
+        "title": "Infinite zoom/Droste",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G068",
+        "title": "Stop-motion animator",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G070",
+        "title": "Text plate",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G071",
+        "title": "Kinetic type",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G072",
+        "title": "Typewriter/scramble",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G073",
+        "title": "Text on path/ring",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G074",
+        "title": "3D text",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G075",
+        "title": "Text to particles",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G076",
+        "title": "Physics type",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G077",
+        "title": "Counters/clock/data labels",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G078",
+        "title": "Charts/radar/dashboard",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G079",
+        "title": "Technical overlays",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G080",
+        "title": "SDF primitives",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G081",
+        "title": "Blob/metaballs",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G082",
+        "title": "SDF Boolean",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G083",
+        "title": "SDF domain",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G084",
+        "title": "SDF noise displacement",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G085",
+        "title": "Gyroid/lattice",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G086",
+        "title": "Fractal bulb/box",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G087",
+        "title": "SDF render",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G088",
+        "title": "SDF material",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G089",
+        "title": "SDF mesh conversion",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G090",
+        "title": "Mesh primitives",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G091",
+        "title": "Parametric surfaces",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G092",
+        "title": "Path extrusion/ribbon",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G093",
+        "title": "Mesh deformer",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G094",
+        "title": "Geometry instancer",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G095",
+        "title": "Terrain/heightfield",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G096",
+        "title": "Voxel scene",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G097",
+        "title": "Point cloud",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G098",
+        "title": "Model scene",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G099",
+        "title": "Scene composition",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G100",
+        "title": "Camera",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G101",
+        "title": "Lights/environment",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G102",
+        "title": "Material",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G103",
+        "title": "Scene animation",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G104",
+        "title": "Procedural architecture",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G105",
+        "title": "Planet/asteroid/galaxy",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G106",
+        "title": "Ocean surface",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G107",
+        "title": "Volumetric field",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G110",
+        "title": "Emitter",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G111",
+        "title": "Initializer/lifetime",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G112",
+        "title": "Forces",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G113",
+        "title": "Over-life curves",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G114",
+        "title": "Collision",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G115",
+        "title": "Renderer",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G116",
+        "title": "Trails/ribbons",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G117",
+        "title": "Morph/attractor target",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G118",
+        "title": "Boids/flocking",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G119",
+        "title": "Agent trails/slime field",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G120",
+        "title": "Event output",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G130",
+        "title": "Rigid-body world",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G131",
+        "title": "Body/collider",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G132",
+        "title": "Joint/chain",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G133",
+        "title": "Pendulum system",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G134",
+        "title": "Physics shards",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G135",
+        "title": "Cloth/flag",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G136",
+        "title": "Jelly/soft mesh",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G137",
+        "title": "Elastic motion",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G140",
+        "title": "2D stable fluids",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G141",
+        "title": "Ink/smoke fluid styles",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G142",
+        "title": "Shallow water/ripple tank",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G143",
+        "title": "Reaction-diffusion",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G144",
+        "title": "Sand/falling cellular material",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G145",
+        "title": "Particle fluid",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G146",
+        "title": "Magnetic/electric field",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G147",
+        "title": "Wave interference",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G148",
+        "title": "Volume smoke/fire",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G150",
+        "title": "Audio spectrum/wave/spectrogram",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G151",
+        "title": "Beat/rhythm generator",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G152",
+        "title": "Oscillator bank",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G153",
+        "title": "Envelope/trigger",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G154",
+        "title": "MIDI visual source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G155",
+        "title": "OSC value/event source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G156",
+        "title": "CSV/JSON chart source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G157",
+        "title": "Network data source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G158",
+        "title": "Interaction source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G159",
+        "title": "Clock/metadata source",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G160",
+        "title": "File watcher/asset sequencer",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G161",
+        "title": "Event sequencer",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G162",
+        "title": "Control math",
+        "status": "pending",
+        "class": "required"
+      },
+      {
+        "id": "G170",
+        "title": "Optical-flow analysis",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G171",
+        "title": "Face/hand/pose landmarks",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G172",
+        "title": "Person/foreground segmentation",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G173",
+        "title": "Monocular depth",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G174",
+        "title": "Object/marker tracking",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G175",
+        "title": "Webcam motion heatmap",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G176",
+        "title": "Gaussian splat scene",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G177",
+        "title": "Neural animation source",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G180",
+        "title": "WGSL custom generator",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G181",
+        "title": "p5/Canvas sketch",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G182",
+        "title": "Three.js scene",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G183",
+        "title": "Lottie/Rive-like animation adapter",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G184",
+        "title": "Python/process generator",
+        "status": "pending",
+        "class": "conditional"
+      },
+      {
+        "id": "G185",
+        "title": "External app feed",
+        "status": "pending",
+        "class": "conditional"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "T00",
+        "title": "Inspect, resolve dependencies, and prove native integration",
+        "status": "pending"
+      },
+      {
+        "id": "T01",
+        "title": "Workspace, domain, and persistence foundation",
+        "status": "pending"
+      },
+      {
+        "id": "T02",
+        "title": "Native renderer and authoritative preview",
+        "status": "pending"
+      },
+      {
+        "id": "T03",
+        "title": "First real media playback and export",
+        "status": "pending"
+      },
+      {
+        "id": "T04",
+        "title": "Graph model/compiler and editable node UI",
+        "status": "pending"
+      },
+      {
+        "id": "T05",
+        "title": "Audio analysis, modulation, and automation",
+        "status": "pending"
+      },
+      {
+        "id": "T06",
+        "title": "Conventional timeline and mixer",
+        "status": "pending"
+      },
+      {
+        "id": "T07",
+        "title": "Exact requested effects and fills",
+        "status": "pending"
+      },
+      {
+        "id": "T08",
+        "title": "Additional effect families and temporal state",
+        "status": "pending"
+      },
+      {
+        "id": "T09",
+        "title": "General generator source system and 2D/math library",
+        "status": "pending"
+      },
+      {
+        "id": "T10",
+        "title": "Vector scene/SVG/Lottie",
+        "status": "pending"
+      },
+      {
+        "id": "T11",
+        "title": "Image animation and typography",
+        "status": "pending"
+      },
+      {
+        "id": "T12",
+        "title": "SDF/3D blob system",
+        "status": "pending"
+      },
+      {
+        "id": "T13",
+        "title": "Mesh scenes and imported model animation",
+        "status": "pending"
+      },
+      {
+        "id": "T14",
+        "title": "GPU particles and field agents",
+        "status": "pending"
+      },
+      {
+        "id": "T15",
+        "title": "Physics, cloth, fluids, and simulation seeking",
+        "status": "pending"
+      },
+      {
+        "id": "T16",
+        "title": "OSC/MIDI/data/interaction control",
+        "status": "pending"
+      },
+      {
+        "id": "T17",
+        "title": "Native capture and system audio",
+        "status": "pending"
+      },
+      {
+        "id": "T18",
+        "title": "External video protocols",
+        "status": "pending"
+      },
+      {
+        "id": "T19",
+        "title": "Max for Live companions and transport",
+        "status": "pending"
+      },
+      {
+        "id": "T20",
+        "title": "Live performance, scene routing, and recording",
+        "status": "pending"
+      },
+      {
+        "id": "T21",
+        "title": "Export matrix and final media correctness",
+        "status": "pending"
+      },
+      {
+        "id": "T22",
+        "title": "Recovery, relinking, and error hardening",
+        "status": "pending"
+      },
+      {
+        "id": "T23",
+        "title": "Conditional vision/creative runtime adapters",
+        "status": "pending"
+      },
+      {
+        "id": "T24",
+        "title": "WebGPU harness and backend parity",
+        "status": "pending"
+      },
+      {
+        "id": "T25",
+        "title": "Performance, accessibility, and product polish",
+        "status": "pending"
+      },
+      {
+        "id": "T26",
+        "title": "Packaging, examples, docs, and license records",
+        "status": "pending"
+      },
+      {
+        "id": "T27",
+        "title": "Reconcile and deliver",
+        "status": "pending"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "AT001",
+        "title": "Create/open/save project; Unicode name and spaced path; stable UUID/revision and exact rational settings survive round trip.",
+        "status": "pending"
+      },
+      {
+        "id": "AT002",
+        "title": "Command transactions/undo/redo/stale revision; illegal operation changes no state; undo group restores exact structure.",
+        "status": "pending"
+      },
+      {
+        "id": "AT003",
+        "title": "Schema migration/invalid/newer document; migration backup exists, corrupt document rejected, unknown extension metadata preserved.",
+        "status": "pending"
+      },
+      {
+        "id": "AT004",
+        "title": "Headless/native GPU frame; analytic color/alpha oracle, row stride, first frame initialized, no double transfer encoding.",
+        "status": "pending"
+      },
+      {
+        "id": "AT005",
+        "title": "Resize/minimize/fullscreen/close/reopen; no stale surface use, leaked targets or zero-size crash.",
+        "status": "pending"
+      },
+      {
+        "id": "AT006",
+        "title": "Native output+editor preview+second consumer; frame IDs agree, simulation step count unchanged by consumers.",
+        "status": "pending"
+      },
+      {
+        "id": "AT007",
+        "title": "Import/play/seek real file with B frames/rotation/VFR; displayed PTS follows selected source frame rule; stale seek discarded.",
+        "status": "pending"
+      },
+      {
+        "id": "AT008",
+        "title": "Play audio+video flash/impulse, loop and frame-step; error<=one project frame+5ms after known device latency compensation.",
+        "status": "pending"
+      },
+      {
+        "id": "AT009",
+        "title": "First PNG+WAV/available MP4 export; exact600 frames/480000 samples for10s60fps fixture; reimport duration/metadata validated.",
+        "status": "pending"
+      },
+      {
+        "id": "AT010",
+        "title": "Graph type/cycle/missing-input validation; clear exact node/port error; temporal cycle exception only explicit pair.",
+        "status": "pending"
+      },
+      {
+        "id": "AT011",
+        "title": "Branched/masked/composited graph; output pixel oracle and no scratch-resource read/write alias.",
+        "status": "pending"
+      },
+      {
+        "id": "AT012",
+        "title": "Graph add/connect/group/copy/paste/undo; new IDs and preserved internal connections, no dangling references.",
+        "status": "pending"
+      },
+      {
+        "id": "AT013",
+        "title": "Bad shader/edit; current document retains edit/error, last valid runtime frame graph remains usable, fix activates new version.",
+        "status": "pending"
+      },
+      {
+        "id": "AT014",
+        "title": "Silence/bass/sine/treble analysis; bands/window normalization/onset time match numeric expectations.",
+        "status": "pending"
+      },
+      {
+        "id": "AT015",
+        "title": "Audio callback/rings/device loss; no blocking/alloc/network in callback, overruns counted and silence on underflow.",
+        "status": "pending"
+      },
+      {
+        "id": "AT016",
+        "title": "Keyframes/modulation fold/LFO/enum hysteresis/expression; CPU reference values at exact timestamps.",
+        "status": "pending"
+      },
+      {
+        "id": "AT017",
+        "title": "File audio drives visuals in live and offline; features sampled by source timestamp, independent of export render speed.",
+        "status": "pending"
+      },
+      {
+        "id": "AT018",
+        "title": "Trim/split/move/slip/rate/reverse; property tests preserve source mapping and half-open endpoints.",
+        "status": "pending"
+      },
+      {
+        "id": "AT019",
+        "title": "Linked A/V ripple/insert/overwrite/locked track; atomic failure or correct synchronized edits; undo restores.",
+        "status": "pending"
+      },
+      {
+        "id": "AT020",
+        "title": "Transition handles/overlap/clip-track-master-adjustment order; expected image/audio crossfade and masks.",
+        "status": "pending"
+      },
+      {
+        "id": "AT021",
+        "title": "Waveforms/proxies/reverse GOP cache; cancel job, original source retained, same time selection, bounded memory.",
+        "status": "pending"
+      },
+      {
+        "id": "AT022",
+        "title": "Mixer gain/pan/mute/solo/fades/time-stretch; pitch-preserving stretch maintains sine pitch while duration changes.",
+        "status": "pending"
+      },
+      {
+        "id": "AT023",
+        "title": "FX001–FX028 all present, each manifest/algorithm/changed control/transparency/scale/export tested.",
+        "status": "pending"
+      },
+      {
+        "id": "AT024",
+        "title": "FX100–FX123 every named variant implemented with distinguishing behavior; no identity alias masked as variant.",
+        "status": "pending"
+      },
+      {
+        "id": "AT025",
+        "title": "Feedback/echo/delay/freeze; known impulse decay and history count; output rate does not change feedback step cadence.",
+        "status": "pending"
+      },
+      {
+        "id": "AT026",
+        "title": "Seek/checkpoint/warm-up/invalidation; subrange output equals corresponding frames from full render within tolerance.",
+        "status": "pending"
+      },
+      {
+        "id": "AT027",
+        "title": "Generator source clip add/trim/loop/save/load/mask/effect chain; no required source file for procedural node.",
+        "status": "pending"
+      },
+      {
+        "id": "AT028",
+        "title": "All required G001–G028 rows with available IDs; fractal/periodic noise/L-system/automaton invariants and bounded loops.",
+        "status": "pending"
+      },
+      {
+        "id": "AT029",
+        "title": "Field metadata/converters; known constant vector causes expected displacement, incompatible spaces rejected.",
+        "status": "pending"
+      },
+      {
+        "id": "AT030",
+        "title": "SVG safe import/editor; donut hole/gradients/viewBox correct, active/unsupported content reported, no external fetch.",
+        "status": "pending"
+      },
+      {
+        "id": "AT031",
+        "title": "Path draw/follow/morph/repeater; arc-length position and winding correct, checkpoint not needed for analytic motion.",
+        "status": "pending"
+      },
+      {
+        "id": "AT032",
+        "title": "Lottie actual frame seek and color/control changes; fixed t agrees paused/live/export; unsupported features identified.",
+        "status": "pending"
+      },
+      {
+        "id": "AT033",
+        "title": "Image motion G050–G068; transforms/warp/parallax/fragments/sprites with alpha and deterministic controls.",
+        "status": "pending"
+      },
+      {
+        "id": "AT034",
+        "title": "Typography G070–G079; Unicode/shaped cluster animation, glyph holes, correct fallback, Mask/Geometry outputs.",
+        "status": "pending"
+      },
+      {
+        "id": "AT035",
+        "title": "Video/image sequence/sprite retime and animation export; frame order/rate/loop boundaries correct.",
+        "status": "pending"
+      },
+      {
+        "id": "AT036",
+        "title": "SDF analytic sphere/Boolean/normal/depth; correct center ray and finite no-hit; invalid tree rejected.",
+        "status": "pending"
+      },
+      {
+        "id": "AT037",
+        "title": "Metaball/deformation/material animated through effects; opacity/Depth/Normal coherent; ray-step cap maintained.",
+        "status": "pending"
+      },
+      {
+        "id": "AT038",
+        "title": "SDF mesh conversion/cancel/GLB export; finite bounds, normals, expected connected surface; job memory capped.",
+        "status": "pending"
+      },
+      {
+        "id": "AT039",
+        "title": "Mesh primitive/scene/camera/light coordinates; expected marker positions, depth occlusion, transparent compositing.",
+        "status": "pending"
+      },
+      {
+        "id": "AT040",
+        "title": "Imported glTF skin/morph/PBR and PLY point cloud; actual time-varying geometry/material, missing assets reported.",
+        "status": "pending"
+      },
+      {
+        "id": "AT041",
+        "title": "G090–G107 terrain/instances/voxels/ocean/volumes; count/resource limits, no hidden infinite generation.",
+        "status": "pending"
+      },
+      {
+        "id": "AT042",
+        "title": "Particle counts/IDs/birth/death at30/60/120Hz presentation; identical simulation schedule and reset.",
+        "status": "pending"
+      },
+      {
+        "id": "AT043",
+        "title": "Image/text/path/mesh emitters, morph/trails/collision; known samples map correctly, no capacity out-of-bounds.",
+        "status": "pending"
+      },
+      {
+        "id": "AT044",
+        "title": "Boids/slime/field events; bounded neighbor scan, event cap and state replay, no unbounded per-particle trail.",
+        "status": "pending"
+      },
+      {
+        "id": "AT045",
+        "title": "Rigid body/joint/pendulum; free-fall reference tolerance, stable contacts, deterministic reset/checkpoint.",
+        "status": "pending"
+      },
+      {
+        "id": "AT046",
+        "title": "Cloth/jelly constraints; pinned points remain fixed, finite volume/positions, no explosion under valid settings.",
+        "status": "pending"
+      },
+      {
+        "id": "AT047",
+        "title": "Fluids/water/sand/reaction; projection reduces divergence, stable finite field, material rules and impulses correct.",
+        "status": "pending"
+      },
+      {
+        "id": "AT048",
+        "title": "Simulation subrange seek/export/control replay equals full sequence; changes invalidate dependent checkpoints.",
+        "status": "pending"
+      },
+      {
+        "id": "AT049",
+        "title": "OSC actual UDP encode/decode/all declared types; scheduled bundle order, native/normalized routes and learn.",
+        "status": "pending"
+      },
+      {
+        "id": "AT050",
+        "title": "OSC malformed/rate limit/duplicate trigger/feedback loop; app responsive, no unauthorized file or shell action.",
+        "status": "pending"
+      },
+      {
+        "id": "AT051",
+        "title": "MIDI real device or explicit unavailable; notes/CC/bend/pressure/MPE/clock/pickup correct and reconnects.",
+        "status": "pending"
+      },
+      {
+        "id": "AT052",
+        "title": "Recorded controls/CSV/JSON/network replay; identical time-mapped data offline; unrecorded live source rejected for export.",
+        "status": "pending"
+      },
+      {
+        "id": "AT053",
+        "title": "Event sequencer/rhythm/expressions/interaction record; deterministic quantization/random-on-beat, no eval escape.",
+        "status": "pending"
+      },
+      {
+        "id": "AT054",
+        "title": "Actual webcam capture modes/orientation/timestamps; permission and disconnect/reconnect handled.",
+        "status": "pending"
+      },
+      {
+        "id": "AT055",
+        "title": "Actual screen/display/window/region/cursor capture; crop/DPI/window resize correct and self-capture exclusion works.",
+        "status": "pending"
+      },
+      {
+        "id": "AT056",
+        "title": "Actual microphone and system-loopback; no dummy stream, output-device change and permission recovery.",
+        "status": "pending"
+      },
+      {
+        "id": "AT057",
+        "title": "Live source→take→offline export; captured timestamps align audio/video and survive relink.",
+        "status": "pending"
+      },
+      {
+        "id": "AT058",
+        "title": "Actual Windows Spout send/receive with independent sender/consumer; resize/alpha/adapter behavior recorded.",
+        "status": "pending"
+      },
+      {
+        "id": "AT059",
+        "title": "Actual macOS Syphon send/receive and loss/reconnect; ownership and orientation correct.",
+        "status": "pending"
+      },
+      {
+        "id": "AT060",
+        "title": "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior.",
+        "status": "pending"
+      },
+      {
+        "id": "AT061",
+        "title": "Max `.maxpat` structural checks plus real OSC bytes interoperate; multiple instances, stale release, sequence epochs.",
+        "status": "pending"
+      },
+      {
+        "id": "AT062",
+        "title": "Real packaged `.amxd` in Live; audio/MIDI unchanged through pass-through, macros automate, Set reopen restores.",
+        "status": "pending"
+      },
+      {
+        "id": "AT063",
+        "title": "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion.",
+        "status": "pending"
+      },
+      {
+        "id": "AT064",
+        "title": "Live workspace/macros/scene recall/crossfade/quantize/panic; compile-ahead, fixed state stepping, responsive editor.",
+        "status": "pending"
+      },
+      {
+        "id": "AT065",
+        "title": "Fullscreen and multiple outputs at chosen rate/size; settings persist, consumer failure does not stop preview.",
+        "status": "pending"
+      },
+      {
+        "id": "AT066",
+        "title": "Live recording with controls/audio; reimported content matches recorded response, overload policy and CFR gap handling measured.",
+        "status": "pending"
+      },
+      {
+        "id": "AT067",
+        "title": "Export codec matrix and alpha; real available H.264/HEVC/ProRes/GIF/image-sequence/WAV encoders exercised, unsupported disabled accurately.",
+        "status": "pending"
+      },
+      {
+        "id": "AT068",
+        "title": "Export frozen revision while editing; original snapshot used, concurrent live state undisturbed, no incomplete renamed output.",
+        "status": "pending"
+      },
+      {
+        "id": "AT069",
+        "title": "Cancel/disk-full/encoder failure/restart/sequence resume; no lost originals, safe job-owned temp cleanup, errors actionable.",
+        "status": "pending"
+      },
+      {
+        "id": "AT070",
+        "title": "Export fractional fps/VFR/odd size/color/alpha/range; DTS/PTS monotonic, frame/sample counts and output tags correct.",
+        "status": "pending"
+      },
+      {
+        "id": "AT071",
+        "title": "Autosave and forced crash recovery on disposable project; last saved and recovered revisions both available and valid.",
+        "status": "pending"
+      },
+      {
+        "id": "AT072",
+        "title": "Missing media/relink/collect project; ambiguity resolved visibly, originals preserved, relative portable project opens offline.",
+        "status": "pending"
+      },
+      {
+        "id": "AT073",
+        "title": "FFI close/reopen/exit/GPU loss/shader error/disconnect injection; no crashes in supported recovery cases, no dangling workers.",
+        "status": "pending"
+      },
+      {
+        "id": "AT074",
+        "title": "Diagnostics/redaction/settings/capability state; no secrets/media payloads in report, no default telemetry/network dependency.",
+        "status": "pending"
+      },
+      {
+        "id": "AT075",
+        "title": "Conditional actual vision inference; known landmarks/mask/depth and stale/cancel states; exact model/runtime hashes.",
+        "status": "pending"
+      },
+      {
+        "id": "AT076",
+        "title": "Conditional external sketch/runtime source; explicit time render repeats or live-only state recorded; worker crash isolated.",
+        "status": "pending"
+      },
+      {
+        "id": "AT077",
+        "title": "Conditional model/source absent; preserved editable node, actionable dependency error, never fake successful output.",
+        "status": "pending"
+      },
+      {
+        "id": "AT078",
+        "title": "Browser WebGPU harness vs native shader ABI/fixtures; correct uniform packing and documented image tolerance.",
+        "status": "pending"
+      },
+      {
+        "id": "AT079",
+        "title": "Benchmarks below on real GPU with exact settings; measured frame times/queues/memory/latency, no assumed hardware results.",
+        "status": "pending"
+      },
+      {
+        "id": "AT080",
+        "title": "UI keyboard/DPI/focus/drag undo/text input/accessibility; main journey can be completed without lost data or hidden focus.",
+        "status": "pending"
+      },
+      {
+        "id": "AT081",
+        "title": "Soak30min then2h; stable cache budgets/queue depths and no drift/leaks/crash under repeated edits and scene switches.",
+        "status": "pending"
+      },
+      {
+        "id": "AT082",
+        "title": "Windows installer clean standard-user/offline launch, DLL/resources found without dev PATH, uninstall preserves user projects.",
+        "status": "pending"
+      },
+      {
+        "id": "AT083",
+        "title": "macOS arm64 packaged app clean launch, dylibs/rpaths/permissions and file dialogs work; exact signing status reported.",
+        "status": "pending"
+      },
+      {
+        "id": "AT084",
+        "title": "macOS x64 packaged app native run or actual supported runner; architecture/build alone is not runtime verification.",
+        "status": "pending"
+      },
+      {
+        "id": "AT085",
+        "title": "Examples/docs/requirements/artifact hashes/license records reconcile; every advertised workflow reproduces on available host.",
+        "status": "pending"
+      }
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "spec_version": "2.0",
+  "spec_date": "2026-11-09",
+  "active_platform": "windows-x64 (10.0.19045)",
+  "host": {
+    "os": "Windows 11-class (10.0.19045)",
+    "cpu": "AMD Ryzen 9 3900X",
+    "gpu": "NVIDIA GeForce RTX 2080 Ti (driver 32.0.15.6094)",
+    "ruff": "yes",
+    "rustc": "1.99.0 stable (x86_64-pc-windows-msvc)",
+    "node": "24.19.0",
+    "pnpm": "11.21.0",
+    "ffmpeg": "9.0-full_build (winget gyan.dev), CLI + shared DLLs + dev headers",
+    "webview2": "157.0.4341.42",
+    "msvc": "VS 18 Community",
+    "cmake": "4.4.3"
+  },
+  "selected_dependencies": {
+    "rust": {
+      "serde": "1", "serde_json": "1 (preserve_order)", "uuid": "1 (v4,serde)",
+      "thiserror": "2", "tracing": "0.1", "wgpu": "27", "bytemuck": "1",
+      "pollster": "0.4", "crossbeam-channel": "0.5", "rustfft": "6 (planning)",
+      "glam": "0.30", "rayon": "1"
+    },
+    "notes": "wgpu 27 pinned; DX12 primary on Windows. FFmpeg present as shared full build with headers/libs — ffmpeg-next integration to be validated in T03 (planning: ffmpeg-next 9.0 with ffmpeg-sys-next 9.0.1)."
+  },
+  "current_task": "T01 (workspace/domain/persistence) complete; proceeding to engine + catalog integration",
+  "completed_tasks": ["T00", "T01", "T07-catalog-data", "T08-catalog-data", "T09-catalog-data", "T10-catalog-data", "T11-catalog-data", "T12-catalog-data", "T13-catalog-data", "T14-catalog-data", "T15-catalog-data", "T16-catalog-data"],
+  "failed_gates": [],
+  "file_ownership": {
+    "crates/domain": "exact rational time, document, commands/undo, params, errors",
+    "crates/catalog": "manifests + WGSL sources for all FX/G rows, presets, packer, fonts",
+    "crates/engine": "evaluator, graph compile, timeline, control routing (in progress)",
+    "crates/media": "ffmpeg probe/decode/encode",
+    "crates/audio": "cpal + analysis",
+    "crates/xtask": "doctor/fixtures/check/catalog/scenario/report/package",
+    "apps/desktop": "native egui editor + CLI"
+  },
+  "commands_to_resume": [
+    "cargo test -p flux-domain",
+    "cargo test -p flux-catalog",
+    "cargo test --workspace",
+    "cargo xtask doctor"
+  ],
+  "next_steps": [
+    "Implement engine: graph validation/compile, evaluator, timeline, modulation router",
+    "Implement media (ffmpeg CLI worker) + audio (analysis) + fixtures",
+    "Implement native wgpu renderer with frame uniform + fragment pipeline + offscreen/readback",
+    "Implement desktop native editor + export + CLI",
+    "Implement xtask commands, WebGPU harness, evidence/tests, requirements.json, FINAL-REPORT"
+  ]
+}

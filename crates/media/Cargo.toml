@@ -1,0 +1,12 @@
+[package]
+name = "flux-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+flux-domain = { path = "../domain" }
+flux-engine = { path = "../engine" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
