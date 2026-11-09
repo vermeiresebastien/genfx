@@ -83,18 +83,20 @@ records present, `blocked_external`. macOS builds unverified. Live camera/screen
 and GUI webview pixel verification need a device/session. SDF/particle CPU producers not
 realtime at 4K.
 
-### 6b. NDI — runtime present and discovery verified
-The official NDI runtime was found on this machine (`Processing.NDI.Lib.x64.dll` v5.5.1,
-installed by Resolume Arena). No SDK headers are shipped, so Flux **runtime-loads** the DLL
-and defines only the two small, published discovery structs (`NDIlib_find_create_t`,
-`NDIlib_source_t`) — it never reconstructs opaque capture layouts. `crates/integrations/src/ndi.rs`
-(feature `ndi`) resolves `NDIlib_initialize`, `NDIlib_find_create2`,
-`NDIlib_find_get_current_sources`, `NDIlib_find_wait_for_sources`, `NDIlib_find_destroy`.
+### 6b. NDI — runtime installed, live discovery verified
+NDI Tools v6.3.2 is installed (`C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll`),
+auto-detected by `crates/integrations/src/ndi.rs` (feature `ndi`). The adapter runtime-loads
+the DLL and defines only the two small, published discovery structs (`NDIlib_find_create_t`,
+`NDIlib_source_t`) — it never reconstructs opaque capture layouts.
 
-Verified: 2 tests load→initialize→discover without crashing, and `flux ndi` prints real
-discovery output (`implementation/evidence/ndi-discovery.txt`; 0 sources because nothing is
-broadcasting). **Live send/receive** remains blocked on the full NDI header ABI + an active
-stream — not faked.
+**Live verification:** with NDI Test Patterns (and other apps) broadcasting, `flux ndi`
+found **5 real NDI sources** — including `Test Pattern` and the NVIDIA/Adobe senders
+(`implementation/evidence/ndi-discovery-live.txt`). 2 tests pass (load→initialize→discover).
+
+**Remaining blocker:** live *send/receive* needs the NDI **SDK headers** (`NDIlib_recv_create_v3_t`,
+`NDIlib_video_frame_v2_t`, …). NDI Tools installs runtime + tools only — no headers or
+import libs — and reconstructing those larger struct layouts from memory is unsafe, so it
+is left unimplemented rather than guessed.
 
 **Spout2**: prebuilt `SpoutLibrary.{dll,lib}` (x64, BSD-2) is present but exposes a **C++
 pure-virtual** interface, so `apps/spout-bridge/spout_shim.cpp` wraps it in a flat `extern

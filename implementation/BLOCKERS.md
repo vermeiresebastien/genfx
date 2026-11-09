@@ -1,12 +1,12 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **NDI SDK/runtime** (R006, AT060): **runtime discovered on this host** —
-  `Processing.NDI.Lib.x64.dll` v5.5.1 (Resolume Arena install). `flux ndi` (feature `ndi`)
-  runtime-loads it and **verifies discovery** (`NDIlib_initialize` +
-  `NDIlib_find_*`, 0 sources when nothing broadcasts — evidence `ndi-discovery.txt`).
-  Remaining blocker: **live send/receive** needs the full NDI header ABI (no headers
-  shipped) plus an active stream; not faked. obs-ndi consulted as reference only.
+- **NDI** (R006, AT060): **runtime installed and live discovery verified.** NDI Tools
+  v6.3.2 (`C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll`) is
+  auto-detected; `flux ndi` (feature `ndi`) found **5 live sources** including the NDI
+  Test Pattern sender (`evidence/ndi-discovery-live.txt`). Remaining blocker: **live
+  send/receive** needs the NDI **SDK headers** (NDI Tools ships runtime + tools only, no
+  headers/import libs) plus a live stream; not faked.
 - **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 prebuilt `SpoutLibrary.{dll,lib}` is
   present (BSD-2); a C++ shim (`apps/spout-bridge`) builds `spout_shim.dll` and
   `flux spout` **verifies sender enumeration**. Remaining: `SendImage` needs a bound GL

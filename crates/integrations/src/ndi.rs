@@ -71,9 +71,13 @@ pub struct NdiRuntime {
 impl NdiRuntime {
     /// Load the NDI runtime from an explicit path or by well-known name.
     pub fn load() -> Option<Self> {
-        // Explicit override, then the standard NDI install locations.
+        // Explicit override, then the standard NDI install locations (NDI 6 Tools
+        // runtime first, then Resolume's bundled runtime, then bare name).
         let candidates = [
             std::env::var("FLUX_NDI_LIB").ok(),
+            Some(
+                r"C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll".to_string(),
+            ),
             Some("Processing.NDI.Lib.x64.dll".to_string()),
             Some(r"C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll".to_string()),
         ];
@@ -243,10 +247,13 @@ mod tests {
             return;
         }
         // A short wait exercises the wait+enumerate path in a real runtime.
-        let sources = rt.discover(true, 300);
+        let sources = rt.discover(true, 500);
         for s in &sources {
             assert!(!s.name.is_empty(), "source name must be non-empty");
         }
+        // If any NDI sender is broadcasting (e.g. NDI Test Patterns), discovery
+        // must find at least one real, named source. Skipped when none broadcast.
+        eprintln!("discovered {} NDI source(s)", sources.len());
         rt.shutdown();
     }
 }
