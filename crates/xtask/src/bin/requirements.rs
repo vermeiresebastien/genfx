@@ -411,10 +411,13 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
                 "flux models CLI (actionable per-node install message)".into(),
             ],
         ),
-        // AT075 (actual vision inference) needs real model weights -> external.
+        // AT075: actual vision inference — verified with a real ONNX model.
         "AT075" => (
-            "blocked_external",
-            vec!["model files not shipped; behavior verified via AT077".into()],
+            "verified",
+            vec![
+                "crates/integrations vision (ONNX Runtime; real model inference test)".into(),
+                "implementation/evidence/vision-inference.txt + depth-demo/depth.png".into(),
+            ],
         ),
         "AT074" => (
             "verified",

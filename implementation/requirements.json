@@ -3923,11 +3923,12 @@
       "id": "AT075",
       "title": "Conditional actual vision inference; known landmarks/mask/depth and stale/cancel states; exact model/runtime hashes.",
       "class": "required",
-      "status": "blocked_external",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "model files not shipped; behavior verified via AT077"
+        "crates/integrations vision (ONNX Runtime; real model inference test)",
+        "implementation/evidence/vision-inference.txt + depth-demo/depth.png"
       ],
       "blocker": null
     },

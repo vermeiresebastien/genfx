@@ -96,6 +96,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "capture" => cmd_capture(),
         "diagnostics" => cmd_diagnostics(),
         "models" => cmd_models(),
+        "depth" => cmd_depth(args),
         "integrations" => cmd_integrations(),
         "link" => cmd_link(),
         "ndi" => cmd_ndi(),
@@ -899,6 +900,60 @@ fn cmd_capture() -> FluxResult<()> {
     );
     println!("note: {}", c.limitation);
     Ok(())
+}
+
+fn cmd_depth(args: &[String]) -> FluxResult<()> {
+    #[cfg(feature = "vision")]
+    {
+        use flux_integrations::vision::{depth_to_rgba, DepthModel};
+        let out = std::path::PathBuf::from(args.get(1).cloned().unwrap_or_else(|| "out".into()));
+        std::fs::create_dir_all(&out)?;
+        // Build a synthetic scene: a bright near-square on a dark far background.
+        let (w, h) = (256usize, 256usize);
+        let mut rgb = vec![20u8; w * h * 3];
+        for y in 64..192 {
+            for x in 64..192 {
+                let i = (y * w + x) * 3;
+                rgb[i] = 235;
+                rgb[i + 1] = 235;
+                rgb[i + 2] = 235;
+            }
+        }
+        let mut model = match DepthModel::load_default() {
+            Ok(m) => m,
+            Err(e) => {
+                println!("depth model unavailable: {e}");
+                return Ok(());
+            }
+        };
+        let t = std::time::Instant::now();
+        let depth = model
+            .infer_rgb(&rgb, w, h)
+            .map_err(|e| FluxError::new(flux_domain::ErrorCode::SdkMissing, "vision", e))?;
+        let ms = t.elapsed().as_millis();
+        let rgba = depth_to_rgba(&depth);
+        let path = out.join("depth.png");
+        flux_media::write_png_rgba(&path, depth.width as u32, depth.height as u32, &rgba)?;
+        // Report the depth at the center (near) vs a corner (far).
+        let cx = depth.width / 2;
+        let cy = depth.height / 2;
+        let near = depth.depth[cy * depth.width + cx];
+        let far = depth.depth[0];
+        println!(
+            "depth {}x{} in {}ms -> {} (center={near:.3} corner={far:.3})",
+            depth.width,
+            depth.height,
+            ms,
+            path.display()
+        );
+        Ok(())
+    }
+    #[cfg(not(feature = "vision"))]
+    {
+        let _ = args;
+        println!("vision is not built into this binary (feature `vision` off).");
+        Ok(())
+    }
 }
 
 fn cmd_models() -> FluxResult<()> {

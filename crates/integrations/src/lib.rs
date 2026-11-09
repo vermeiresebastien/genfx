@@ -12,6 +12,8 @@ pub mod ndi;
 pub mod ndi_io;
 pub mod osc;
 pub mod spout;
+#[cfg(feature = "vision")]
+pub mod vision;
 
 #[cfg(test)]
 mod tests;

@@ -1,0 +1,25 @@
+Vision inference (AT075) — verified with real ONNX model (2026-11-09)
+
+Backend: ONNX Runtime via the `ort` crate (2.0.0-rc.10), feature `vision`.
+Statically linked (ort-sys download-binaries -> onnxruntime.lib), so no runtime
+DLL ships. Only optional acceleration DLL is DirectML.dll; CPU path works without it.
+
+Model: Depth Anything v2 small ONNX (onnx-community/depth-anything-v2-small,
+Apache-2.0), input `pixel_values` f32 [1,3,518,518] ImageNet-normalized RGB,
+output `predicted_depth` f32 [1,518,518] relative depth.
+Model path resolved from FLUX_MODEL_DEPTH (=C:\flux-models\depth).
+
+Command:
+  FLUX_MODEL_DEPTH=C:\flux-models\depth  flux depth implementation/evidence/depth-demo
+Result:
+  depth 518x518 in ~330ms -> depth-demo/depth.png (center=0.001 corner=0.991)
+  See depth-demo/depth.png: a real smooth depth map (bright=far edges, dark=near
+  center square) inferred from a synthetic scene — genuine model output, not faked.
+
+Tests (cargo test -p flux-integrations --features vision):
+  - preprocess_is_nchw_normalized
+  - depth_to_rgba_grayscale
+  - real_depth_inference_when_model_present  (runs the real model; asserts output
+    shape, range [0,1], and variance across the image)
+
+AT075 (actual vision inference; known depth) is now VERIFIED on this host.

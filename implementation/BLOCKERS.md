@@ -24,11 +24,12 @@
 - **Max for Live**: host not installed; `.maxpat`-equivalent source only, `.amxd` blocked.
 - **macOS hosts**: unavailable; macOS-only paths unverified.
 - **Code signing / notarization**: no identity; builds are unsigned.
-- **Optional vision models (G170–G177)**: **behavior implemented and verified** — a model
-  registry (`crates/catalog/src/models.rs`) reports present/missing/incompatible; a missing
-  model is a **non-fatal `SdkMissing` graph diagnostic** so the node stays editable and never
-  renders fake output (`flux models`, 6 tests, AT077 verified). Only the **model weights**
-  are external (AT075) — the user installs them via `FLUX_MODEL_<ID>` or `FLUX_MODELS_DIR`.
+- **Optional vision models (G170–G177)**: **implemented and verified.** A model registry
+  reports present/missing/incompatible (non-fatal `SdkMissing`, node stays editable — AT077).
+  **Real inference works** (AT075): ONNX Runtime via the `ort` crate (statically linked,
+  feature `vision`) runs Depth Anything v2 on `flux depth` in ~330 ms
+  (`evidence/vision-inference.txt`, `depth-demo/depth.png`). Model weights are user-installed
+  (`FLUX_MODEL_DEPTH`). No blocker remains for depth; other G17x models follow the same path.
 
 ## Implemented, device/host-dependent for full verification
 - **Windows capture**: WASAPI endpoint + PnP camera enumeration is real and verified on
