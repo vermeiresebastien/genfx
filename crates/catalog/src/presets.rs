@@ -49,26 +49,74 @@ fn n(index: usize, type_id: &str, params: &[(&str, serde_json::Value)]) -> Prese
     }
 }
 
-fn e(from: usize, to: usize) -> PresetEdge {
-    PresetEdge {
-        from,
-        from_port: "color".into(),
-        to,
-        to_port: "source".into(),
-    }
-}
-
 fn chain(types: &[&str], ids: &str) -> Preset {
-    let source = n(0, types[0], &[]);
-    let mut nodes = vec![source];
-    let mut edges = vec![];
-    for (i, t) in types.iter().enumerate().skip(1) {
-        nodes.push(n(i, t, &[]));
-        edges.push(e(i - 1, i));
+    let catalog = shared_catalog();
+    let manifest = |t: &str| catalog.get(t).map(|e| &e.manifest);
+
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+    let mut next = 0usize;
+
+    // If the first node is an effect that needs an image input, prepend Source so
+    // the preset starts from something.
+    let first = types.first().copied().unwrap_or("gen.solid");
+    let first_needs_source = manifest(first)
+        .map(|m| m.inputs.iter().any(|p| p.id == "source"))
+        .unwrap_or(false);
+    if first != "flux.source" && first_needs_source {
+        nodes.push(n(next, "flux.source", &[]));
+        next += 1;
     }
-    let output = types.len() - 1;
-    nodes.push(n(output + 1, "flux.output", &[]));
-    edges.push(e(output, output + 1));
+
+    let mut prev: Option<(usize, &str)> = if next == 1 {
+        Some((0, "flux.source"))
+    } else {
+        None
+    };
+    for t in types {
+        let idx = next;
+        next += 1;
+        nodes.push(n(idx, t, &[]));
+
+        if let Some((pidx, ptype)) = prev {
+            // Only connect when the target has an input and the types match the
+            // engine's strict port-type check. Generators have no `source` input,
+            // so they start their own branch; a required input left unconnected is
+            // caught by validation rather than guessed at here.
+            if let (Some((out_id, out_ty)), Some((in_id, in_ty))) = (
+                pick_output(manifest(ptype)),
+                pick_input(manifest(t)),
+            ) {
+                if out_ty == in_ty {
+                    edges.push(PresetEdge {
+                        from: pidx,
+                        from_port: out_id,
+                        to: idx,
+                        to_port: in_id,
+                    });
+                }
+            }
+        }
+        prev = Some((idx, t));
+    }
+
+    let sink = next;
+    nodes.push(n(sink, "flux.output", &[]));
+    if let Some((pidx, ptype)) = prev {
+        if let (Some((out_id, out_ty)), Some((in_id, in_ty))) =
+            (pick_output(manifest(ptype)), pick_input(manifest("flux.output")))
+        {
+            if out_ty == in_ty {
+                edges.push(PresetEdge {
+                    from: pidx,
+                    from_port: out_id,
+                    to: sink,
+                    to_port: in_id,
+                });
+            }
+        }
+    }
+
     Preset {
         id: ids.into(),
         name: ids.rsplit('.').next().unwrap_or(ids).replace('_', " "),
@@ -76,9 +124,37 @@ fn chain(types: &[&str], ids: &str) -> Preset {
         requirement_refs: vec!["FX001".into()],
         nodes,
         edges,
-        output,
+        output: sink,
         macros: vec![],
     }
+}
+
+fn shared_catalog() -> &'static crate::Catalog {
+    static C: std::sync::OnceLock<crate::Catalog> = std::sync::OnceLock::new();
+    C.get_or_init(crate::build_catalog)
+}
+
+/// Preferred image output: `color`, else the first output.
+fn pick_output(m: Option<&crate::Manifest>) -> Option<(String, crate::manifest::PortType)> {
+    let m = m?;
+    m.outputs
+        .iter()
+        .find(|p| p.id == "color")
+        .or_else(|| m.outputs.first())
+        .map(|p| (p.id.clone(), p.port_type))
+}
+
+/// Preferred image input: required `source`, then optional `source`, then `a`,
+/// then the first input (so effects with a differently named image port work).
+fn pick_input(m: Option<&crate::Manifest>) -> Option<(String, crate::manifest::PortType)> {
+    let m = m?;
+    m.inputs
+        .iter()
+        .find(|p| p.id == "source" && p.required)
+        .or_else(|| m.inputs.iter().find(|p| p.id == "source"))
+        .or_else(|| m.inputs.iter().find(|p| p.id == "a"))
+        .or_else(|| m.inputs.first())
+        .map(|p| (p.id.clone(), p.port_type))
 }
 
 pub fn all_presets() -> Vec<Preset> {
@@ -88,7 +164,6 @@ pub fn all_presets() -> Vec<Preset> {
     {
         let mut p = chain(
             &[
-                "flux.source",
                 "gen.sdf_blob",
                 "fx.chromatic_metal",
                 "fx.bloom",
@@ -205,7 +280,6 @@ pub fn all_presets() -> Vec<Preset> {
     {
         let mut p = chain(
             &[
-                "flux.source",
                 "gen.particle_emitter",
                 "gen.particle_render",
                 "fx.bloom",

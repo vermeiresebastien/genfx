@@ -638,6 +638,9 @@ impl CommandHost {
                     Ok(serde_json::json!({ "graphId": target }))
                 } else {
                     let mut graph = graph;
+                    // Presets carry a stable recipe id; give each insert a unique
+                    // graph id so repeated inserts don't overwrite each other.
+                    graph.id = format!("graph-{}", uuid::Uuid::new_v4());
                     for n in &mut graph.nodes {
                         n.position = [n.position[0] + position[0], n.position[1] + position[1]];
                     }

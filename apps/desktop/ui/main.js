@@ -555,7 +555,12 @@ async function boot() {
 
   library = initLibrary({
     onAdd: (typeId) => addAt(typeId, centerWorld()),
-    onInsertPreset: (presetId, pt) => commands.insertPreset(presetId, pt || centerWorld()),
+    onInsertPreset: async (presetId, pt) => {
+      await commands.insertPreset(presetId, pt || centerWorld());
+      state.selection.clear();
+      renderAll();
+      requestPreviews();
+    },
   });
 
   inspector = initInspector({

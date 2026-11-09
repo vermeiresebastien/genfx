@@ -160,8 +160,12 @@ export function listPresets() {
   return enqueue(() => run({ type: "presets" }, { expected: 0 }));
 }
 export function insertPreset(presetId, position, mergeInto = null) {
+  // The engine takes a 2-element array; callers often pass a {x, y} world point.
+  const pos = Array.isArray(position)
+    ? position
+    : [Number(position?.x) || 0, Number(position?.y) || 0];
   return enqueue(() =>
-    run({ type: "insertPreset", presetId, position, mergeInto })
+    run({ type: "insertPreset", presetId, position: pos, mergeInto })
   );
 }
 

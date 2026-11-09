@@ -118,6 +118,85 @@ fn center(px: &[u8], w: u32, h: u32) -> (u8, u8, u8, u8) {
 }
 
 #[test]
+fn every_preset_validates() {
+    let catalog = flux_catalog::build_catalog();
+    let reg = flux_engine::graph::Registry::new(&catalog);
+    let mut failures: Vec<String> = Vec::new();
+
+    for preset in flux_catalog::presets::all_presets() {
+        let mut host = CommandHost::new(Project::new("t", 1));
+        let res = host.handle(req(GuiCommand::InsertPreset {
+            preset_id: preset.id.clone(),
+            position: [0.0, 0.0],
+            merge_into: None,
+        }));
+        if let Some(e) = &res.error {
+            failures.push(format!("{}: insert failed {e:?}", preset.id));
+            continue;
+        }
+
+        let snap = host.handle(req(GuiCommand::Snapshot)).result.expect("snapshot");
+        let g: Graph = serde_json::from_value(snap["activeGraph"].clone()).expect("graph");
+        for i in flux_engine::graph::validate(&g, &reg) {
+            if format!("{:?}", i.code).contains("SdkMissing") {
+                continue;
+            }
+            failures.push(format!("{}: {:?}: {}", preset.id, i.code, i.message));
+        }
+    }
+
+    assert!(failures.is_empty(), "invalid presets:\n{}", failures.join("\n"));
+}
+
+#[test]
+fn insert_preset_creates_wired_graph_with_params() {
+    let mut host = CommandHost::new(Project::new("t", 1));
+    host.handle(req(GuiCommand::CreateProject {
+        name: "T".into(),
+        seed: 1,
+        width: 640,
+        height: 360,
+        fps_num: 60,
+        fps_den: 1,
+    }));
+
+    let res = host.handle(req(GuiCommand::InsertPreset {
+        preset_id: "preset.bass_impact".into(),
+        position: [40.0, 60.0],
+        merge_into: None,
+    }));
+    assert!(res.error.is_none(), "insert preset failed: {:?}", res.error);
+
+    let snap = host.handle(req(GuiCommand::Snapshot)).result.expect("snapshot");
+    let g = &snap["activeGraph"];
+    let nodes = g["nodes"].as_array().expect("nodes");
+    assert!(nodes.len() >= 4, "preset graph should have all nodes");
+    assert!(g["edges"].as_array().unwrap().len() >= 3, "preset edges");
+
+    let out = g["outputNode"].as_str().expect("output node id");
+    assert!(
+        nodes.iter().any(|n| n["id"] == out),
+        "output node must exist in the graph"
+    );
+    let out_ty = nodes
+        .iter()
+        .find(|n| n["id"] == out)
+        .and_then(|n| n["typeId"].as_str())
+        .unwrap();
+    assert_eq!(out_ty, "flux.output", "preset output should be the sink");
+
+    // The preset authors `bassAmount` as a plain JSON number; it must survive as
+    // a tagged ParamValue or the preset silently loses its look.
+    let blob = nodes
+        .iter()
+        .find(|n| n["typeId"] == "gen.sdf_blob")
+        .expect("sdf blob node");
+    let p = &blob["params"]["bassAmount"];
+    assert_eq!(p["kind"], "float", "param converted to ParamValue");
+    assert_eq!(p["value"], 1.2);
+}
+
+#[test]
 fn master_graph_export_writes_video() {
     let _g = gpu_lock();
     let mut p = Project::new("export", 1);

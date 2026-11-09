@@ -109,14 +109,26 @@ pub fn chain_graph(generator_id: &str, effects: &[&str]) -> Graph {
 
 /// Insert a preset into a project's graph map, materializing fresh node IDs.
 pub fn insert_preset(preset: &Preset) -> Graph {
+    let catalog = build_catalog();
     let mut nodes = vec![];
     let mut id_map: BTreeMap<usize, String> = BTreeMap::new();
     for pn in &preset.nodes {
         let id = uuid::Uuid::new_v4().to_string();
         id_map.insert(pn.index, id.clone());
+        let kind_of = |param: &str| -> Option<flux_catalog::ParamKind> {
+            catalog
+                .get(&pn.type_id)
+                .and_then(|e| e.manifest.param(param).map(|p| p.kind))
+        };
         let mut params = BTreeMap::new();
         for (k, v) in &pn.params {
-            if let Ok(val) = serde_json::from_value::<ParamValue>(v.clone()) {
+            // Presets store authored values as plain JSON; the document uses the
+            // tagged `ParamValue` form. Convert using the manifest's param kind.
+            let val = match serde_json::from_value::<ParamValue>(v.clone()) {
+                Ok(already) => Some(already),
+                Err(_) => json_param_value(kind_of(k), v),
+            };
+            if let Some(val) = val {
                 params.insert(k.clone(), val);
             }
         }
@@ -151,6 +163,65 @@ pub fn insert_preset(preset: &Preset) -> Graph {
         output_node,
         keyframes: BTreeMap::new(),
     }
+}
+
+/// Convert a preset's plain JSON value into the document's `ParamValue`,
+/// using the manifest kind when known and inferring from the JSON shape otherwise.
+fn json_param_value(
+    kind: Option<flux_catalog::ParamKind>,
+    v: &serde_json::Value,
+) -> Option<ParamValue> {
+    use flux_catalog::ParamKind as K;
+    match kind {
+        Some(K::Int) => v.as_i64().map(|x| ParamValue::Int { value: x as i32 }),
+        Some(K::Enum) => v
+            .as_i64()
+            .map(|x| ParamValue::Int { value: x as i32 })
+            .or_else(|| v.as_str().map(|_| ParamValue::Int { value: 0 })),
+        Some(K::Bool) => v.as_bool().map(|x| ParamValue::Bool { value: x }),
+        Some(K::Color) => json_array(v).and_then(|a| {
+            (a.len() == 4).then(|| ParamValue::Color {
+                value: [a[0], a[1], a[2], a[3]],
+            })
+        }),
+        Some(K::Vec2) => json_array(v).and_then(|a| {
+            (a.len() == 2).then(|| ParamValue::Vec2 {
+                value: [a[0], a[1]],
+            })
+        }),
+        Some(K::Vec3) => json_array(v).and_then(|a| {
+            (a.len() == 3).then(|| ParamValue::Vec3 {
+                value: [a[0], a[1], a[2]],
+            })
+        }),
+        Some(K::Float) => v.as_f64().map(|x| ParamValue::Float { value: x }),
+        None => {
+            // Infer from the JSON shape when the type/param is unknown.
+            if let Some(x) = v.as_f64() {
+                Some(ParamValue::Float { value: x })
+            } else if let Some(b) = v.as_bool() {
+                Some(ParamValue::Bool { value: b })
+            } else if let Some(a) = json_array(v) {
+                match a.len() {
+                    2 => Some(ParamValue::Vec2 { value: [a[0], a[1]] }),
+                    3 => Some(ParamValue::Vec3 {
+                        value: [a[0], a[1], a[2]],
+                    }),
+                    4 => Some(ParamValue::Color {
+                        value: [a[0], a[1], a[2], a[3]],
+                    }),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn json_array(v: &serde_json::Value) -> Option<Vec<f64>> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_f64()).collect())
 }
 
 /// The starting master composition graph for a fresh project: one generator
