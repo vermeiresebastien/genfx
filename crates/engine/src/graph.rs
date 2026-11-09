@@ -27,6 +27,8 @@ pub struct CompiledPass {
     /// Inputs: port id -> source node id (or external scope for `flux.source`).
     pub inputs: BTreeMap<String, InputBinding>,
     pub outputs: Vec<String>,
+    /// When true the executor copies the primary input through instead of drawing.
+    pub bypass: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -430,6 +432,7 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
             outputs: manifest
                 .map(|m| m.outputs.iter().map(|o| o.id.clone()).collect())
                 .unwrap_or_default(),
+            bypass: node.bypass,
         });
     }
 

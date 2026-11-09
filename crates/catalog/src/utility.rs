@@ -42,6 +42,22 @@ pub fn utility_manifests() -> Vec<(Manifest, &'static str)> {
         }];
         v.push((m, MASK_BODY));
     }
+    // Reroute: an identity node used to tidy cable routing on the canvas.
+    {
+        let mut m = effect(
+            "flux.reroute",
+            "Reroute",
+            "Utility",
+            "node_reroute",
+            QualityClass::L,
+            vec![],
+            "Identity passthrough used to route cables neatly on the node canvas.",
+            "R007",
+        );
+        m.inputs = vec![source_port()];
+        m.outputs = vec![color_output()];
+        v.push((m, SOURCE_BODY));
+    }
     // Blend
     {
         let mut m = effect(

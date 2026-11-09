@@ -159,6 +159,51 @@ fn produce_generator_frame(
     }
 }
 
+/// Render a chosen graph (or a specific node within it) to a PNG data URL.
+/// Used by the Output node's inline thumbnail and the detached preview monitor;
+/// `output_node_id` overrides which node is treated as the result, so each Output
+/// node on the canvas can preview its own subgraph.
+#[tauri::command]
+fn render_graph_preview(
+    state: tauri::State<AppState>,
+    graph_id: String,
+    time_seconds: f64,
+    width: u32,
+    height: u32,
+    output_node_id: Option<String>,
+) -> Result<String, String> {
+    let (project, mut graph) = {
+        let host = state.host.lock().unwrap();
+        (
+            host.dispatcher.project.clone(),
+            host.dispatcher.project.graphs.get(&graph_id).cloned(),
+        )
+    };
+    let mut graph = graph.take().ok_or_else(|| "graph not found".to_string())?;
+    if let Some(node_id) = output_node_id {
+        if graph.node(&node_id).is_none() {
+            return Err("output node not found".into());
+        }
+        graph.output_node = node_id;
+    }
+    let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
+        .map_err(|e| e.to_string())?;
+    let mut guard = state.preview.lock().unwrap();
+    if guard.is_none() {
+        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
+    }
+    let renderer = guard.as_mut().unwrap();
+    let rgba = renderer
+        .render_graph(&graph, &project, t, width, height)
+        .map_err(|e| format!("render: {e:?}"))?;
+    let png =
+        flux_media::encode_png_rgba(width, height, &rgba).map_err(|e| format!("png: {e:?}"))?;
+    if png.len() > 4 * 1024 * 1024 {
+        return Err("preview too large".into());
+    }
+    Ok(format!("data:image/png;base64,{}", b64(&png)))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let host = CommandHost::new(Project::new("Untitled", 1));
@@ -170,6 +215,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             dispatch,
             render_preview,
+            render_graph_preview,
             export_project_cmd,
             capabilities,
             produce_generator_frame

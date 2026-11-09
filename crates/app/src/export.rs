@@ -293,10 +293,19 @@ fn render_single_frame(
     // (Full multi-track blending is a larger feature; this renders the active clip
     // faithfully so edits are visible immediately.)
     let items = render_items(project, ctx.project_time);
-    let chosen_graph_id = items.iter().rev().find_map(|it| match it {
-        RenderItem::Clip { clip, .. } => clip_graph_for(project, clip),
-        _ => None,
-    });
+    // The node editor's composition root (master graph) wins over the timeline's
+    // top-most clip, so preview and export render exactly what the canvas shows.
+    // When no master graph is set, behaviour is the legacy top-most-clip path.
+    let chosen_graph_id = if graph_override.is_some() {
+        None
+    } else if let Some(mid) = project.timeline.master_graph_id.as_ref() {
+        Some(mid.clone())
+    } else {
+        items.iter().rev().find_map(|it| match it {
+            RenderItem::Clip { clip, .. } => clip_graph_for(project, clip),
+            _ => None,
+        })
+    };
 
     let graph = if let Some(gid) = chosen_graph_id {
         if let Some(stripped) = gid.strip_prefix("generator:") {

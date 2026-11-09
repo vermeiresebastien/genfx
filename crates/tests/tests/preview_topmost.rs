@@ -38,6 +38,11 @@ fn topmost_clip_wins_and_edits_change_output() {
         fps_num: 30,
         fps_den: 1,
     }));
+    // This test covers the TIMELINE fallback: when a project has no master
+    // composition graph (older projects), the renderer shows the top-most clip.
+    // The node editor sets master_graph_id; precedence is covered separately by
+    // node_editor::master_graph_precedes_topmost_clip.
+    h.dispatcher.project.timeline.master_graph_id = None;
 
     let mut r = match PreviewRenderer::new() {
         Ok(r) => r,

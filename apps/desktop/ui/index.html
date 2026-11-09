@@ -4,90 +4,110 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Flux</title>
-    <style>
-      :root {
-        --bg: #14161a; --panel: #1b1e24; --panel2: #22262e; --line: #2c313a;
-        --text: #d7dbe2; --muted: #8a919c; --accent: #4a9eff; --ok: #46c07a;
-        --node: #24303f; --node-sel: #2f4a68; --port: #6fb1ff;
-      }
-      * { box-sizing: border-box; }
-      html, body { margin: 0; height: 100%; }
-      body {
-        background: var(--bg); color: var(--text);
-        font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
-        display: grid;
-        grid-template-rows: 46px 1fr;
-        grid-template-columns: 240px 1fr 300px;
-        grid-template-areas: "top top top" "lib center right";
-        height: 100vh; overflow: hidden;
-      }
-      #top { grid-area: top; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
-      #lib { grid-area: lib; background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 8px; }
-      #center { grid-area: center; position: relative; overflow: hidden; background: #0e1013; }
-      #right { grid-area: right; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--line); overflow: hidden; }
-      nav button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
-      nav button.active { background: var(--accent); border-color: var(--accent); color: #061222; font-weight: 600; }
-      button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
-      button:hover { border-color: var(--accent); }
-      button.primary { background: var(--accent); border-color: var(--accent); color: #061222; font-weight: 600; }
-      input[type=text], input[type=number] { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font: inherit; width: 100%; }
-      .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
-      .muted { color: var(--muted); }
-      .lib-item { padding: 5px 8px; border-radius: 5px; cursor: pointer; display: flex; justify-content: space-between; }
-      .lib-item:hover { background: var(--panel2); }
-      .lib-cat { color: var(--muted); font-size: 11px; text-transform: uppercase; margin: 10px 4px 4px; }
-      #previewPane { height: 220px; flex: 0 0 auto; background: #0b0d10; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--line); }
-      #preview { max-width: 98%; max-height: 98%; background: repeating-conic-gradient(#1a1d22 0% 25%, #22262e 0% 50%) 50% / 16px 16px; }
-      #inspector { flex: 1; overflow-y: auto; padding: 10px; }
-      .inspector-param { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin: 4px 0; }
-      .status { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; padding: 6px 10px; border-top: 1px solid var(--line); }
-      #canvas { position: absolute; inset: 0; }
-      #edges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-      #edges path.edge { fill: none; stroke: #5a7699; stroke-width: 2.5; pointer-events: stroke; cursor: pointer; }
-      #edges path.edge:hover { stroke: #ff6b6b; }
-      #edges path.temp { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; }
-      .node { position: absolute; width: 170px; background: var(--node); border: 1px solid #3a4656; border-radius: 8px; user-select: none; font-size: 12px; box-shadow: 0 2px 8px #0008; }
-      .node.sel { border-color: var(--accent); background: var(--node-sel); }
-      .node .hdr { padding: 6px 9px; font-weight: 600; border-bottom: 1px solid #3a4656; cursor: move; border-radius: 8px 8px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .node .hdr small { color: var(--muted); font-weight: 400; }
-      .node .ports { padding: 5px 0; }
-      .port { display: flex; align-items: center; height: 20px; position: relative; }
-      .port .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--port); border: 2px solid #0e1013; position: absolute; cursor: crosshair; }
-      .port.in .dot { left: -6px; }
-      .port.out .dot { right: -6px; }
-      .port .lbl { color: var(--muted); font-size: 11px; padding: 0 12px; }
-      .port.out { justify-content: flex-end; }
-      .node .outtag { padding: 6px 9px; color: var(--muted); font-size: 11px; }
-      #hint { position: absolute; left: 10px; bottom: 8px; color: var(--muted); font-size: 11px; pointer-events: none; max-width: 70%; }
-    </style>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="top">
-      <h1 style="font-size:15px;margin:0;letter-spacing:.5px">Flux</h1>
+    <!-- App bar: project · transport · preview · export · history -->
+    <header id="top">
+      <h1>Flux</h1>
       <span id="projName" class="muted">Untitled</span>
-      <span id="revBadge" class="muted" style="font-size:11px">rev 0</span>
-      <nav style="display:flex;gap:6px;margin-left:8px"><button id="tabCanvas" class="active">Nodes</button></nav>
-      <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
-        <button id="playBtn">Play</button>
-        <input id="outDir" type="text" value="out" style="width:110px" title="Export output directory" />
+      <span class="badge" id="revBadge">rev 0</span>
+
+      <button id="playBtn" title="Play / pause (spacebar is add-node)">Play</button>
+      <button id="fitBtn" class="ghost" title="Fit graph (1)">Fit</button>
+      <button id="monitorBtn" class="ghost" title="Detached preview monitor">Monitor</button>
+      <button id="newGraphBtn" class="ghost" title="New empty composition">New graph</button>
+
+      <span class="spacer"></span>
+
+      <div id="saveBar">
+        <input id="savePath" type="text" value="project.flux.json" title="Save path" />
+        <button id="saveBtn">Save</button>
+        <button id="openBtn">Open</button>
+        <input id="openFile" type="file" accept=".json,.flux" style="display:none" />
+        <input id="outDir" type="text" value="out" style="width:80px" title="Export output directory" />
+        <input id="expW" type="number" value="1280" style="width:70px" title="Export width" />
+        <input id="expH" type="number" value="720" style="width:70px" title="Export height" />
         <button id="exportBtn" class="primary">Export</button>
-        <button id="undoBtn">Undo</button>
-        <button id="redoBtn">Redo</button>
+      </div>
+
+      <button id="undoBtn" class="icon ghost" title="Undo (Ctrl+Z)">↶</button>
+      <button id="redoBtn" class="icon ghost" title="Redo (Ctrl+Shift+Z)">↷</button>
+    </header>
+
+    <!-- Library: categorized, searchable, collapsible -->
+    <aside id="lib">
+      <div class="head">
+        <div class="row"><input id="search" type="text" placeholder="Search nodes…" /></div>
+      </div>
+      <div class="tabs">
+        <button data-tab="nodes" class="active">Nodes</button>
+        <button data-tab="presets">Presets</button>
+      </div>
+      <div id="library"></div>
+    </aside>
+
+    <!-- Canvas: the primary surface -->
+    <main id="center">
+      <div id="viewport">
+        <div id="world">
+          <svg id="edges" xmlns="http://www.w3.org/2000/svg">
+            <g id="edgeLayer" transform="translate(5000,5000)"></g>
+          </svg>
+        </div>
+      </div>
+      <div id="marquee"></div>
+      <canvas id="minimap" width="168" height="108"></canvas>
+      <div id="hud">
+        <span class="fit" id="hudFit">Fit (1)</span>
+        <span class="fit" id="hudAdd">Add node (Space)</span>
+      </div>
+    </main>
+
+    <!-- Inspector + secondary timeline -->
+    <aside id="right">
+      <div id="inspector"><div class="muted">Select a node.</div></div>
+      <div id="timelineWrap">
+        <div id="timelineHead">
+          <span>Timeline</span>
+          <span class="dim" id="timelineRange"></span>
+        </div>
+        <div id="timeline"></div>
+      </div>
+    </aside>
+
+    <!-- Status / performance -->
+    <footer id="status">
+      <span class="msg">ready</span>
+      <span class="stat"></span>
+    </footer>
+
+    <!-- Spacebar node search -->
+    <div id="searchOverlay">
+      <div id="searchBox">
+        <input id="searchInput" type="text" placeholder="Search nodes · ↑↓ to move · Enter to insert" autocomplete="off" />
+        <div id="searchResults"></div>
       </div>
     </div>
-    <div id="lib">
-      <div class="row"><input id="search" type="text" placeholder="Search effects & generators" /></div>
-      <div id="library"></div>
+
+    <!-- Context menu -->
+    <div id="contextMenu"></div>
+
+    <!-- Detached preview monitor -->
+    <div id="monitor">
+      <div id="monitorHead">
+        <span>Preview</span>
+        <span class="spacer" style="flex:1"></span>
+        <button id="monitorFull" class="ghost" title="Fullscreen">⛶</button>
+        <button id="monitorClose" class="ghost" title="Close">✕</button>
+      </div>
+      <img id="monitorImg" alt="preview monitor" />
+      <div class="mbody">
+        <span class="dim">16:9</span>
+        <span class="dim" id="monitorInfo"></span>
+      </div>
     </div>
-    <div id="center">
-      <div id="canvas"><svg id="edges"></svg></div>
-      <div id="hint">Click a library item to add a node · drag headers to move · drag output dot → input dot to connect · click an edge to delete · select a node to edit its params</div>
-    </div>
-    <div id="right">
-      <div id="previewPane"><img id="preview" alt="preview" /></div>
-      <div id="inspector"><div class="muted">Select a node.</div></div>
-      <div class="status" id="status"></div>
-    </div>
-    <script src="app.js"></script>
+
+    <script type="module" src="main.js"></script>
   </body>
 </html>

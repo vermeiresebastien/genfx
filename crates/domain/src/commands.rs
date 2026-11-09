@@ -76,6 +76,24 @@ pub enum Command {
         node_id: String,
         bypass: bool,
     },
+    /// Move one or more nodes on the canvas. Sent once per drag, not per frame.
+    SetNodePositions {
+        graph_id: String,
+        positions: Vec<NodePosition>,
+    },
+    /// Replace a parameter's keyframe lane (lane id is `"nodeId:paramId"`).
+    SetKeyframes {
+        graph_id: String,
+        lane_id: String,
+        keyframes: Vec<Keyframe>,
+    },
+    /// Insert or replace a modulation mapping by id.
+    SetMapping {
+        mapping: Mapping,
+    },
+    RemoveMapping {
+        mapping_id: String,
+    },
     AddAsset {
         asset: Asset,
     },
@@ -99,6 +117,15 @@ pub enum Command {
     RemoveMarker {
         marker_id: String,
     },
+}
+
+/// A single node's canvas position. Kept as a named struct so the wire shape is
+/// `{ nodeId, position }` rather than a tuple array.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodePosition {
+    pub node_id: String,
+    pub position: [f32; 2],
 }
 
 /// A committed change: the command executed and its inverse for undo.
@@ -481,6 +508,76 @@ impl Dispatcher {
                     node_id: node_id.clone(),
                     bypass: old,
                 }))
+            }
+            Command::SetNodePositions {
+                graph_id,
+                positions,
+            } => {
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
+                // Capture the old positions so the inverse restores exactly.
+                let mut before = Vec::with_capacity(positions.len());
+                for pos in positions.iter() {
+                    let node = graph
+                        .node_mut(&pos.node_id)
+                        .ok_or_else(|| cmd_err("node not found"))?;
+                    before.push(NodePosition {
+                        node_id: pos.node_id.clone(),
+                        position: node.position,
+                    });
+                    node.position = pos.position;
+                }
+                applied.set(
+                    "move nodes",
+                    positions.iter().map(|p| p.node_id.clone()).collect(),
+                );
+                Ok(Some(Command::SetNodePositions {
+                    graph_id: graph_id.clone(),
+                    positions: before,
+                }))
+            }
+            Command::SetKeyframes {
+                graph_id,
+                lane_id,
+                keyframes,
+            } => {
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
+                let lane = lane_id.clone();
+                let old = graph.keyframes.get(&lane).cloned().unwrap_or_default();
+                if keyframes.is_empty() {
+                    graph.keyframes.remove(&lane);
+                } else {
+                    graph.keyframes.insert(lane.clone(), keyframes.clone());
+                }
+                applied.set("set keyframes", vec![lane.clone()]);
+                Ok(Some(Command::SetKeyframes {
+                    graph_id: graph_id.clone(),
+                    lane_id: lane_id.clone(),
+                    keyframes: old,
+                }))
+            }
+            Command::SetMapping { mapping } => {
+                let old = p.mappings.insert(mapping.id.clone(), mapping.clone());
+                applied.set("set mapping", vec![mapping.id.clone()]);
+                match old {
+                    Some(prev) => Ok(Some(Command::SetMapping { mapping: prev })),
+                    None => Ok(Some(Command::RemoveMapping {
+                        mapping_id: mapping.id.clone(),
+                    })),
+                }
+            }
+            Command::RemoveMapping { mapping_id } => {
+                let removed = p
+                    .mappings
+                    .remove(mapping_id)
+                    .ok_or_else(|| cmd_err("mapping not found"))?;
+                applied.set("remove mapping", vec![mapping_id.clone()]);
+                Ok(Some(Command::SetMapping { mapping: removed }))
             }
             Command::AddAsset { asset } => {
                 if p.assets.contains_key(&asset.id) {

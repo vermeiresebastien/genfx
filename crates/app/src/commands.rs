@@ -111,6 +111,40 @@ pub enum GuiCommand {
     SetGraphOutput {
         node_id: String,
     },
+    /// Create an empty composition graph (single Output sink) and make it active.
+    NewGraph {
+        name: String,
+    },
+    /// List the built-in multi-node presets.
+    Presets,
+    /// Insert a preset as the active composition (or merge into the active graph).
+    InsertPreset {
+        preset_id: String,
+        position: [f32; 2],
+        merge_into: Option<String>,
+    },
+    /// Set one node's bypass flag (undoable).
+    SetBypass {
+        node_id: String,
+        bypass: bool,
+    },
+    /// Replace a parameter's keyframe lane. Lane id is `"nodeId:paramId"`.
+    SetKeyframes {
+        lane_id: String,
+        keyframes: Vec<flux_domain::Keyframe>,
+    },
+    /// Create/replace a modulation mapping.
+    SetMapping {
+        mapping: flux_domain::Mapping,
+    },
+    RemoveMapping {
+        mapping_id: String,
+    },
+    /// Persist canvas-only metadata (frames, viewport) in project.extensions.
+    SetCanvasMeta {
+        frames: serde_json::Value,
+        viewport: serde_json::Value,
+    },
 }
 
 /// Response envelope.
@@ -173,17 +207,18 @@ impl CommandHost {
     /// Ensure an active graph exists (create a default gen.plasma -> output graph
     /// and make it active). Idempotent.
     fn ensure_active_graph(&mut self) {
-        if self
+        if !self
             .dispatcher
             .project
             .graphs
             .contains_key(&self.active_graph)
         {
-            return;
+            let g = crate::samples::chain_graph("gen.plasma", &[]);
+            self.active_graph = g.id.clone();
+            self.dispatcher.project.graphs.insert(g.id.clone(), g);
         }
-        let g = crate::samples::chain_graph("gen.plasma", &[]);
-        self.active_graph = g.id.clone();
-        self.dispatcher.project.graphs.insert(g.id.clone(), g);
+        // Persist the composition root so preview, export and the canvas agree.
+        self.dispatcher.project.timeline.master_graph_id = Some(self.active_graph.clone());
     }
 
     pub fn revision(&self) -> u64 {
@@ -254,6 +289,14 @@ impl CommandHost {
                     ));
                 }
                 self.dispatcher = Dispatcher::new(p);
+                self.active_graph = self
+                    .dispatcher
+                    .project
+                    .timeline
+                    .master_graph_id
+                    .clone()
+                    .unwrap_or_default();
+                self.ensure_active_graph();
                 Ok(self.snapshot())
             }
             GuiCommand::Save { path } => {
@@ -368,7 +411,7 @@ impl CommandHost {
                             .map(|p| {
                                 serde_json::json!({
                                     "id": p.id,
-                                    "type": format!("{:?}", p.port_type),
+                                    "type": port_type_str(&p.port_type),
                                     "required": p.required,
                                 })
                             })
@@ -377,7 +420,13 @@ impl CommandHost {
                             .manifest
                             .outputs
                             .iter()
-                            .map(|p| serde_json::json!({ "id": p.id, "type": format!("{:?}", p.port_type) }))
+                            .map(|p| {
+                                serde_json::json!({
+                                    "id": p.id,
+                                    "type": port_type_str(&p.port_type),
+                                    "required": p.required,
+                                })
+                            })
                             .collect();
                         serde_json::json!({
                             "id": e.manifest.id, "name": e.manifest.name,
@@ -385,6 +434,8 @@ impl CommandHost {
                             "parameters": params,
                             "inputs": inputs,
                             "outputs": outputs,
+                            "help": e.manifest.help,
+                            "accent": e.manifest.accent,
                             "version": e.manifest.version,
                         })
                     })
@@ -524,19 +575,117 @@ impl CommandHost {
                 Ok(serde_json::json!({ "revision": self.revision() }))
             }
             GuiCommand::MoveNode { node_id, x, y } => {
-                let gid = self.active_graph.clone();
-                if let Some(g) = self.dispatcher.project.graphs.get_mut(&gid) {
-                    if let Some(n) = g.node_mut(&node_id) {
-                        n.position = [x, y];
-                    }
-                }
-                Ok(serde_json::json!({ "ok": true }))
+                let graph_id = self.active_graph.clone();
+                self.dispatcher.apply(
+                    Command::SetNodePositions {
+                        graph_id,
+                        positions: vec![flux_domain::commands::NodePosition {
+                            node_id,
+                            position: [x, y],
+                        }],
+                    },
+                    None,
+                )?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
             }
             GuiCommand::SetGraphOutput { node_id } => {
                 let gid = self.active_graph.clone();
                 if let Some(g) = self.dispatcher.project.graphs.get_mut(&gid) {
                     g.output_node = node_id;
                 }
+                Ok(serde_json::json!({ "ok": true }))
+            }
+            GuiCommand::NewGraph { name } => {
+                let g = crate::samples::empty_graph(name);
+                let graph_id = g.id.clone();
+                self.dispatcher.project.graphs.insert(graph_id.clone(), g);
+                self.active_graph = graph_id.clone();
+                self.dispatcher.project.timeline.master_graph_id = Some(graph_id.clone());
+                Ok(serde_json::json!({ "graphId": graph_id }))
+            }
+            GuiCommand::Presets => {
+                let presets: Vec<serde_json::Value> = flux_catalog::presets::all_presets()
+                    .iter()
+                    .map(|p| {
+                        serde_json::json!({
+                            "id": p.id,
+                            "name": p.name,
+                            "description": p.description,
+                            "requirementRefs": p.requirement_refs,
+                        })
+                    })
+                    .collect();
+                Ok(serde_json::json!({ "presets": presets }))
+            }
+            GuiCommand::InsertPreset {
+                preset_id,
+                position,
+                merge_into,
+            } => {
+                let presets = flux_catalog::presets::all_presets();
+                let preset = presets
+                    .iter()
+                    .find(|p| p.id == preset_id)
+                    .ok_or_else(|| {
+                        FluxError::new(ErrorCode::NotFound, "gui", "preset not found")
+                    })?;
+                let graph = crate::samples::insert_preset(preset);
+                if let Some(target) = merge_into {
+                    let dst = self.dispatcher.project.graphs.get_mut(&target).ok_or_else(|| {
+                        FluxError::new(ErrorCode::NotFound, "gui", "graph not found")
+                    })?;
+                    crate::samples::merge_graph(dst, &graph, position);
+                    Ok(serde_json::json!({ "graphId": target }))
+                } else {
+                    let mut graph = graph;
+                    for n in &mut graph.nodes {
+                        n.position = [n.position[0] + position[0], n.position[1] + position[1]];
+                    }
+                    let graph_id = graph.id.clone();
+                    self.dispatcher.project.graphs.insert(graph_id.clone(), graph);
+                    self.active_graph = graph_id.clone();
+                    self.dispatcher.project.timeline.master_graph_id = Some(graph_id.clone());
+                    Ok(serde_json::json!({ "graphId": graph_id }))
+                }
+            }
+            GuiCommand::SetBypass { node_id, bypass } => {
+                let graph_id = self.active_graph.clone();
+                self.dispatcher.apply(
+                    Command::SetBypass {
+                        graph_id,
+                        node_id,
+                        bypass,
+                    },
+                    None,
+                )?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::SetKeyframes { lane_id, keyframes } => {
+                let graph_id = self.active_graph.clone();
+                self.dispatcher.apply(
+                    Command::SetKeyframes {
+                        graph_id,
+                        lane_id,
+                        keyframes,
+                    },
+                    None,
+                )?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::SetMapping { mapping } => {
+                self.dispatcher.apply(Command::SetMapping { mapping }, None)?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::RemoveMapping { mapping_id } => {
+                self.dispatcher
+                    .apply(Command::RemoveMapping { mapping_id }, None)?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::SetCanvasMeta { frames, viewport } => {
+                self.dispatcher.project.extensions.insert(
+                    "dev.flux.canvas".into(),
+                    serde_json::json!({ "frames": frames, "viewport": viewport }),
+                );
                 Ok(serde_json::json!({ "ok": true }))
             }
         }
@@ -556,6 +705,36 @@ impl CommandHost {
 
 fn effect_refs(effects: &[String]) -> Vec<&str> {
     effects.iter().map(|s| s.as_str()).collect()
+}
+
+/// Stable snake_case name for a port type, consumed by the node canvas to
+/// colour cables and decide connect compatibility.
+fn port_type_str(t: &flux_catalog::manifest::PortType) -> &'static str {
+    use flux_catalog::manifest::PortType as P;
+    match t {
+        P::Texture2D => "texture2d",
+        P::Mask => "mask",
+        P::Depth => "depth",
+        P::Normal => "normal",
+        P::MotionVectors => "motion_vectors",
+        P::Scalar => "scalar",
+        P::Int => "int",
+        P::Bool => "bool",
+        P::Color => "color",
+        P::Vec2 => "vec2",
+        P::Vec3 => "vec3",
+        P::Transform => "transform",
+        P::AudioFeatures => "audio_features",
+        P::AudioSpectrum => "audio_spectrum",
+        P::Event => "event",
+        P::BeatState => "beat_state",
+        P::Geometry => "geometry",
+        P::Scene => "scene",
+        P::ParticleBuffer => "particle_buffer",
+        P::SdfField => "sdf_field",
+        P::VectorField => "vector_field",
+        P::PathSet => "path_set",
+    }
 }
 
 #[cfg(test)]

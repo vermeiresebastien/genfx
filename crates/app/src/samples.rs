@@ -153,6 +153,71 @@ pub fn insert_preset(preset: &Preset) -> Graph {
     }
 }
 
+/// The starting master composition graph for a fresh project: one generator
+/// wired straight into Output, so the canvas opens with something live.
+pub fn master_graph_start() -> Graph {
+    chain_graph("gen.plasma", &[])
+}
+
+/// An empty composition graph: a single Output sink, ready to be wired up.
+pub fn empty_graph(name: impl Into<String>) -> Graph {
+    let out = uuid::Uuid::new_v4().to_string();
+    Graph {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: name.into(),
+        nodes: vec![GraphNode {
+            id: out.clone(),
+            type_id: "flux.output".into(),
+            type_version: 1,
+            position: [320.0, 0.0],
+            params: BTreeMap::new(),
+            bypass: false,
+            missing_type: false,
+        }],
+        edges: vec![],
+        output_node: out,
+        keyframes: BTreeMap::new(),
+    }
+}
+
+/// Merge `src`'s nodes and edges into `dst`, offsetting positions and rewiring
+/// `src`'s output into `dst`'s output node. Used when a preset is dropped onto an
+/// existing graph.
+pub fn merge_graph(dst: &mut Graph, src: &Graph, offset: [f32; 2]) {
+    let mut id_map: BTreeMap<String, String> = BTreeMap::new();
+    for n in &src.nodes {
+        let id = uuid::Uuid::new_v4().to_string();
+        id_map.insert(n.id.clone(), id.clone());
+        let mut node = n.clone();
+        node.id = id;
+        node.position = [n.position[0] + offset[0], n.position[1] + offset[1]];
+        dst.nodes.push(node);
+    }
+    let mut mapped_src_output = None;
+    for e in &src.edges {
+        if let (Some(from), Some(to)) = (id_map.get(&e.from_node), id_map.get(&e.to_node)) {
+            if e.from_node == src.output_node {
+                mapped_src_output = Some(from.clone());
+            }
+            dst.edges.push(GraphEdge {
+                from_node: from.clone(),
+                from_port: e.from_port.clone(),
+                to_node: to.clone(),
+                to_port: e.to_port.clone(),
+            });
+        }
+    }
+    // Rewire the merged preset's output into this graph's output sink.
+    if let Some(from) = mapped_src_output {
+        dst.edges.push(GraphEdge {
+            from_node: from,
+            from_port: "color".into(),
+            to_node: dst.output_node.clone(),
+            to_port: "source".into(),
+        });
+    }
+}
+
 /// Build a project with a single imported video asset on a video track and a
 /// clip graph that presents the decoded frames through `fx.color_adjustment`.
 pub fn demo_media_project(video_path: &std::path::Path, seconds: i64) -> Project {

@@ -63,6 +63,19 @@ impl RuntimeGraph {
                 .ensure_pipeline(gpu, entry)
                 .map_err(|e| FluxError::new(ErrorCode::ShaderCompile, "render", e.message))?;
         }
+        // Bypassed passes reuse the identity pipeline; make sure it exists even
+        // when no `flux.source` node is present in the graph.
+        if compiled
+            .passes
+            .iter()
+            .any(|p| p.bypass && p.type_id != "flux.output")
+        {
+            if let Some(entry) = catalog.get("flux.source") {
+                compiler
+                    .ensure_pipeline(gpu, entry)
+                    .map_err(|e| FluxError::new(ErrorCode::ShaderCompile, "render", e.message))?;
+            }
+        }
 
         // One output texture per non-terminal node (DAG execution). The graph's
         // output node writes the dedicated output target instead.
@@ -319,16 +332,29 @@ impl RuntimeGraph {
         let mut last_node: Option<String> = None;
 
         for pass in &self.compiled.passes {
-            let Some(entry) = catalog.get(&pass.type_id) else {
+            let Some(_entry) = catalog.get(&pass.type_id) else {
                 continue;
             };
-            let Some(pipeline) = compiler.pipeline(&pass.type_id) else {
+            // A bypassed node passes its primary input straight through. `flux.source`
+            // is exactly the identity shader (returns src unchanged), so reuse its
+            // pipeline rather than allocating a dedicated passthrough one.
+            let is_bypass_pipeline = pass.bypass && pass.type_id != "flux.output";
+            let pipeline_type = if is_bypass_pipeline {
+                "flux.source"
+            } else {
+                pass.type_id.as_str()
+            };
+            let Some(pipeline) = compiler.pipeline(pipeline_type) else {
                 continue;
             };
             let is_output = pass.node_id == self.compiled.output_node;
             let is_scope_source =
                 pass.type_id == "flux.source" || pass.type_id == "flux.mask_input";
-            let produced = producers.get(&pass.node_id);
+            let produced = if is_bypass_pipeline {
+                None
+            } else {
+                producers.get(&pass.node_id)
+            };
 
             // Resolve ports to texture views (all immutable borrows of self).
             // src (binding 0): producer texture > scope source > "source"/"a" > dummy.
