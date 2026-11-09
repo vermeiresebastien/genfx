@@ -32,26 +32,35 @@ low-priority UDP queue. **No audio samples are sent over OSC** — only features
 
 ## Packaging to `.amxd` (external step — needs a Max host)
 
+> **The patches are already fully wired.** Each `.maxpat` already contains the
+> `node.script bridge-osc.js @autostart 1` object, a `loadbang` to initialize it, and the
+> connections (`plugin~ → snapshot~ → node.script → udpsend` for audio;
+> `midiin → midiparse → node.script → udpsend` for MIDI). You do **not** need to add or
+> connect anything — just open and save as a device.
+>
+> **Why the agent can't finish this:** `.amxd` is written only by Max's own save dialog.
+> Max (Ableton-Live-bundled, JUCE-rendered) exposes no CLI/headless/UI-Automation path to
+> trigger "Save As → Max for Live Device", so this last step is manual by nature.
+
 `.amxd` is Max's encrypted/binary device format; it cannot be produced without a
-Max/Max-for-Live installation. The complete, verified source is here; the packaging
-procedure is fully specified so it is reproducible on any machine with Max:
+Max/Max-for-Live installation. Steps (≈4 clicks each, patches need no editing):
 
-1. **Prerequisite:** Max 9 (or a Max for Live host) installed.
-2. Verify the source is structurally valid and protocol-conformant:
+1. In Max: **File → Open…** → `apps\max-for-live\flux-audio-bridge.maxpat`.
+2. **File → Save As…** → set the file type to **Max Audio Effect** (a.k.a. Max for Live
+   Audio Effect) → filename `flux-audio-bridge` → save into `apps\max-for-live\`.
+3. **File → Open…** → `apps\max-for-live\flux-midi-bridge.maxpat`.
+4. **File → Save As…** → type **Max MIDI Effect** → `flux-midi-bridge` → same folder.
+5. Verify (PowerShell):
+   ```powershell
+   Get-ChildItem "D:\CURSOR LOCAL PROJECTS\VIDEO - GENFX\apps\max-for-live\*.amxd"
    ```
-   node apps/max-for-live/check-maxpat.cjs      # must print "maxpat structural checks: PASS"
-   ```
-3. Open each `.maxpat` in Max. Wire the `node.script bridge-osc.js` object into the
-   patch (the encoder is provided; see the patch comments for the inlet layout).
-4. Save each device as a **Max Audio Effect** (audio bridge) / **Max MIDI Effect**
-   (MIDI bridge): *File → Save As → Max for Live Device* (`.amxd`).
-5. Set the device **author** and **description** metadata to `Flux` and
-   "Flux <audio|midi> bridge — OSC transport/feature sync".
-6. Confirm the `.amxd` loads: drop it on a track in Live, verify it appears active
-   and that `udpsend 127.0.0.1 9000` transmits on note/transport activity.
-7. Record the Max version used in `implementation/evidence/`.
+   Each `.amxd` should begin with the Max binary magic (`ampf`), not `{` (JSON).
 
-**What is verified here vs. external:** the source patches, OSC encode/decode
-contract, and `check-maxpat.cjs` conformance are verified now. The `.amxd` bytes and
-in-host load test require the Max host above and are the recorded external blocker.
+If your Max build offers no device type in Save As, it is the standalone Max without the
+Max-for-Live device authoring — use the Max bundled with Ableton Live 12 Suite instead.
+
+**What is verified here vs. external:** the source patches (now pre-wired), the OSC
+encode/decode contract, and `check-maxpat.cjs` conformance are verified now. Producing the
+`.amxd` bytes and an in-host load test requires the Max GUI above — the recorded external
+step.
 

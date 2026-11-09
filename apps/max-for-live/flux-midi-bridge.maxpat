@@ -7,7 +7,7 @@
 			"revision" : 0,
 			"architecture" : "x64"
 		},
-		"rect" : [ 80.0, 80.0, 860.0, 460.0 ],
+		"rect" : [ 80.0, 80.0, 860.0, 520.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 0,
 		"default_font_size" : 12.0,
@@ -45,23 +45,43 @@
 			}
 		}, {
 			"box" : {
+				"id" : "obj-nodescript",
+				"maxclass" : "newobj",
+				"text" : "node.script bridge-osc.js @autostart 1",
+				"numinlets" : 1,
+				"numoutlets" : 1,
+				"outlettype" : [ "" ],
+				"patching_rect" : [ 40.0, 260.0, 260.0, 22.0 ]
+			}
+		}, {
+			"box" : {
 				"id" : "obj-udpsend",
 				"maxclass" : "newobj",
 				"text" : "udpsend 127.0.0.1 9000",
 				"numinlets" : 1,
 				"numoutlets" : 0,
 				"outlettype" : [ ],
-				"patching_rect" : [ 40.0, 360.0, 160.0, 22.0 ]
+				"patching_rect" : [ 40.0, 400.0, 160.0, 22.0 ]
+			}
+		}, {
+			"box" : {
+				"id" : "obj-loadbang",
+				"maxclass" : "newobj",
+				"text" : "loadbang",
+				"numinlets" : 1,
+				"numoutlets" : 1,
+				"outlettype" : [ "bang" ],
+				"patching_rect" : [ 320.0, 260.0, 60.0, 22.0 ]
 			}
 		}, {
 			"box" : {
 				"id" : "obj-comment",
 				"maxclass" : "comment",
-				"text" : "Flux MIDI Bridge — MIDI pass-through unchanged, plus normalized controls over OSC. MPE per-note channels preserved.",
+				"text" : "Flux MIDI Bridge — midiin passes unchanged to midiout; midiparse (outlet 6 = raw list) feeds bridge-osc.js which encodes + sends OSC to the Flux app. MPE per-note channels preserved.",
 				"numinlets" : 1,
 				"numoutlets" : 0,
 				"outlettype" : [ ],
-				"patching_rect" : [ 40.0, 400.0, 780.0, 36.0 ]
+				"patching_rect" : [ 40.0, 440.0, 780.0, 40.0 ]
 			}
 		} ],
 		"lines" : [ {
@@ -77,7 +97,17 @@
 		}, {
 			"patchline" : {
 				"source" : [ "obj-midiinfo", 6 ],
+				"destination" : [ "obj-nodescript", 0 ]
+			}
+		}, {
+			"patchline" : {
+				"source" : [ "obj-nodescript", 0 ],
 				"destination" : [ "obj-udpsend", 0 ]
+			}
+		}, {
+			"patchline" : {
+				"source" : [ "obj-loadbang", 0 ],
+				"destination" : [ "obj-nodescript", 0 ]
 			}
 		} ]
 	}

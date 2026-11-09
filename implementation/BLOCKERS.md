@@ -21,7 +21,11 @@
   sold/distributed commercially, so the GPLv2-or-later terms are acceptable (DECISIONS
   D012). No blocker remains; only "single-master" arbitration and seek/loop assertions are
   still not covered (AT063 stays `implemented_unverified`).
-- **Max for Live**: host not installed; `.maxpat`-equivalent source only, `.amxd` blocked.
+- **Max for Live**: source `.maxpat` devices are now **fully pre-wired** (node.script
+  bridge-osc.js + loadbang + all connections) and structural checks pass. Remaining step:
+  save each as `.amxd` via Max's GUI *Save As → Max Audio/MIDI Effect* (Max is
+  JUCE-rendered; no CLI/UI-Automation path exists, so this is manual). Procedure in
+  `apps/max-for-live/README.md`.
 - **macOS hosts**: unavailable; macOS-only paths unverified.
 - **Code signing / notarization**: no identity; builds are unsigned.
 - **Optional vision models (G170–G177)**: **implemented and verified.** A model registry
