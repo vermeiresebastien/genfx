@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 2,
+  "projectId": "b631db0f-27d7-49a9-8127-4c3812470dd3",
+  "name": "Demo gen.plasma",
+  "createdUtc": "2026-11-09T02:41:30Z",
+  "modifiedUtc": "2026-11-09T02:41:30Z",
+  "settings": {
+    "size": {
+      "width": 1920,
+      "height": 1080
+    },
+    "frame_rate": {
+      "num": 60,
+      "den": 1
+    },
+    "pixel_aspect": {
+      "num": 1,
+      "den": 1
+    },
+    "audio": {
+      "sample_rate": 48000,
+      "channels": 2
+    },
+    "working_color": "linear_rec709",
+    "seed": "12345",
+    "simulation_step": {
+      "numerator": "1",
+      "denominator": 120
+    }
+  },
+  "assets": {},
+  "timeline": {
+    "range": {
+      "start": {
+        "numerator": "0",
+        "denominator": 1
+      },
+      "duration": {
+        "numerator": "4",
+        "denominator": 1
+      }
+    },
+    "trackOrder": [
+      "4b80674b-8375-4009-80bd-0a23f672c1d5"
+    ],
+    "tracks": {
+      "4b80674b-8375-4009-80bd-0a23f672c1d5": {
+        "id": "4b80674b-8375-4009-80bd-0a23f672c1d5",
+        "name": "V1",
+        "kind": "video",
+        "clipOrder": [
+          "c5e60232-eea8-4586-9d04-f875cfe3c4d1"
+        ],
+        "locked": false,
+        "muted": false,
+        "solo": false,
+        "visible": true,
+        "gainDb": 0.0,
+        "opacity": 1.0,
+        "blendMode": "normal",
+        "graphId": null
+      }
+    },
+    "clips": {
+      "c5e60232-eea8-4586-9d04-f875cfe3c4d1": {
+        "id": "c5e60232-eea8-4586-9d04-f875cfe3c4d1",
+        "name": "gen.plasma",
+        "source": {
+          "kind": "generatorScene",
+          "generator_id": "gen.plasma"
+        },
+        "range": {
+          "start": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "duration": {
+            "numerator": "4",
+            "denominator": 1
+          }
+        },
+        "sourceRange": {
+          "start": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "duration": {
+            "numerator": "4",
+            "denominator": 1
+          }
+        },
+        "rate": {
+          "numerator": "1",
+          "denominator": 1
+        },
+        "loopPolicy": "loop",
+        "graphId": "947c7a07-f91d-47c7-bdd0-77c49da1bee9",
+        "transform": {
+          "position": [
+            0.5,
+            0.5
+          ],
+          "scale": [
+            1.0,
+            1.0
+          ],
+          "rotation": 0.0,
+          "anchor": [
+            0.5,
+            0.5
+          ]
+        },
+        "opacity": 1.0,
+        "audio": {
+          "gainDb": 0.0,
+          "pan": 0.0,
+          "fadeIn": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "fadeOut": {
+            "numerator": "0",
+            "denominator": 1
+          },
+          "muted": false
+        },
+        "linkedGroup": null
+      }
+    },
+    "masterGraphId": null
+  },
+  "graphs": {
+    "947c7a07-f91d-47c7-bdd0-77c49da1bee9": {
+      "id": "947c7a07-f91d-47c7-bdd0-77c49da1bee9",
+      "name": "gen.plasma chain",
+      "nodes": [
+        {
+          "id": "c63f9ce6-6fa5-42a4-9bf4-67e2a84c0381",
+          "typeId": "gen.plasma",
+          "typeVersion": 1,
+          "position": [
+            0.0,
+            0.0
+          ],
+          "params": {},
+          "bypass": false,
+          "missingType": false
+        },
+        {
+          "id": "540918d6-dbff-4a10-80ba-b5be69e5c148",
+          "typeId": "fx.bloom",
+          "typeVersion": 1,
+          "position": [
+            240.0,
+            0.0
+          ],
+          "params": {},
+          "bypass": false,
+          "missingType": false
+        },
+        {
+          "id": "16c1e6a7-b46c-460a-bf07-d6026cf54fe0",
+          "typeId": "flux.output",
+          "typeVersion": 1,
+          "position": [
+            480.0,
+            0.0
+          ],
+          "params": {},
+          "bypass": false,
+          "missingType": false
+        }
+      ],
+      "edges": [
+        {
+          "fromNode": "c63f9ce6-6fa5-42a4-9bf4-67e2a84c0381",
+          "fromPort": "color",
+          "toNode": "540918d6-dbff-4a10-80ba-b5be69e5c148",
+          "toPort": "source"
+        },
+        {
+          "fromNode": "540918d6-dbff-4a10-80ba-b5be69e5c148",
+          "fromPort": "color",
+          "toNode": "16c1e6a7-b46c-460a-bf07-d6026cf54fe0",
+          "toPort": "source"
+        }
+      ],
+      "outputNode": "16c1e6a7-b46c-460a-bf07-d6026cf54fe0",
+      "keyframes": {}
+    }
+  },
+  "mappings": {},
+  "markers": [],
+  "extensions": {}
+}

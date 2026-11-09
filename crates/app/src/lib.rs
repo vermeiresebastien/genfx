@@ -5,4 +5,5 @@ pub mod export;
 pub mod job;
 pub mod persistence;
 pub mod producer;
+pub mod record;
 pub mod samples;

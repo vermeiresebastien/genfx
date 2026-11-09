@@ -102,13 +102,30 @@ fn run(args: &[String]) -> FluxResult<()> {
                 .unwrap_or(flux_integrations::osc::DEFAULT_RECV_PORT);
             cmd_osc_listen(port)
         }
+        "record" => {
+            let project = PathBuf::from(args.get(1).cloned().ok_or_else(|| {
+                FluxError::new(
+                    flux_domain::ErrorCode::InvalidCommand,
+                    "cli",
+                    "record needs a project path",
+                )
+            })?);
+            let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "rec_out".into()));
+            let secs = args
+                .iter()
+                .position(|a| a == "--seconds")
+                .and_then(|i| args.get(i + 1))
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(5.0);
+            cmd_record(&project, &dir, secs)
+        }
         "gui" | "editor" => {
             eprintln!("The GUI is not included in this build. Use `flux demo-render` / `flux render` for headless rendering.");
             std::process::exit(2);
         }
         other => {
             eprintln!("unknown command: {other}");
-            eprintln!("usage: flux [list|doctor|caps|new-demo|demo-render|demo-media|contact-sheet|render|recover|collect|gui]");
+            eprintln!("usage: flux [list|doctor|caps|capture|integrations|osc|new-demo|demo-render|demo-media|contact-sheet|render|record|recover|collect|gui]");
             std::process::exit(2);
         }
     }
@@ -305,6 +322,37 @@ fn cmd_render(
     }
     if let Some(w) = &result.wav {
         println!("wav:   {}", w.display());
+    }
+    Ok(())
+}
+
+fn cmd_record(project_path: &std::path::Path, dir: &std::path::Path, secs: f64) -> FluxResult<()> {
+    let project = load_project(project_path)?;
+    let r = flux_app::record::record_project(
+        &project,
+        &flux_app::record::RecordOptions {
+            out_dir: dir.to_path_buf(),
+            project_name: format!("{}_take", sanitize(&project.name)),
+            codec: flux_media::EncodeCodec::H264,
+            width: project.settings.size.width,
+            height: project.settings.size.height,
+            seconds: secs,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        },
+    )?;
+    println!(
+        "recorded {} frames, {} samples, dropped={}, overrun={}",
+        r.frames, r.samples, r.dropped_frames, r.overrun
+    );
+    if let Some(v) = &r.video {
+        println!("video: {}", v.display());
+    }
+    if r.overrun {
+        return Err(FluxError::new(
+            flux_domain::ErrorCode::MediaDecode,
+            "record",
+            "RECORDING_OVERRUN: renderer could not sustain realtime",
+        ));
     }
     Ok(())
 }
