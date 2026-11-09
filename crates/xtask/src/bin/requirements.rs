@@ -200,18 +200,46 @@ fn product_paths(id: &str, catalog: &flux_catalog::Catalog) -> Vec<String> {
     let mut v = vec![];
     let has = |s: &str| catalog.entries.iter().any(|e| e.manifest.id == s);
     match id {
+        "R001" => {
+            v.push("crates/app/src/export.rs".into());
+            v.push("apps/desktop".into());
+        }
         "R003" => v.push("crates/render".into()),
+        "R004" => v.push("crates/media".into()),
         "R007" => v.push("crates/engine/src/graph.rs".into()),
         "R008" => v.push("crates/engine/src/timeline.rs".into()),
         "R009" | "R010" => v.push("crates/catalog".into()),
-        "R011" | "R012" | "R013" => v.push("crates/catalog".into()),
-        "R014" => v.push("crates/audio".into()),
-        "R017" => v.push("crates/app/src/export.rs".into()),
-        "R018" => v.push("crates/domain/src/document.rs".into()),
+        "R011" | "R012" | "R013" => {
+            v.push("crates/catalog".into());
+            v.push("crates/app/src/producer.rs".into());
+        }
+        "R014" => {
+            v.push("crates/audio".into());
+            v.push("crates/integrations".into());
+        }
+        "R015" => v.push("crates/integrations".into()),
+        "R016" => {
+            v.push("crates/render/src/preview.rs".into());
+            v.push("apps/desktop".into());
+        }
+        "R017" => {
+            v.push("crates/app/src/export.rs".into());
+            v.push("crates/app/src/record.rs".into());
+            v.push("crates/app/src/job.rs".into());
+        }
+        "R018" => {
+            v.push("crates/domain/src/document.rs".into());
+            v.push("crates/app/src/persistence.rs".into());
+        }
+        "R019" => {
+            v.push("crates/app/src/diagnostics.rs".into());
+            v.push("crates/platform".into());
+        }
         "R020" => v.push("implementation".into()),
+        "R021" => v.push("crates/integrations".into()),
+        "R022" => v.push("crates/app/src/producer.rs".into()),
         "R023" => v.push("crates/domain/src/time.rs".into()),
         "R024" => v.push("Cargo.lock".into()),
-        "R004" => v.push("crates/media".into()),
         _ => {}
     }
     if has("gen.solid") && matches!(id, "R003" | "R009" | "R011") {
@@ -224,11 +252,9 @@ fn product_paths(id: &str, catalog: &flux_catalog::Catalog) -> Vec<String> {
 
 fn blocker_for(id: &str) -> Option<&'static str> {
     match id {
-        "R001" => Some("macOS hosts unavailable; Windows x64 built"),
+        "R001" => Some("macOS hosts unavailable; Windows x64 built (GUI+CLI)"),
         "R002" => Some("Max for Live host not installed; source .maxpat only"),
-        "R005" => {
-            Some("platform capture adapters implemented; runtime device verification pending")
-        }
+        "R005" => Some("capture adapters implemented; device enumeration verified, live capture needs a device"),
         "R006" => Some("NDI SDK/Spout SDK/Syphon(macOS) not available"),
         "R015" => Some("Ableton Link license not resolved; MIDI/Max transport only"),
         "R021" => Some("external creative-code runtimes not installed"),
@@ -240,11 +266,14 @@ fn blocker_for(id: &str) -> Option<&'static str> {
 fn task_status(id: &str) -> &'static str {
     match id {
         "T00" | "T01" => "verified",
-        "T03" | "T07" | "T08" | "T09" | "T10" | "T11" | "T12" | "T13" => "implemented_unverified",
-        "T02" | "T04" | "T05" => "implemented_unverified",
-        "T06" => "implemented_unverified",
-        "T14" | "T15" | "T16" | "T17" | "T18" | "T19" | "T20" | "T21" | "T22" | "T23" | "T24"
-        | "T25" | "T26" | "T27" => "implemented_unverified",
+        "T22" | "T16" | "T21" | "T20" => "implemented_unverified",
+        "T02" | "T03" | "T04" | "T05" | "T06" => "implemented_unverified",
+        "T07" | "T08" | "T09" | "T10" | "T11" | "T12" | "T13" | "T14" | "T15" => {
+            "implemented_unverified"
+        }
+        "T17" => "implemented_unverified",
+        "T18" | "T19" | "T23" | "T24" => "implemented_unverified",
+        "T25" | "T26" | "T27" => "implemented_unverified",
         _ => "pending",
     }
 }
@@ -293,6 +322,46 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         "AT082" => (
             "implemented_unverified",
             vec!["cargo xtask package (unsigned dev binary)".into()],
+        ),
+        // Persistence: autosave/recovery/relink/collect (real, tested).
+        "AT071" | "AT072" => (
+            "verified",
+            vec!["crates/app persistence tests (autosave/recovery/relink/collect)".into()],
+        ),
+        // Export matrix: each available codec produces a probeable artifact.
+        "AT067" | "AT068" | "AT069" | "AT070" => (
+            "implemented_unverified",
+            vec![
+                "crates/tests export_matrix tests".into(),
+                "implementation/evidence/media-export.txt".into(),
+            ],
+        ),
+        // OSC real UDP loopback + MIDI parsing.
+        "AT049" | "AT050" => (
+            "verified",
+            vec!["crates/integrations osc tests (real UDP loopback, malformed/rate-limit)".into()],
+        ),
+        "AT051" => (
+            "implemented_unverified",
+            vec!["crates/integrations midi tests (parsing); device presence host-dependent".into()],
+        ),
+        // GUI command surface acceptance flow (engine side verified).
+        "AT080" => (
+            "implemented_unverified",
+            vec!["crates/app commands gui_acceptance_flow test; Tauri app builds+launches".into()],
+        ),
+        // Windows capture enumeration verified; live capture needs a device.
+        "AT054" | "AT055" | "AT056" => (
+            "implemented_unverified",
+            vec!["implementation/evidence/capture.txt (real WASAPI+PnP enumeration)".into()],
+        ),
+        "AT074" => (
+            "verified",
+            vec!["crates/app diagnostics tests (redaction, no secrets)".into()],
+        ),
+        "AT035" | "AT042" | "AT043" | "AT044" | "AT045" | "AT046" | "AT047" | "AT048" => (
+            "implemented_unverified",
+            vec!["crates/tests producer tests (deterministic animated content)".into()],
         ),
         _ => ("implemented_unverified", vec![]),
     }

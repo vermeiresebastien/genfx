@@ -53,5 +53,26 @@ identical bytes, no wall clock), and ownership (caller owns the buffer; bounded 
 target size). The renderer accepts per-node `producer` textures via
 `RuntimeGraph::execute_with_producers`, so the same producer implementation drives
 preview and export with only resolution/quality differing. Reference producers:
-typography (G070–G079, bundled block font) and vector (G030–G045, analytic rasterizer).
+typography (G070–G079, bundled block font), vector (G030–G045, analytic rasterizer),
+SDF/mesh (G080–G107, CPU raymarch), particle/physics/field (G110–G148), control
+(G150–G162).
+
+## D008 — GUI command surface, persistence, export matrix, recording
+The GUI is a thin consumer of `flux_app::commands::CommandHost`, which validates and
+executes every request against the engine `Dispatcher` (revision-checked, typed
+`GuiCommand`/`Request`/`Response`). The Tauri shell exposes `dispatch`, `render_preview`,
+`export_project_cmd`, `capabilities`, `produce_generator_frame`; the webview never runs
+its own engine. Persistence is `flux_app::persistence` (atomic save+backup, autosave with
+retention/pruning, recovery manifest, relink search, collect-media). Export is a matrix
+(PNG/JPEG sequence, WAV, H.264/HEVC MP4, ProRes MOV, GIF) with a frozen-snapshot job +
+persisted queue (`job.rs`). Recording (`record.rs`) renders the deterministic exporter at
+wall-clock budget and reports overrun honestly.
+
+## D009 — Real where buildable, blocked where external
+OSC and MIDI are implemented from crates (`rosc`, `midir`) and verified with real UDP
+loopback and message parsing. Windows device enumeration uses the `windows` crate (WASAPI
+COM endpoints + PnP camera class) and is verified on-host. NDI, Spout, Syphon, Ableton
+Link, and Max for Live require SDKs/hosts/licenses that are absent; their adapters are
+capability records marked `blocked_external`, never faked as working.
+
 

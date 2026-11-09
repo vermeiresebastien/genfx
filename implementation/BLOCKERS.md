@@ -1,26 +1,21 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **Native GUI editor API mismatch** — the spec's editor UI (React Flow / Tauri) is not
-  used. A native egui editor was attempted but egui 0.37 pins `wgpu 30`, while the
-  verified renderer is pinned to `wgpu 27`; mixing both aborts on a windows-crate
-  conflict inside wgpu-hal D3D12. The verified product path is the headless CLI
-  (`flux render` / `demo-render` / `demo-media` / `contact-sheet`) which exercises the
-  full engine, renderer, effects, generators, media and export. A GUI requires either
-  upgrading the renderer to wgpu 30 (a rework) or adopting the Tauri 2 + React shell.
-- **NDI SDK/runtime**, **Spout2 SDK (Windows)**, **Syphon (macOS)**: not installed;
-  real send/receive verification blocked.
-- **Ableton Link** license not resolved; audio transport uses internal/MIDI only.
-- **Max for Live host**: not installed; `.amxd` packaging blocked.
+- **NDI SDK/runtime** (R006, AT060): official SDK not installed; adapter/capability record
+  present, real send/receive `blocked_external`.
+- **Spout2 (Windows)** and **Syphon (macOS)**: SDKs/host not present; `blocked_external`.
+- **Ableton Link**: license not resolved; internal/MIDI/Max transport only.
+- **Max for Live**: host not installed; `.maxpat`-equivalent source only, `.amxd` blocked.
 - **macOS hosts**: unavailable; macOS-only paths unverified.
-- **Code signing / notarization**: no identity.
-- **Optional vision models** (G170–G177): not present; conditional nodes stay editable.
+- **Code signing / notarization**: no identity; builds are unsigned.
+- **Optional vision models (G170–G177)**: not present; conditional nodes stay editable.
 
-## Implemented but unverified
-- SDF/mesh/particle/physics/fluid/vector/text generator rows: manifests complete, WGSL
-  pipelines compile and present; their CPU/3D/raster producers are specified but not
-  fully wired into export (they render as presentation passthrough of an uploaded
-  texture, which is transparent without a producer). The 2D/math analytic generators
-  (123 rows) render real content and are covered by integration tests.
-- OS capture adapters (Windows camera/screen/WASAPI loopback): platform cfg scaffolding
-  only; not runtime-verified on a device in this run.
+## Implemented, device/host-dependent for full verification
+- **Windows capture**: WASAPI endpoint + PnP camera enumeration is real and verified on
+  this host (5 mics, 6 loopback endpoints, 1 camera). Live frame/audio *capture* needs a
+  device + OS permission, which this headless run could not exercise.
+- **GUI end-to-end visual verification**: Tauri 2 + web UI builds, links, and launches;
+  the Rust command surface passes the GUI acceptance flow (create→catalog→add→edit→save→
+  reload). A webview screenshot was not captured headlessly.
+- **SDF/particle producers**: correct and deterministic CPU implementations; not realtime
+  at 4K (analytic WGSL generators are).

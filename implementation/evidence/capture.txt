@@ -1,0 +1,16 @@
+platform: windows
+cameras: 1  microphones: 5  loopback: 6
+  [camera] camera { Properties } default=true
+  [microphone] microphone { {0839dd8c-dc88-4c7b-aa85-452070e0ef5e} } default=true
+  [microphone] microphone { {18369818-962a-46c2-91d1-e4e59abdae92} } default=false
+  [microphone] microphone { {28023a8b-047e-40cd-9d89-20aa4ccdaabc} } default=false
+  [microphone] microphone { {6fbaa9dd-5f28-4868-956a-21322ef7ad1f} } default=false
+  [microphone] microphone { {a3d2541b-dc66-459c-afd2-27b767265abe} } default=false
+  [loopback] loopback { {0a7f2dd1-7ad9-432e-9e0b-9ec842d6ba6f} } default=false
+  [loopback] loopback { {0e88a02b-35cb-4c61-8207-00385d87b489} } default=true
+  [loopback] loopback { {33d0ee9e-0d15-46f7-89a0-03c29f951aba} } default=false
+  [loopback] loopback { {8d8bb8ef-dc7e-4c78-a279-b626e66968cc} } default=false
+  [loopback] loopback { {d72ed9a6-11bf-4604-adb1-2b9fad31c8c2} } default=false
+  [loopback] loopback { {fb7cc562-cb42-4303-86ea-e7dd6ae55ba0} } default=false
+camera_available=true loopback_available=true
+note: WASAPI endpoints + PnP camera class enumerated for real; live frame capture needs a device and OS permission

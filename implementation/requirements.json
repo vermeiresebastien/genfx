@@ -14,11 +14,14 @@
       "id": "R001",
       "title": "Windows x64 and macOS arm64/x64 standalone builds",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "apps/desktop",
+        "crates/app/src/export.rs"
+      ],
       "test_ids": [],
       "evidence_paths": [],
-      "blocker": "macOS hosts unavailable; Windows x64 built"
+      "blocker": "macOS hosts unavailable; Windows x64 built (GUI+CLI)"
     },
     {
       "id": "R002",
@@ -63,7 +66,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [],
-      "blocker": "platform capture adapters implemented; runtime device verification pending"
+      "blocker": "capture adapters implemented; device enumeration verified, live capture needs a device"
     },
     {
       "id": "R006",
@@ -130,6 +133,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "crates/app/src/producer.rs",
         "crates/catalog",
         "crates/catalog/src/effects_a.rs"
       ],
@@ -143,6 +147,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "crates/app/src/producer.rs",
         "crates/catalog"
       ],
       "test_ids": [],
@@ -155,6 +160,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "crates/app/src/producer.rs",
         "crates/catalog"
       ],
       "test_ids": [],
@@ -167,7 +173,8 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
-        "crates/audio"
+        "crates/audio",
+        "crates/integrations"
       ],
       "test_ids": [],
       "evidence_paths": [],
@@ -177,8 +184,10 @@
       "id": "R015",
       "title": "Internal, external, and recorded musical synchronization",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/integrations"
+      ],
       "test_ids": [],
       "evidence_paths": [],
       "blocker": "Ableton Link license not resolved; MIDI/Max transport only"
@@ -187,8 +196,11 @@
       "id": "R016",
       "title": "Real-time editor preview, detached output, multiple monitors",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "apps/desktop",
+        "crates/render/src/preview.rs"
+      ],
       "test_ids": [],
       "evidence_paths": [],
       "blocker": null
@@ -199,7 +211,9 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
-        "crates/app/src/export.rs"
+        "crates/app/src/export.rs",
+        "crates/app/src/job.rs",
+        "crates/app/src/record.rs"
       ],
       "test_ids": [],
       "evidence_paths": [],
@@ -211,6 +225,7 @@
       "class": "required",
       "status": "implemented_unverified",
       "implementation_paths": [
+        "crates/app/src/persistence.rs",
         "crates/domain/src/document.rs"
       ],
       "test_ids": [],
@@ -221,8 +236,11 @@
       "id": "R019",
       "title": "Performance diagnostics, resource limits, failure recovery",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/app/src/diagnostics.rs",
+        "crates/platform"
+      ],
       "test_ids": [],
       "evidence_paths": [],
       "blocker": null
@@ -243,8 +261,10 @@
       "id": "R021",
       "title": "External creative-code sources and recorded live data",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/integrations"
+      ],
       "test_ids": [],
       "evidence_paths": [],
       "blocker": "external creative-code runtimes not installed"
@@ -253,8 +273,10 @@
       "id": "R022",
       "title": "Depth, motion, masking, and optional vision/model inputs",
       "class": "required",
-      "status": "pending",
-      "implementation_paths": [],
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/app/src/producer.rs"
+      ],
       "test_ids": [],
       "evidence_paths": [],
       "blocker": "vision models not installed; conditional"
@@ -3430,7 +3452,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3500,7 +3524,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3510,7 +3536,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3520,7 +3548,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3530,7 +3560,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3540,7 +3572,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3550,7 +3584,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
@@ -3560,27 +3596,33 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests producer tests (deterministic animated content)"
+      ],
       "blocker": null
     },
     {
       "id": "AT049",
       "title": "OSC actual UDP encode/decode/all declared types; scheduled bundle order, native/normalized routes and learn.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations osc tests (real UDP loopback, malformed/rate-limit)"
+      ],
       "blocker": null
     },
     {
       "id": "AT050",
       "title": "OSC malformed/rate limit/duplicate trigger/feedback loop; app responsive, no unauthorized file or shell action.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations osc tests (real UDP loopback, malformed/rate-limit)"
+      ],
       "blocker": null
     },
     {
@@ -3590,7 +3632,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/integrations midi tests (parsing); device presence host-dependent"
+      ],
       "blocker": null
     },
     {
@@ -3620,7 +3664,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+      ],
       "blocker": null
     },
     {
@@ -3630,7 +3676,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+      ],
       "blocker": null
     },
     {
@@ -3640,7 +3688,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+      ],
       "blocker": null
     },
     {
@@ -3750,7 +3800,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests export_matrix tests",
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
@@ -3760,7 +3813,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests export_matrix tests",
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
@@ -3770,7 +3826,10 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests export_matrix tests",
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
@@ -3780,27 +3839,34 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/tests export_matrix tests",
+        "implementation/evidence/media-export.txt"
+      ],
       "blocker": null
     },
     {
       "id": "AT071",
       "title": "Autosave and forced crash recovery on disposable project; last saved and recovered revisions both available and valid.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app persistence tests (autosave/recovery/relink/collect)"
+      ],
       "blocker": null
     },
     {
       "id": "AT072",
       "title": "Missing media/relink/collect project; ambiguity resolved visibly, originals preserved, relative portable project opens offline.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app persistence tests (autosave/recovery/relink/collect)"
+      ],
       "blocker": null
     },
     {
@@ -3817,10 +3883,12 @@
       "id": "AT074",
       "title": "Diagnostics/redaction/settings/capability state; no secrets/media payloads in report, no default telemetry/network dependency.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app diagnostics tests (redaction, no secrets)"
+      ],
       "blocker": null
     },
     {
@@ -3882,7 +3950,9 @@
       "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
-      "evidence_paths": [],
+      "evidence_paths": [
+        "crates/app commands gui_acceptance_flow test; Tauri app builds+launches"
+      ],
       "blocker": null
     },
     {

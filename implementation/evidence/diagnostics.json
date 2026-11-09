@@ -1,0 +1,116 @@
+{
+  "appVersion": "0.1.0",
+  "specVersion": "2.0",
+  "os": "windows",
+  "arch": "x86_64",
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 2080 Ti",
+    "backend": "Vulkan",
+    "deviceType": "DiscreteGpu",
+    "driver": "NVIDIA 560.94",
+    "maxTexture2D": 8192,
+    "supportsRgba16fFilter": true,
+    "maxUniformBindingSize": 65536
+  },
+  "media": {
+    "h264": true,
+    "hevc": true,
+    "prores": true,
+    "aac": true,
+    "gif": true,
+    "png": true,
+    "wav": true
+  },
+  "capabilities": [
+    {
+      "component": "render",
+      "platform": "windows",
+      "available": true,
+      "implemented": true,
+      "verified": true,
+      "limitation": ""
+    },
+    {
+      "component": "media",
+      "platform": "windows",
+      "available": true,
+      "implemented": true,
+      "verified": true,
+      "limitation": ""
+    },
+    {
+      "component": "camera",
+      "platform": "windows",
+      "available": true,
+      "implemented": true,
+      "verified": false,
+      "limitation": "WASAPI endpoints + PnP camera class enumerated for real; live frame capture needs a device and OS permission"
+    },
+    {
+      "component": "loopback",
+      "platform": "windows",
+      "available": true,
+      "implemented": true,
+      "verified": false,
+      "limitation": "WASAPI endpoints + PnP camera class enumerated for real; live frame capture needs a device and OS permission"
+    },
+    {
+      "component": "osc",
+      "platform": "cross",
+      "available": true,
+      "implemented": true,
+      "verified": true,
+      "limitation": "loopback UDP only; feedback target configured explicitly"
+    },
+    {
+      "component": "midi",
+      "platform": "cross",
+      "available": true,
+      "implemented": true,
+      "verified": true,
+      "limitation": "no virtual ports on Windows"
+    },
+    {
+      "component": "ndi",
+      "platform": "cross",
+      "available": false,
+      "implemented": false,
+      "verified": false,
+      "limitation": "official NDI SDK/runtime not installed"
+    },
+    {
+      "component": "spout",
+      "platform": "cross",
+      "available": false,
+      "implemented": false,
+      "verified": false,
+      "limitation": "Spout2 SDK not installed"
+    },
+    {
+      "component": "syphon",
+      "platform": "cross",
+      "available": false,
+      "implemented": false,
+      "verified": false,
+      "limitation": "macOS only; no macOS host"
+    },
+    {
+      "component": "link",
+      "platform": "cross",
+      "available": false,
+      "implemented": false,
+      "verified": false,
+      "limitation": "Ableton Link license not resolved"
+    },
+    {
+      "component": "max",
+      "platform": "cross",
+      "available": false,
+      "implemented": false,
+      "verified": false,
+      "limitation": "Max for Live host not installed"
+    }
+  ],
+  "redactions": [],
+  "counters": {}
+}
