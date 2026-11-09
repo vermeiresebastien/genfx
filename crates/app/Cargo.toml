@@ -20,6 +20,7 @@ flux-render = { path = "../render" }
 flux-media = { path = "../media" }
 flux-audio = { path = "../audio" }
 flux-integrations = { path = "../integrations" }
+flux-platform = { path = "../platform" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

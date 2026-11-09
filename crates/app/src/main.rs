@@ -93,6 +93,7 @@ fn run(args: &[String]) -> FluxResult<()> {
             cmd_collect(&project)
         }
         "caps" => cmd_caps(),
+        "capture" => cmd_capture(),
         "integrations" => cmd_integrations(),
         "osc" => {
             let port = args
@@ -367,6 +368,26 @@ fn cmd_osc_listen(port: u16) -> FluxResult<()> {
     }
     recv.stop();
     let _ = handle.join();
+    Ok(())
+}
+
+fn cmd_capture() -> FluxResult<()> {
+    let c = flux_platform::capture_capabilities();
+    println!("platform: {}", c.platform);
+    println!(
+        "cameras: {}  microphones: {}  loopback: {}",
+        c.cameras.len(),
+        c.microphones.len(),
+        c.loopback.len()
+    );
+    for d in c.cameras.iter().chain(&c.microphones).chain(&c.loopback) {
+        println!("  [{}] {} default={}", d.kind, d.name, d.is_default);
+    }
+    println!(
+        "camera_available={} loopback_available={}",
+        c.camera_available, c.loopback_available
+    );
+    println!("note: {}", c.limitation);
     Ok(())
 }
 

@@ -1,0 +1,17 @@
+[package]
+name = "flux-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+flux-domain = { path = "../domain" }
+serde = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_System_Com",
+  "Win32_System_Registry",
+] }

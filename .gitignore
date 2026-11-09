@@ -10,3 +10,4 @@ err.txt
 shader_errors.txt
 solid.wgsl
 smoke/ 
+"osc_test.txt"  

@@ -305,6 +305,7 @@ dependencies = [
  "flux-engine",
  "flux-integrations",
  "flux-media",
+ "flux-platform",
  "flux-render",
  "pollster",
  "serde",
@@ -377,6 +378,15 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "flux-platform"
+version = "0.1.0"
+dependencies = [
+ "flux-domain",
+ "serde",
+ "windows 0.62.2",
 ]
 
 [[package]]
