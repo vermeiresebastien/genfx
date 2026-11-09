@@ -94,6 +94,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         }
         "caps" => cmd_caps(),
         "capture" => cmd_capture(),
+        "diagnostics" => cmd_diagnostics(),
         "integrations" => cmd_integrations(),
         "osc" => {
             let port = args
@@ -436,6 +437,14 @@ fn cmd_capture() -> FluxResult<()> {
         c.camera_available, c.loopback_available
     );
     println!("note: {}", c.limitation);
+    Ok(())
+}
+
+fn cmd_diagnostics() -> FluxResult<()> {
+    let report = flux_app::diagnostics::build_report(&[], &[]);
+    let json = serde_json::to_string_pretty(&report)
+        .map_err(|e| FluxError::new(flux_domain::ErrorCode::Io, "diag", e.to_string()))?;
+    println!("{json}");
     Ok(())
 }
 

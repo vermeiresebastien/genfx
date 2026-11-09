@@ -14,3 +14,4 @@ smoke/
 "demo_proj/"  
 "rec_out/"  
 "media_out/"  
+"apps/desktop/src-tauri/gen/"  
