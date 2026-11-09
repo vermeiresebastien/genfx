@@ -68,7 +68,7 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             implemented: cfg!(feature = "spout"),
             verified: cfg!(feature = "spout"),
             limitation: if cfg!(feature = "spout") {
-                "sender enumeration verified via C++ shim; SendImage needs a bound GL context"
+                "sender enumeration verified; offscreen-GL SendImage fails on this host (needs wgpu/DX shared-texture path)"
                     .into()
             } else {
                 "built without feature `spout` (C++ shim over SpoutLibrary available when enabled)"

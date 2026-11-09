@@ -105,10 +105,12 @@ No remaining NDI blocker.
 pure-virtual** interface, so `apps/spout-bridge/spout_shim.cpp` wraps it in a flat `extern
 "C"` ABI and links `SpoutLibrary.lib` → `spout_shim.dll`. `crates/integrations/src/spout.rs`
 (feature `spout`) runtime-loads the shim; `flux spout` enumerates the OS-wide sender
-registry. Verified: shim builds + links, unit test loads it and enumerates without crashing
-(`evidence/spout-registry.txt`). **Limitations:** `SendImage` needs a bound GL context (shim
-returns 0, never fakes success) and `GetSenderCount` can block when no sender exists, so
-tight polling isn't ready yet. **Syphon**: macOS-only, not buildable here.
+registry and `flux spout-send` creates an offscreen WGL context. Verified: sender
+enumeration and GL-context init (`evidence/spout-registry.txt`). **Limitation:** Spout2's
+`CreateSender`/`SendImage` do **not** succeed through a bare offscreen WGL context (Spout
+expects the app's real rendering context). The correct fix — sending from Flux's existing
+wgpu device via a DX11 shared texture (SpoutDX) — is a larger interop task, so Spout live
+send is reported as a limitation while enumeration works. **Syphon**: macOS-only.
 
 ### 6a. Ableton Link — supported and verified (licensing resolved)
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton

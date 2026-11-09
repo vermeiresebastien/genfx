@@ -8,12 +8,60 @@
 // without a bound GL context (honest, not faked).
 
 #include "SpoutLibrary.h"
+
 #include <cstring>
 
 // The SpoutLibrary headers include Windows types; ensure they are available.
 #ifndef _WINDOWS_
 #include <windows.h>
 #endif
+
+// Offscreen WGL context so SendImage works without an application window.
+#include <GL/gl.h>
+
+namespace {
+HDC g_dc = nullptr;
+HGLRC g_glrc = nullptr;
+bool g_gl_ready = false;
+
+bool ensure_gl() {
+    if (g_gl_ready) return true;
+    // A hidden window + WGL context (pixel format chosen for the DC).
+    WNDCLASSA wc = {};
+    wc.lpfnWndProc = DefWindowProcA;
+    wc.hInstance = GetModuleHandleA(nullptr);
+    wc.lpszClassName = "FluxSpoutOffscreen";
+    RegisterClassA(&wc);
+    HWND hwnd = CreateWindowA("FluxSpoutOffscreen", "", WS_OVERLAPPEDWINDOW,
+                              0, 0, 8, 8, nullptr, nullptr, wc.hInstance, nullptr);
+    if (!hwnd) return false;
+    HDC dc = GetDC(hwnd);
+    if (!dc) return false;
+    PIXELFORMATDESCRIPTOR pfd = {};
+    pfd.nSize = sizeof(pfd);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+    pfd.cAlphaBits = 8;
+    pfd.cDepthBits = 24;
+    int pf = ChoosePixelFormat(dc, &pfd);
+    if (!pf || !SetPixelFormat(dc, pf, &pfd)) {
+        ReleaseDC(hwnd, dc);
+        return false;
+    }
+    HGLRC rc = wglCreateContext(dc);
+    if (!rc || !wglMakeCurrent(dc, rc)) {
+        if (rc) wglDeleteContext(rc);
+        ReleaseDC(hwnd, dc);
+        return false;
+    }
+    g_dc = dc;
+    g_glrc = rc;
+    g_gl_ready = true;
+    return true;
+}
+}  // namespace
 
 extern "C" {
 __declspec(dllexport) void* spout_shim_create(void);
@@ -30,6 +78,8 @@ __declspec(dllexport) int spout_shim_send_image(void* handle, const char* name,
                                                 unsigned int width, unsigned int height);
 // Check a receiver connection for a name; returns 1 if connected.
 __declspec(dllexport) int spout_shim_is_connected(void* handle, const char* name);
+// 1 if an offscreen GL context could be created (SendImage prerequisite).
+__declspec(dllexport) int spout_shim_gl_ready(void);
 }
 
 void* spout_shim_create(void) {
@@ -84,12 +134,16 @@ int spout_shim_send_image(void* handle, const char* name, const unsigned char* r
                           unsigned int width, unsigned int height) {
     if (!handle || !name || !rgba) return 0;
     auto* h = reinterpret_cast<SPOUTHANDLE>(handle);
-    // SendImage needs a bound GL context + a created sender. Without one this
-    // returns false rather than pretending to send.
+    // SendImage needs a current GL context; create an offscreen one if needed.
+    if (!ensure_gl()) return 0;
     if (!h->CreateSender(name, width, height)) {
         return 0;
     }
     return h->SendImage(rgba, width, height, GL_RGBA, false) ? 1 : 0;
+}
+
+int spout_shim_gl_ready(void) {
+    return ensure_gl() ? 1 : 0;
 }
 
 int spout_shim_is_connected(void* handle, const char* name) {

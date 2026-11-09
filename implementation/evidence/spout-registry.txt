@@ -1,24 +1,23 @@
-Spout2 adapter verification (2026-11-09)
+Spout2 adapter verification (2026-11-09, updated)
 
 Built apps/spout-bridge/spout_shim (C++ extern "C" shim over SpoutLibrary):
-  - spout_shim.cpp compiled with MSVC (vcvars64) and linked against SpoutLibrary.lib -> spout_shim.dll
-  - SpoutLibrary.dll copied alongside spout_shim.dll
+  - spout_shim.cpp compiled with MSVC + linked against SpoutLibrary.lib -> spout_shim.dll
+  - SpoutLibrary.dll copied alongside
 
-Rust adapter: crates/integrations/src/spout.rs (feature `spout`)
-  - runtime-loads spout_shim.dll via LoadLibraryW + GetProcAddress
-  - calls spout_shim_create (GetSpout vtable), spout_shim_get_sender_count,
-    spout_shim_get_sender, spout_shim_get_sender_info, spout_shim_send_image
+Rust adapter: crates/integrations/src/spout.rs (feature `spout`) runtime-loads the shim.
 
-Unit test: cargo test -p flux-integrations --features spout spout::
-  -> 1 passed. Shim loaded, GetSpout() returned a live instance, sender
-     enumeration path ran without crashing (finished ~3.6s).
+VERIFIED:
+  - Sender enumeration (GetSenderCount/GetSender/GetSenderInfo) via `flux spout`.
+  - Offscreen WGL context creation succeeds (`flux spout-send` prints "offscreen GL ready: true").
 
-CLI: `flux spout` enumerates the OS-wide Spout sender registry.
+NOT WORKING (documented, not faked):
+  - SpoutLibrary CreateSender/SendImage through the offscreen WGL context returns
+    failure on this host, so `flux spout-send` sends 0 frames. Spout's GL path expects
+    a sender created within the application's real rendering context; a bare offscreen
+    context is insufficient. Correct fix is to send from Flux's existing wgpu device via
+    a shared DX11 texture (SpoutDX), which is a larger interop task.
+  - GetSenderCount can block when no sender exists (bounded by the adapter's 3s timeout).
 
-Observed limitation (documented, not hidden):
-  Spout GetSenderCount can block for tens of seconds when NO sender is present
-  (DX11/registry path in SpoutLibrary). The adapter enumerates senders correctly
-  when they exist, but is not yet suited to tight periodic polling. SendImage
-  requires a bound GL context; the shim returns 0 rather than fabricating success.
-
-Status: shim builds + loads + enumeration verified; live GL-context send pending.
+Status: sender enumeration + GL-context init verified; live SendImage via offscreen GL
+does not work and is reported as a limitation. The adapter fails honestly (returns 0)
+rather than fabricating success.

@@ -102,6 +102,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "ndi-loopback" => cmd_ndi_loopback(),
         "ndi-send" => cmd_ndi_send(args),
         "spout" => cmd_spout(),
+        "spout-send" => cmd_spout_send(args),
         "osc" => {
             let port = args
                 .get(1)
@@ -625,6 +626,57 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
     {
         let _ = args;
         println!("NDI is not built into this binary (feature `ndi` off).");
+        Ok(())
+    }
+}
+
+fn cmd_spout_send(args: &[String]) -> FluxResult<()> {
+    #[cfg(feature = "spout")]
+    {
+        use flux_integrations::spout::SpoutRuntime;
+        let name = args
+            .get(1)
+            .cloned()
+            .unwrap_or_else(|| "Flux Spout Sender".into());
+        let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
+        let Some(rt) = SpoutRuntime::load() else {
+            println!("spout_shim.dll not found.");
+            return Ok(());
+        };
+        println!("offscreen GL ready: {}", rt.gl_ready());
+        let (w, h) = (640u32, 360u32);
+        let mut img = vec![0u8; (w * h * 4) as usize];
+        let start = std::time::Instant::now();
+        let mut sent = 0u32;
+        while start.elapsed().as_secs() < secs {
+            let t = start.elapsed().as_millis() as u32;
+            for y in 0..h {
+                for x in 0..w {
+                    let i = ((y * w + x) * 4) as usize;
+                    img[i] = ((x * 255 / w + t / 8) % 256) as u8;
+                    img[i + 1] = (y * 255 / h) as u8;
+                    img[i + 2] = 128;
+                    img[i + 3] = 255;
+                }
+            }
+            if rt.send_image(&name, &img, w, h) {
+                sent += 1;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(33));
+        }
+        if sent == 0 {
+            println!(
+                "Spout send produced no frames (offscreen GL path does not satisfy \
+                 SpoutLibrary SendImage on this host; sender enumeration still works)."
+            );
+        }
+        println!("Spout send: {sent} frames sent to '{}'", name);
+        Ok(())
+    }
+    #[cfg(not(feature = "spout"))]
+    {
+        let _ = args;
+        println!("Spout is not built into this binary (feature `spout` off).");
         Ok(())
     }
 }

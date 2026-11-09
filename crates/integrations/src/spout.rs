@@ -26,6 +26,7 @@ type FnCount = unsafe extern "C" fn(*mut c_void) -> i32;
 type FnGetSender = unsafe extern "C" fn(*mut c_void, i32, *mut c_char, i32) -> i32;
 type FnSenderInfo = unsafe extern "C" fn(*mut c_void, *const c_char, *mut u32, *mut u32) -> i32;
 type FnSendImage = unsafe extern "C" fn(*mut c_void, *const c_char, *const u8, u32, u32) -> i32;
+type FnGlReady = unsafe extern "C" fn() -> i32;
 
 /// Loaded Spout shim.
 pub struct SpoutRuntime {
@@ -35,6 +36,7 @@ pub struct SpoutRuntime {
     get_sender: FnGetSender,
     sender_info: FnSenderInfo,
     send_image: FnSendImage,
+    gl_ready: Option<FnGlReady>,
     release: FnRelease,
 }
 
@@ -94,6 +96,8 @@ impl SpoutRuntime {
                 get_sender: sym!("spout_shim_get_sender", FnGetSender),
                 sender_info: sym!("spout_shim_get_sender_info", FnSenderInfo),
                 send_image: sym!("spout_shim_send_image", FnSendImage),
+                gl_ready: get("spout_shim_gl_ready")
+                    .map(|p| std::mem::transmute::<*mut c_void, FnGlReady>(p)),
                 release: sym!("spout_shim_release", FnRelease),
             })
         }
@@ -167,6 +171,14 @@ impl SpoutRuntime {
             Err(_) => return false,
         };
         unsafe { (self.send_image)(self.handle, cname.as_ptr(), rgba.as_ptr(), w, h) == 1 }
+    }
+
+    /// Whether the shim could create an offscreen GL context (SendImage prerequisite).
+    pub fn gl_ready(&self) -> bool {
+        match self.gl_ready {
+            Some(f) => unsafe { f() == 1 },
+            None => false,
+        }
     }
 }
 
