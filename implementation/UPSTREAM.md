@@ -36,7 +36,11 @@ license, what is reused, and the resulting Flux decision.
 - **License:** GPL-2.0
 - **Reused:** none (not vendored). Consulted for NDI discovery/lifecycle/timestamp
   patterns. It does **not** replace the official NDI SDK/runtime, which carries its own
-  license and redistribution terms. NDI remains `blocked_external`.
+  license and redistribution terms.
+- **Runtime status:** the official NDI runtime (`Processing.NDI.Lib.x64.dll` v5.5.1) **is
+  installed on this host** (Resolume Arena). Flux runtime-loads it and verifies discovery
+  (`crates/integrations/src/ndi.rs`, feature `ndi`); live send/receive still needs the full
+  header ABI + an active stream.
 
 ## Syphon
 - **URL:** https://github.com/Syphon/Syphon-Framework
@@ -51,3 +55,20 @@ license, what is reused, and the resulting Flux decision.
 - Official SDK/libraries preferred over third-party bindings; obs-ndi used only as
   reference.
 - Absent SDK/host/runtime keeps the truthful `unavailable` status.
+
+## Runtime availability found on this machine (2026-11-09)
+- **NDI runtime present**: `C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll`
+  (v5.5.1, 64-bit), with `Processing.NDI.Lib.Licenses.txt`. It exports 117 `NDIlib_*`
+  functions including discovery (`NDIlib_initialize`, `NDIlib_find_create2`,
+  `NDIlib_find_get_current_sources`, `NDIlib_find_wait_for_sources`). **No SDK headers
+  are shipped**, so Flux loads the DLL at runtime and defines only the small, stable
+  structs it needs for discovery (`NDIlib_find_create_t`, `NDIlib_source_t`) — never
+  guessing opaque capture layouts. Sending/receiving live frames remains gated on the
+  full header set + a live stream.
+- **Spout2 prebuilt binary present**: `SPOUTSDK/SpoutLibrary/Binaries/SpoutLibrary.{dll,lib}`
+  (x64, BSD-2), exposing a **C++ pure-virtual** interface (`SendImage`/`ReceiveImage`/
+  `GetSenderCount`…). Wrapping it needs a small C++ `extern "C"` shim plus a live GL/DX
+  context; the GPU is present (RTX 2080 Ti) but the shim/context work is not done yet.
+- **Syphon**: macOS-only Xcode project; not buildable on Windows.
+- **Ableton Link**: built from source and verified (see above).
+

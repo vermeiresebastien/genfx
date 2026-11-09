@@ -83,6 +83,23 @@ records present, `blocked_external`. macOS builds unverified. Live camera/screen
 and GUI webview pixel verification need a device/session. SDF/particle CPU producers not
 realtime at 4K.
 
+### 6b. NDI — runtime present and discovery verified
+The official NDI runtime was found on this machine (`Processing.NDI.Lib.x64.dll` v5.5.1,
+installed by Resolume Arena). No SDK headers are shipped, so Flux **runtime-loads** the DLL
+and defines only the two small, published discovery structs (`NDIlib_find_create_t`,
+`NDIlib_source_t`) — it never reconstructs opaque capture layouts. `crates/integrations/src/ndi.rs`
+(feature `ndi`) resolves `NDIlib_initialize`, `NDIlib_find_create2`,
+`NDIlib_find_get_current_sources`, `NDIlib_find_wait_for_sources`, `NDIlib_find_destroy`.
+
+Verified: 2 tests load→initialize→discover without crashing, and `flux ndi` prints real
+discovery output (`implementation/evidence/ndi-discovery.txt`; 0 sources because nothing is
+broadcasting). **Live send/receive** remains blocked on the full NDI header ABI + an active
+stream — not faked.
+
+**Spout2**: prebuilt `SpoutLibrary.{dll,lib}` (x64, BSD-2) is present but exposes a **C++
+pure-virtual** interface; wrapping it needs a small `extern "C"` shim + live GL/DX context.
+**Syphon**: macOS-only. Both remain `blocked_external` with the reason recorded.
+
 ### 6a. Ableton Link — supported and verified (licensing resolved)
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton
 Link was the only external integration buildable on this host without a proprietary SDK.

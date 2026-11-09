@@ -1,10 +1,15 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **NDI SDK/runtime** (R006, AT060): official SDK not installed; adapter/capability record
-  present, real send/receive `blocked_external`. obs-ndi audited as reference only.
-- **Spout2 (Windows)** and **Syphon (macOS)**: SDKs/host not present; `blocked_external`.
-  Spout2 is BSD-2 and buildable once a Windows graphics session exists; Syphon needs macOS.
+- **NDI SDK/runtime** (R006, AT060): **runtime discovered on this host** —
+  `Processing.NDI.Lib.x64.dll` v5.5.1 (Resolume Arena install). `flux ndi` (feature `ndi`)
+  runtime-loads it and **verifies discovery** (`NDIlib_initialize` +
+  `NDIlib_find_*`, 0 sources when nothing broadcasts — evidence `ndi-discovery.txt`).
+  Remaining blocker: **live send/receive** needs the full NDI header ABI (no headers
+  shipped) plus an active stream; not faked. obs-ndi consulted as reference only.
+- **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 prebuilt `SpoutLibrary.{dll,lib}` is
+  present (BSD-2) but exposes a **C++ pure-virtual** interface; adapting it needs a small
+  C++ `extern "C"` shim + a live GL/DX context (not done). Syphon is macOS-only.
 - **Ableton Link** (R015, AT063): **supported integration — built from upstream and
   verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
   evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not

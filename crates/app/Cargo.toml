@@ -32,3 +32,4 @@ crossbeam-channel = { workspace = true }
 [features]
 default = []
 link = ["flux-integrations/link"]
+ndi = ["flux-integrations/ndi"]

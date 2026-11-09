@@ -10,7 +10,7 @@
     "ffmpeg": "9.0-full_build",
     "tauri": "2"
   },
-  "test_totals": { "passed": 167, "failed": 0, "suites_failed": 0, "note": "161 default + 6 link tests with --features link" },
+  "test_totals": { "passed": 161, "failed": 0, "suites_failed": 0, "note": "default; +6 link and +2 ndi when features enabled (34 with both)" },
   "integrations": {
     "osc": "verified (real UDP loopback)",
     "midi": "verified (message parsing)",
@@ -23,7 +23,7 @@
       "verified_async_behaviors": "peer discovery, tempo convergence, single-master tempo arbitration, start/stop propagation, clock, enable",
       "build": "clone link; cmake -G 'Visual Studio 18 2026' -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo build --features link"
     },
-    "ndi": "blocked_external (official SDK absent)",
+    "ndi": "runtime present (v5.5.1); discovery verified (feature `ndi`); live send/receive needs headers+stream",
     "spout": "interface present; blocked_external (needs Spout2 build + DX11 session)",
     "syphon": "interface present; blocked_external (needs macOS)"
   },

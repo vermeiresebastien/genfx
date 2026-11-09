@@ -50,6 +50,8 @@ if ($env:FLUX_ABLETON_LINK_LIB) {
     Write-Host "== link-integration: skipped (FLUX_ABLETON_LINK_LIB not set) =="
     $results['link-integration'] = @{ ok = $true; skipped = $true; reason = 'FLUX_ABLETON_LINK_LIB unset' }
 }
+# NDI discovery — runs when the runtime is discoverable; tests skip cleanly otherwise.
+Step 'ndi-discovery' { cargo test -p flux-integrations --features ndi ndi:: }
 
 $evidence = Join-Path $root 'implementation/evidence'
 New-Item -ItemType Directory -Force -Path $evidence | Out-Null

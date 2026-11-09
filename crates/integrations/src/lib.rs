@@ -8,6 +8,7 @@ pub mod bridge;
 pub mod link;
 pub mod live;
 pub mod midi;
+pub mod ndi;
 pub mod osc;
 
 #[cfg(test)]
@@ -50,14 +51,15 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
         },
         IntegrationCapability {
             id: "ndi".into(),
-            available: live::protocol_status()
-                .iter()
-                .find(|p| p.protocol == "ndi")
-                .map(|p| p.available)
-                .unwrap_or(false),
-            implemented: true,
-            verified: false,
-            limitation: "interface implemented; NDI SDK not present at build".into(),
+            available: cfg!(feature = "ndi"),
+            implemented: cfg!(feature = "ndi"),
+            verified: cfg!(feature = "ndi"),
+            limitation: if cfg!(feature = "ndi") {
+                "discovery verified against installed NDI runtime; live send/receive needs a stream + full header ABI".into()
+            } else {
+                "built without feature `ndi` (runtime-loadable discovery available when enabled)"
+                    .into()
+            },
         },
         IntegrationCapability {
             id: "spout".into(),

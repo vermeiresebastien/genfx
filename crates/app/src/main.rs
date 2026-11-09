@@ -97,6 +97,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "diagnostics" => cmd_diagnostics(),
         "integrations" => cmd_integrations(),
         "link" => cmd_link(),
+        "ndi" => cmd_ndi(),
         "osc" => {
             let port = args
                 .get(1)
@@ -127,7 +128,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         }
         other => {
             eprintln!("unknown command: {other}");
-            eprintln!("usage: flux [list|doctor|caps|capture|integrations|osc|new-demo|demo-render|demo-media|contact-sheet|render|record|recover|collect|gui]");
+            eprintln!("usage: flux [list|doctor|caps|capture|integrations|osc|link|ndi|diagnostics|new-demo|demo-render|demo-media|contact-sheet|render|record|recover|collect|gui]");
             std::process::exit(2);
         }
     }
@@ -389,6 +390,34 @@ fn cmd_collect(project_path: &std::path::Path) -> FluxResult<()> {
         dir.join("media").display()
     );
     Ok(())
+}
+
+fn cmd_ndi() -> FluxResult<()> {
+    #[cfg(feature = "ndi")]
+    {
+        use flux_integrations::ndi::NdiRuntime;
+        let Some(rt) = NdiRuntime::load() else {
+            println!("NDI runtime not found (set FLUX_NDI_LIB to Processing.NDI.Lib.x64.dll).");
+            return Ok(());
+        };
+        if !rt.initialize() {
+            println!("NDI runtime present but failed to initialize.");
+            return Ok(());
+        }
+        println!("NDI runtime initialized; discovering sources (1s)...");
+        let sources = rt.discover(true, 1000);
+        println!("{} NDI source(s) found:", sources.len());
+        for s in &sources {
+            println!("  {}  [{}]", s.name, s.url.clone().unwrap_or_default());
+        }
+        rt.shutdown();
+        Ok(())
+    }
+    #[cfg(not(feature = "ndi"))]
+    {
+        println!("NDI is not built into this binary (feature `ndi` off).");
+        Ok(())
+    }
 }
 
 fn cmd_link() -> FluxResult<()> {

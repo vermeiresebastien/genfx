@@ -74,3 +74,14 @@ jobs:
           $env:FLUX_ABLETON_LINK_LIB = "$PWD\_upstream\link\build\Release"
           cargo test -p flux-integrations --features link link::
         shell: pwsh
+
+  # NDI discovery (optional). The runtime DLL is not in CI; tests skip cleanly.
+  ndi-feature:
+    name: ndi (optional)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build with ndi feature (compiles; discovery tests skip without runtime)
+        run: cargo test -p flux-integrations --features ndi ndi::
