@@ -34,9 +34,15 @@ fn render_preview(
     width: u32,
     height: u32,
 ) -> Result<String, String> {
-    let project = {
+    let (project, graph) = {
         let host = state.host.lock().unwrap();
-        host.dispatcher.project.clone()
+        let g = host
+            .dispatcher
+            .project
+            .graphs
+            .get(&host.active_graph)
+            .cloned();
+        (host.dispatcher.project.clone(), g)
     };
     let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
         .map_err(|e| e.to_string())?;
@@ -45,9 +51,13 @@ fn render_preview(
         *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
     }
     let renderer = guard.as_mut().unwrap();
-    let rgba = renderer
-        .render(&project, t, width, height)
-        .map_err(|e| format!("render: {e:?}"))?;
+    // Render the node-graph editor's active graph (fall back to timeline render
+    // if the project has no graph).
+    let rgba = match &graph {
+        Some(g) => renderer.render_graph(g, &project, t, width, height),
+        None => renderer.render(&project, t, width, height),
+    }
+    .map_err(|e| format!("render: {e:?}"))?;
     // Encode the RGBA to PNG in memory (no disk round-trip).
     let png =
         flux_media::encode_png_rgba(width, height, &rgba).map_err(|e| format!("png: {e:?}"))?;

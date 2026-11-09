@@ -1129,19 +1129,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 }
 
 pub fn fx122_composite() -> (&'static str, Manifest, &'static str) {
-    fam!(
-        "fx.composite",
-        "Composite",
-        "Blend",
-        "fx_composite",
-        QualityClass::L,
-        "FX122",
-        "Source-over, add, screen, multiply, overlay, soft/hard light, difference, exclusion, dodge and burn with eps clamps.",
-        [
-            p_enum("blend", "Blend", "over", &["over", "add", "screen", "multiply", "overlay", "softLight", "hardLight", "difference", "exclusion", "dodge", "burn"]),
-            p_float("opacity", "Opacity", 1.0, 0.0, 1.0, ""),
-        ],
-        r#"
+    let body = r#"
 fn blend_fn(b: vec3<f32>, s: vec3<f32>) -> vec3<f32> {
   let m = p_blend();
   if (m == 1) { return b + s; }
@@ -1156,15 +1144,42 @@ fn blend_fn(b: vec3<f32>, s: vec3<f32>) -> vec3<f32> {
   return 1.0 - (vec3<f32>(1.0) - b) / max(s, vec3<f32>(0.001));
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
-  // The destination is the current source (the node has one image plus an
-  // optional aux layer supplied by the graph); opacity blends the blend result.
-  let s = unpremul(src);
-  let b = unpremul(src);
-  let blended = clamp(blend_fn(b, s), vec3<f32>(0.0), vec3<f32>(4.0));
-  return premul(mix(s, blended, p_opacity()), src.a);
+  // Two real image inputs: `a` = src_tex (binding 0), `b` = aux_tex (binding 3).
+  // This is what makes parallel branches merge: connect two upstream nodes to
+  // ports a and b.
+  let a = unpremul(src);
+  let b = unpremul(textureSampleLevel(aux_tex, src_sampler, uv, 0.0));
+  let blended = clamp(blend_fn(b, a), vec3<f32>(0.0), vec3<f32>(4.0));
+  return premul(mix(a, blended, p_opacity()), src.a);
 }
-"#
-    )
+"#;
+    let mut m = effect(
+        "fx.composite",
+        "Composite",
+        "Blend",
+        "fx_composite",
+        QualityClass::L,
+        vec![
+            p_enum("blend", "Blend", "over", &["over", "add", "screen", "multiply", "overlay", "softLight", "hardLight", "difference", "exclusion", "dodge", "burn"]),
+            p_float("opacity", "Opacity", 1.0, 0.0, 1.0, ""),
+        ],
+        "Two-image compositor: blends input A (source) with input B (aux) using standard blend modes. Use it to merge parallel branches.",
+        "FX122",
+    );
+    // Two image inputs A and B (not the default source/mask pair).
+    m.inputs = vec![
+        PortDecl {
+            id: "a".into(),
+            port_type: PortType::Texture2D,
+            required: true,
+        },
+        PortDecl {
+            id: "b".into(),
+            port_type: PortType::Texture2D,
+            required: false,
+        },
+    ];
+    ("fx_composite", m, body)
 }
 
 pub fn fx123_transforms() -> (&'static str, Manifest, &'static str) {

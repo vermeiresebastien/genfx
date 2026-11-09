@@ -1,6 +1,6 @@
-// Flux editor frontend. Talks to the Rust command surface via Tauri IPC.
-// All state/validation/rendering is owned by Rust; this UI submits requests and
-// renders snapshots + preview frames. It never runs its own engine.
+// Flux node-graph editor frontend. Talks to the Rust command surface via Tauri
+// IPC. Rust owns all state/validation/rendering; this UI draws the node canvas,
+// submits graph edits, and shows preview frames. It never runs its own engine.
 
 const invoke = window.__TAURI__.core.invoke;
 
@@ -24,12 +24,17 @@ const state = {
   revision: 0,
   project: null,
   catalog: [],
+  graph: null,          // active graph object { id, nodes, edges, outputNode }
+  activeGraphId: null,
   selectedNode: null,
-  selectedClip: null,
   time: 0,
   playing: false,
   previewTimer: null,
 };
+
+const NODE_W = 170;
+const PORT_H = 20;
+const HDR_H = 30;
 
 function setStatus(msg) {
   document.getElementById("status").textContent = msg;
@@ -45,7 +50,7 @@ async function call(command, expectedRevision = state.revision) {
   };
   const res = await invoke("dispatch", { request: req });
   if (res.error) {
-    setStatus(`${res.error.code}: ${res.error.message}${res.error.recovery ? " — " + res.error.recovery : ""}`);
+    setStatus(`${res.error.code}: ${res.error.message}`);
     return res;
   }
   applySnapshot(res);
@@ -55,20 +60,22 @@ async function call(command, expectedRevision = state.revision) {
 function applySnapshot(res) {
   state.revision = res.revision;
   document.getElementById("revBadge").textContent = `rev ${res.revision}`;
-  const p = res.result?.project ?? res.result;
+  const r = res.result || {};
+  const p = r.project ?? r;
   if (p && p.projectId) {
     state.project = p;
     document.getElementById("projName").textContent = p.name;
-    renderTimeline();
-    document.getElementById("history").textContent =
-      `${res.result?.canUndo ? "undo" : ""} ${res.result?.canRedo ? "redo" : ""}`.trim();
   }
+  if (r.activeGraphId) state.activeGraphId = r.activeGraphId;
+  if (r.activeGraph) state.graph = r.activeGraph;
+  renderCanvas();
+  renderInspector();
 }
 
 async function loadCatalog() {
   const res = await invoke("dispatch", {
     request: {
-      protocolVersion: 1, requestId: crypto.randomUUID(), projectId: null,
+      protocolVersion: 1, requestId: rid(), projectId: null,
       expectedRevision: 0, command: { type: "catalog" },
     },
   });
@@ -78,8 +85,12 @@ async function loadCatalog() {
   }
 }
 
+function manifestOf(typeId) {
+  return state.catalog.find((e) => e.id === typeId);
+}
+
 function renderLibrary(filter) {
-  const f = filter.toLowerCase();
+  const f = (filter || "").toLowerCase();
   const byCat = {};
   for (const e of state.catalog) {
     if (f && !e.name.toLowerCase().includes(f) && !e.id.includes(f)) continue;
@@ -96,90 +107,283 @@ function renderLibrary(filter) {
       const d = document.createElement("div");
       d.className = "lib-item";
       d.innerHTML = `<span>${e.name}</span><span class="muted">${e.kind}</span>`;
-      d.onclick = () => addScene(e);
+      d.onclick = () => addNode(e.id);
       host.appendChild(d);
     }
   }
 }
 
-async function addScene(entry) {
-  // Add a generator clip with an effect chain when the entry is a generator.
-  const effects = entry.kind === "generator" ? [] : [entry.id];
-  const gen = entry.kind === "generator" ? entry.id : "gen.plasma";
-  await call({
-    type: "addGeneratorClip",
-    generatorId: gen,
-    effects,
-    seconds: 8,
-  });
-  state.selectedNode = null;
+// ---- Node canvas ---------------------------------------------------------
+
+let _nodeSeq = 0;
+
+async function addNode(typeId) {
+  // Place new nodes in a loose grid near the top-left of the canvas.
+  const x = 40 + (_nodeSeq % 3) * 220;
+  const y = 40 + Math.floor(_nodeSeq / 3) * 140;
+  _nodeSeq++;
+  const res = await call({ type: "addGraphNode", typeId, x, y });
+  const id = res.result?.nodeId;
+  if (id) {
+    state.selectedNode = id;
+    // Auto-wire the FIRST generator to the output node for convenience.
+    maybeAutoWire(id, typeId);
+    requestPreview();
+  }
+}
+
+async function maybeAutoWire(newId, typeId) {
+  const g = state.graph;
+  if (!g) return;
+  const m = manifestOf(typeId);
+  if (!m) return;
+  const out = g.nodes.find((n) => n.typeId === "flux.output");
+  if (!out) return;
+  const outEdge = (g.edges || []).find((e) => e.toNode === out.id && e.toPort === "source");
+  const provider = outEdge ? outEdge.fromNode : null;
+
+  if (m.kind === "generator") {
+    // A generator becomes the new source feeding the output (so you immediately
+    // see what you clicked). Rewire output.source -> new generator.
+    if (outEdge) await call({ type: "disconnectPin", toNode: out.id, toPort: "source" });
+    await call({ type: "connectPins", fromNode: newId, fromPort: "color", toNode: out.id, toPort: "source" });
+    return;
+  }
+
+  // An effect: insert it into the chain (provider -> effect -> output) when it has
+  // a single "source" input and there is an existing provider. Two-input nodes
+  // (composite) are left unconnected for manual wiring.
+  const hasSource = (m.inputs || []).some((p) => p.id === "source");
+  if (hasSource && provider && provider !== newId) {
+    await call({ type: "disconnectPin", toNode: out.id, toPort: "source" });
+    await call({ type: "connectPins", fromNode: provider, fromPort: "color", toNode: newId, toPort: "source" });
+    await call({ type: "connectPins", fromNode: newId, fromPort: "color", toNode: out.id, toPort: "source" });
+  }
+}
+
+function nodeBox(node) {
+  const m = manifestOf(node.typeId);
+  const inputs = m?.inputs || [];
+  const outputs = m?.outputs || [];
+  return {
+    x: node.position?.[0] ?? 40,
+    y: node.position?.[1] ?? 40,
+    inputs,
+    outputs,
+    w: NODE_W,
+    h: HDR_H + Math.max(inputs.length, outputs.length) * PORT_H + 14,
+  };
+}
+
+function portPos(node, kind, portId) {
+  const b = nodeBox(node);
+  const m = manifestOf(node.typeId);
+  const ports = kind === "in" ? (m?.inputs || []) : (m?.outputs || []);
+  const idx = Math.max(0, ports.findIndex((p) => p.id === portId));
+  const y = b.y + HDR_H + idx * PORT_H + PORT_H / 2;
+  const x = kind === "in" ? b.x : b.x + b.w;
+  return { x, y };
+}
+
+function renderCanvas() {
+  const canvas = document.getElementById("canvas");
+  const g = state.graph;
+  // Remove existing node elements (keep the <svg>).
+  for (const el of [...canvas.querySelectorAll(".node")]) el.remove();
+  const svg = document.getElementById("edges");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  if (!g) return;
+  if (!g.nodes.some((n) => n.id === state.selectedNode)) state.selectedNode = state.selectedNode;
+
+  // Draw edges first (behind nodes).
+  for (const e of g.edges || []) {
+    const from = g.nodes.find((n) => n.id === e.fromNode);
+    const to = g.nodes.find((n) => n.id === e.toNode);
+    if (!from || !to) continue;
+    const a = portPos(from, "out", e.fromPort);
+    const b = portPos(to, "in", e.toPort);
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("class", "edge");
+    path.setAttribute("d", bezier(a, b));
+    path.onclick = (ev) => {
+      ev.stopPropagation();
+      disconnect(e.toNode, e.toPort);
+    };
+    svg.appendChild(path);
+  }
+
+  // Draw nodes.
+  for (const node of g.nodes) {
+    const m = manifestOf(node.typeId);
+    const b = nodeBox(node);
+    const el = document.createElement("div");
+    el.className = "node" + (node.id === state.selectedNode ? " sel" : "");
+    el.style.left = b.x + "px";
+    el.style.top = b.y + "px";
+    el.dataset.nodeId = node.id;
+
+    const hdr = document.createElement("div");
+    hdr.className = "hdr";
+    const isOut = node.typeId === "flux.output";
+    hdr.innerHTML = `${m?.name ?? node.typeId}${isOut ? " ★" : ""} <small>${m?.kind ?? ""}</small>`;
+    hdr.onmousedown = (ev) => startNodeDrag(ev, node);
+    el.appendChild(hdr);
+
+    const ports = document.createElement("div");
+    ports.className = "ports";
+    const ins = m?.inputs || [];
+    const outs = m?.outputs || [];
+    const rows = Math.max(ins.length, outs.length, 1);
+    for (let i = 0; i < rows; i++) {
+      const row = document.createElement("div");
+      row.style.position = "relative";
+      row.style.height = PORT_H + "px";
+      if (ins[i]) {
+        const dot = document.createElement("div");
+        dot.className = "dot";
+        dot.style.left = "-6px"; dot.style.top = (PORT_H / 2 - 5) + "px"; dot.style.position = "absolute";
+        dot.dataset.port = ins[i].id; dot.dataset.kind = "in"; dot.dataset.node = node.id;
+        dot.onmouseup = (ev) => endLink(ev, node.id, ins[i].id);
+        row.appendChild(dot);
+        const lbl = document.createElement("span");
+        lbl.className = "lbl"; lbl.textContent = ins[i].id;
+        lbl.style.position = "absolute"; lbl.style.left = "8px";
+        row.appendChild(lbl);
+      }
+      if (outs[i]) {
+        const dot = document.createElement("div");
+        dot.className = "dot";
+        dot.style.right = "-6px"; dot.style.top = (PORT_H / 2 - 5) + "px"; dot.style.position = "absolute";
+        dot.dataset.port = outs[i].id; dot.dataset.kind = "out"; dot.dataset.node = node.id;
+        dot.onmousedown = (ev) => startLink(ev, node.id, outs[i].id);
+        row.appendChild(dot);
+        const lbl = document.createElement("span");
+        lbl.className = "lbl"; lbl.textContent = outs[i].id;
+        lbl.style.position = "absolute"; lbl.style.right = "8px";
+        row.appendChild(lbl);
+      }
+      ports.appendChild(row);
+    }
+    el.appendChild(ports);
+    el.onmousedown = (ev) => {
+      if (ev.target.classList.contains("dot")) return;
+      selectNode(node.id);
+    };
+    canvas.appendChild(el);
+  }
+}
+
+function bezier(a, b) {
+  const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);
+  return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+}
+
+function selectNode(id) {
+  state.selectedNode = id;
+  renderCanvas();
   renderInspector();
+}
+
+async function disconnect(toNode, toPort) {
+  await call({ type: "disconnectPin", toNode, toPort });
   requestPreview();
 }
 
-function renderTimeline() {
-  const host = document.getElementById("timeline");
-  host.innerHTML = "";
-  const p = state.project;
-  if (!p) return;
-  document.getElementById("rangeInfo").textContent =
-    `${p.timeline.range.duration.numerator}/${p.timeline.range.duration.denominator}s`;
-  for (const tid of p.timeline.trackOrder) {
-    const track = p.timeline.tracks[tid];
-    const row = document.createElement("div");
-    row.className = "row";
-    row.innerHTML = `<span class="muted" style="width:120px">${track.name}</span>`;
-    for (const cid of track.clipOrder) {
-      const clip = p.timeline.clips[cid];
-      const el = document.createElement("div");
-      el.className = "clip";
-      el.innerHTML = `<div>${clip.name}</div><div class="muted">${clip.range.duration.numerator}/${clip.range.duration.denominator}s</div>`;
-      el.onclick = () => selectClip(tid, cid);
-      row.appendChild(el);
-    }
-    host.appendChild(row);
+// Node drag.
+let _drag = null;
+function startNodeDrag(ev, node) {
+  ev.stopPropagation();
+  selectNode(node.id);
+  const b = nodeBox(node);
+  _drag = { id: node.id, ox: ev.clientX, oy: ev.clientY, nx: b.x, ny: b.y, moved: false };
+  window.addEventListener("mousemove", onNodeDrag);
+  window.addEventListener("mouseup", endNodeDrag);
+}
+function onNodeDrag(ev) {
+  if (!_drag) return;
+  const dx = ev.clientX - _drag.ox;
+  const dy = ev.clientY - _drag.oy;
+  if (Math.abs(dx) + Math.abs(dy) > 3) _drag.moved = true;
+  const node = state.graph?.nodes.find((n) => n.id === _drag.id);
+  if (node) {
+    node.position = [ _drag.nx + dx, _drag.ny + dy ];
+    renderCanvas();
   }
+}
+async function endNodeDrag() {
+  window.removeEventListener("mousemove", onNodeDrag);
+  window.removeEventListener("mouseup", endNodeDrag);
+  if (_drag && _drag.moved) {
+    const node = state.graph?.nodes.find((n) => n.id === _drag.id);
+    if (node) {
+      await call({ type: "moveNode", nodeId: node.id, x: node.position[0], y: node.position[1] });
+    }
+  }
+  _drag = null;
 }
 
-function selectClip(tid, cid) {
-  state.selectedClip = cid;
-  const clip = state.project.timeline.clips[cid];
-  if (clip.graphId && state.project.graphs[clip.graphId]) {
-    const g = state.project.graphs[clip.graphId];
-    state.selectedNode = g.nodes.find((n) => n.typeId !== "flux.output")?.id ?? null;
-  }
-  renderInspector();
+// Port link drag.
+let _link = null;
+function startLink(ev, nodeId, port) {
+  ev.stopPropagation();
+  ev.preventDefault();
+  _link = { node: nodeId, port };
+  const svg = document.getElementById("edges");
+  const tmp = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  tmp.setAttribute("class", "temp");
+  tmp.id = "tempLink";
+  svg.appendChild(tmp);
+  window.addEventListener("mousemove", onLinkDrag);
+  window.addEventListener("mouseup", cancelLink);
 }
+function onLinkDrag(ev) {
+  if (!_link) return;
+  const node = state.graph?.nodes.find((n) => n.id === _link.node);
+  if (!node) return;
+  const a = portPos(node, "out", _link.port);
+  const rect = document.getElementById("canvas").getBoundingClientRect();
+  const b = { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+  const tmp = document.getElementById("tempLink");
+  if (tmp) tmp.setAttribute("d", bezier(a, b));
+}
+function cancelLink() {
+  window.removeEventListener("mousemove", onLinkDrag);
+  window.removeEventListener("mouseup", cancelLink);
+  const tmp = document.getElementById("tempLink");
+  if (tmp) tmp.remove();
+  _link = null;
+}
+async function endLink(ev, toNode, toPort) {
+  ev.stopPropagation();
+  if (!_link) return;
+  const from = _link;
+  cancelLink();
+  await call({
+    type: "connectPins",
+    fromNode: from.node, fromPort: from.port,
+    toNode, toPort,
+  });
+  requestPreview();
+}
+
+// ---- Inspector -----------------------------------------------------------
 
 function renderInspector() {
   const host = document.getElementById("inspector");
-  const p = state.project;
-  if (!p || !state.selectedNode) {
+  const g = state.graph;
+  if (!g || !state.selectedNode) {
     host.innerHTML = `<div class="muted">Select a node.</div>`;
     return;
   }
-  let node = null;
-  for (const g of Object.values(p.graphs)) {
-    const n = g.nodes.find((x) => x.id === state.selectedNode);
-    if (n) { node = n; break; }
-  }
+  const node = g.nodes.find((n) => n.id === state.selectedNode);
   if (!node) { host.innerHTML = `<div class="muted">Node not found.</div>`; return; }
-  const manifest = state.catalog.find((e) => e.id === node.typeId);
+  const m = manifestOf(node.typeId);
+  host.innerHTML = `<div><strong>${m?.name ?? node.typeId}</strong></div>
+    <div class="muted">${node.typeId}${node.typeId === "flux.output" ? " (output)" : ""}</div><hr/>`;
+  const decls = (m?.parameters || []).filter((d) => d.id !== "wet");
   const overrides = node.params || {};
-  host.innerHTML = `<div><strong>${manifest?.name ?? node.typeId}</strong></div>
-    <div class="muted">${node.typeId} v${node.typeVersion}</div><hr/>`;
-  // Render controls from the catalog manifest's parameter declarations,
-  // overlaid with this node's stored overrides. Nodes without a catalog entry
-  // fall back to showing their raw params.
-  const decls = manifest?.parameters || [];
   if (decls.length === 0) {
-    const params = overrides;
-    if (Object.keys(params).length === 0) {
-      host.innerHTML += `<div class="muted">No editable parameters.</div>`;
-    }
-    for (const [k, v] of Object.entries(params)) {
-      host.appendChild(makeParamRow(node, k, (v && v.kind) || "float", v && v.value, {}));
-    }
+    host.innerHTML += `<div class="muted">No editable parameters.</div>`;
     return;
   }
   for (const d of decls) {
@@ -217,9 +421,27 @@ function makeParamRow(node, paramId, kind, current, decl) {
       o.value = i; o.textContent = opt;
       sel.appendChild(o);
     });
-    sel.value = current;
+    sel.value = typeof current === "number" ? current : 0;
     sel.onchange = () => setParam(node, paramId, Number(sel.value), "int");
     row.appendChild(sel);
+  } else if (kind === "color") {
+    const arr = Array.isArray(current) ? current : [1, 1, 1, 1];
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.gap = "3px";
+    for (let i = 0; i < 4; i++) {
+      const c = document.createElement("input");
+      c.type = "number"; c.step = "0.01"; c.min = "0"; c.max = "1";
+      c.value = arr[i] ?? (i === 3 ? 1 : 0);
+      c.style.width = "100%";
+      c.onchange = () => {
+        const v = arr.slice();
+        v[i] = Number(c.value);
+        setColorParam(node, paramId, v);
+      };
+      wrap.appendChild(c);
+    }
+    row.appendChild(wrap);
   } else {
     const span = document.createElement("span");
     span.className = "muted";
@@ -235,27 +457,32 @@ async function setParam(node, paramId, value, kind) {
     : kind === "int"
     ? { kind: "int", value: Math.round(value) }
     : { kind: "float", value };
-  const graphId = Object.entries(state.project.graphs).find(([, g]) =>
-    g.nodes.some((n) => n.id === node.id))?.[0];
   await call({
     type: "apply",
-    command: { type: "setParameter", graphId, nodeId: node.id, paramId, value: pv },
+    command: { type: "setParameter", graphId: state.activeGraphId, nodeId: node.id, paramId, value: pv },
   });
   requestPreview();
 }
+
+async function setColorParam(node, paramId, rgba) {
+  await call({
+    type: "apply",
+    command: {
+      type: "setParameter",
+      graphId: state.activeGraphId, nodeId: node.id, paramId,
+      value: { kind: "color", value: rgba },
+    },
+  });
+  requestPreview();
+}
+
+// ---- Preview -------------------------------------------------------------
 
 let _previewBusy = false;
 let _previewPending = false;
 
 async function requestPreview() {
-  // Single-flight + coalesce: never more than one render in flight. If a render
-  // is already running, mark pending and let it re-run once when done. This
-  // prevents the render queue from backing up (each render is heavy: it reuses
-  // the GPU path and can take 100ms+).
-  if (_previewBusy) {
-    _previewPending = true;
-    return;
-  }
+  if (_previewBusy) { _previewPending = true; return; }
   _previewBusy = true;
   try {
     const url = await invoke("render_preview", {
@@ -268,10 +495,7 @@ async function requestPreview() {
     setStatus(`preview: ${e}`);
   } finally {
     _previewBusy = false;
-    if (_previewPending) {
-      _previewPending = false;
-      requestPreview();
-    }
+    if (_previewPending) { _previewPending = false; requestPreview(); }
   }
 }
 
@@ -286,16 +510,13 @@ async function exportProject() {
   }
 }
 
+// ---- Playback + misc -----------------------------------------------------
+
 function timelineSeconds() {
-  const p = state.project;
-  if (!p || !p.timeline || !p.timeline.range || !p.timeline.range.duration) return 8;
-  const d = p.timeline.range.duration;
-  const s = d.numerator / d.denominator;
+  const d = state.graph?.id ? (state.project?.timeline?.range?.duration) : null;
+  const s = d ? d.numerator / d.denominator : 8;
   return s > 0 ? s : 8;
 }
-
-// Keep the playhead inside [0, duration) so the preview never samples past the
-// last clip (which would render blank/white).
 function clampTime() {
   const dur = timelineSeconds();
   if (state.time < 0) state.time = 0;
@@ -308,9 +529,6 @@ function setupPlayback() {
     state.playing = !state.playing;
     btn.textContent = state.playing ? "Pause" : "Play";
     if (state.playing) {
-      // Playback preview at ~10fps (not 30): each frame is a real GPU render,
-      // and 30fps of full renders saturates the CPU. Single-flight prevents
-      // queue buildup if a render runs long.
       state.previewTimer = setInterval(() => {
         state.time += 1 / 30;
         clampTime();
@@ -320,33 +538,25 @@ function setupPlayback() {
       clearInterval(state.previewTimer);
     }
   };
-  document.getElementById("prevBtn").onclick = () => {
-    state.time = Math.max(0, state.time - 1 / 30);
-    clampTime();
-    requestPreview();
-  };
-  document.getElementById("nextBtn").onclick = () => {
-    state.time += 1 / 30;
-    clampTime();
-    requestPreview();
-  };
 }
 
 function setupMisc() {
   document.getElementById("search").oninput = (e) => renderLibrary(e.target.value);
   document.getElementById("exportBtn").onclick = exportProject;
-  document.getElementById("undoBtn").onclick = async () => {
-    await call({ type: "undo" }, 0);
-    requestPreview();
-  };
-  document.getElementById("redoBtn").onclick = async () => {
-    await call({ type: "redo" }, 0);
-    requestPreview();
-  };
+  document.getElementById("undoBtn").onclick = async () => { await call({ type: "undo" }); requestPreview(); };
+  document.getElementById("redoBtn").onclick = async () => { await call({ type: "redo" }); requestPreview(); };
+  document.addEventListener("keydown", async (e) => {
+    if ((e.key === "Delete" || e.key === "Backspace") && state.selectedNode &&
+        document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "SELECT") {
+      const id = state.selectedNode;
+      state.selectedNode = null;
+      await call({ type: "removeGraphNode", nodeId: id });
+      requestPreview();
+    }
+  });
 }
 
 async function boot() {
-  // Create the initial project through the engine.
   await call(
     { type: "createProject", name: "Untitled", seed: 1, width: 1280, height: 720, fpsNum: 60, fpsDen: 1 },
     0
@@ -354,22 +564,15 @@ async function boot() {
   await loadCatalog();
   setupPlayback();
   setupMisc();
-  // Add one starter scene so the preview shows something.
-  const plasma = state.catalog.find((e) => e.id === "gen.plasma");
-  if (plasma) await addScene({ ...plasma, kind: "generator" });
-  // Auto-select the first editable node so the inspector is populated.
-  selectFirstNode();
+  // Select the generator node (not the output) so the inspector is populated.
+  const g = state.graph;
+  if (g) {
+    const n = g.nodes.find((x) => x.typeId !== "flux.output");
+    if (n) state.selectedNode = n.id;
+  }
+  renderCanvas();
   renderInspector();
   requestPreview();
-}
-
-function selectFirstNode() {
-  const p = state.project;
-  if (!p) return;
-  for (const g of Object.values(p.graphs)) {
-    const n = g.nodes.find((x) => x.typeId !== "flux.output");
-    if (n) { state.selectedNode = n.id; return; }
-  }
 }
 
 window.addEventListener("DOMContentLoaded", boot);

@@ -79,6 +79,38 @@ pub enum GuiCommand {
         cc: u8,
         value: f32,
     },
+    /// Add a node of `type_id` to the active graph at (x,y). Returns its id.
+    AddGraphNode {
+        type_id: String,
+        x: f32,
+        y: f32,
+    },
+    /// Connect an output port to an input port in the active graph.
+    ConnectPins {
+        from_node: String,
+        from_port: String,
+        to_node: String,
+        to_port: String,
+    },
+    /// Remove the edge feeding an input port.
+    DisconnectPin {
+        to_node: String,
+        to_port: String,
+    },
+    /// Remove a node from the active graph.
+    RemoveGraphNode {
+        node_id: String,
+    },
+    /// Move a node (canvas position only; not an undoable structural edit).
+    MoveNode {
+        node_id: String,
+        x: f32,
+        y: f32,
+    },
+    /// Set the graph's rendered output node.
+    SetGraphOutput {
+        node_id: String,
+    },
 }
 
 /// Response envelope.
@@ -118,15 +150,40 @@ pub struct CommandHost {
     pub dispatcher: Dispatcher,
     route: flux_engine::router::Router,
     control_map: crate::control::ControlMap,
+    /// The graph the node editor is currently editing/rendering.
+    pub active_graph: String,
 }
 
 impl CommandHost {
     pub fn new(project: Project) -> Self {
+        let active_graph = project.graphs.keys().next().cloned().unwrap_or_default();
         Self {
             dispatcher: Dispatcher::new(project),
             route: Default::default(),
             control_map: Default::default(),
+            active_graph,
         }
+    }
+
+    /// The active graph (if present).
+    pub fn graph(&self) -> Option<&flux_domain::Graph> {
+        self.dispatcher.project.graphs.get(&self.active_graph)
+    }
+
+    /// Ensure an active graph exists (create a default gen.plasma -> output graph
+    /// and make it active). Idempotent.
+    fn ensure_active_graph(&mut self) {
+        if self
+            .dispatcher
+            .project
+            .graphs
+            .contains_key(&self.active_graph)
+        {
+            return;
+        }
+        let g = crate::samples::chain_graph("gen.plasma", &[]);
+        self.active_graph = g.id.clone();
+        self.dispatcher.project.graphs.insert(g.id.clone(), g);
     }
 
     pub fn revision(&self) -> u64 {
@@ -180,6 +237,10 @@ impl CommandHost {
                 p.settings.frame_rate = flux_domain::FrameRate::new(fps_num, fps_den)
                     .map_err(|e| FluxError::new(ErrorCode::InvalidCommand, "gui", e.to_string()))?;
                 self.dispatcher = Dispatcher::new(p);
+                // Start the node editor with a gen.plasma -> output graph so the
+                // canvas is never empty and the preview renders immediately.
+                self.active_graph.clear();
+                self.ensure_active_graph();
                 Ok(self.snapshot())
             }
             GuiCommand::LoadProject { json } => {
@@ -300,10 +361,30 @@ impl CommandHost {
                                 })
                             })
                             .collect();
+                        let inputs: Vec<serde_json::Value> = e
+                            .manifest
+                            .inputs
+                            .iter()
+                            .map(|p| {
+                                serde_json::json!({
+                                    "id": p.id,
+                                    "type": format!("{:?}", p.port_type),
+                                    "required": p.required,
+                                })
+                            })
+                            .collect();
+                        let outputs: Vec<serde_json::Value> = e
+                            .manifest
+                            .outputs
+                            .iter()
+                            .map(|p| serde_json::json!({ "id": p.id, "type": format!("{:?}", p.port_type) }))
+                            .collect();
                         serde_json::json!({
                             "id": e.manifest.id, "name": e.manifest.name,
                             "category": e.manifest.category, "kind": if e.manifest.generator_id.is_empty() { "effect" } else { "generator" },
                             "parameters": params,
+                            "inputs": inputs,
+                            "outputs": outputs,
                             "version": e.manifest.version,
                         })
                     })
@@ -377,6 +458,87 @@ impl CommandHost {
                 };
                 Ok(serde_json::json!({ "changed": changed, "revision": self.revision() }))
             }
+            GuiCommand::AddGraphNode { type_id, x, y } => {
+                self.ensure_active_graph();
+                let graph_id = self.active_graph.clone();
+                let node = flux_domain::GraphNode {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    type_id,
+                    type_version: 1,
+                    position: [x, y],
+                    params: Default::default(),
+                    bypass: false,
+                    missing_type: false,
+                };
+                let node_id = node.id.clone();
+                self.dispatcher
+                    .apply(Command::AddNode { graph_id, node }, None)?;
+                Ok(serde_json::json!({ "nodeId": node_id, "revision": self.revision() }))
+            }
+            GuiCommand::ConnectPins {
+                from_node,
+                from_port,
+                to_node,
+                to_port,
+            } => {
+                let graph_id = self.active_graph.clone();
+                self.dispatcher.apply(
+                    Command::Connect {
+                        graph_id,
+                        from_node,
+                        from_port,
+                        to_node,
+                        to_port,
+                    },
+                    None,
+                )?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::DisconnectPin { to_node, to_port } => {
+                let graph_id = self.active_graph.clone();
+                let idx = self.dispatcher.project.graphs.get(&graph_id).and_then(|g| {
+                    g.edges
+                        .iter()
+                        .position(|e| e.to_node == to_node && e.to_port == to_port)
+                });
+                if let Some(edge_index) = idx {
+                    self.dispatcher.apply(
+                        Command::Disconnect {
+                            graph_id,
+                            edge_index,
+                        },
+                        None,
+                    )?;
+                }
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::RemoveGraphNode { node_id } => {
+                let graph_id = self.active_graph.clone();
+                self.dispatcher.apply(
+                    Command::RemoveNodes {
+                        graph_id,
+                        node_ids: vec![node_id],
+                    },
+                    None,
+                )?;
+                Ok(serde_json::json!({ "revision": self.revision() }))
+            }
+            GuiCommand::MoveNode { node_id, x, y } => {
+                let gid = self.active_graph.clone();
+                if let Some(g) = self.dispatcher.project.graphs.get_mut(&gid) {
+                    if let Some(n) = g.node_mut(&node_id) {
+                        n.position = [x, y];
+                    }
+                }
+                Ok(serde_json::json!({ "ok": true }))
+            }
+            GuiCommand::SetGraphOutput { node_id } => {
+                let gid = self.active_graph.clone();
+                if let Some(g) = self.dispatcher.project.graphs.get_mut(&gid) {
+                    g.output_node = node_id;
+                }
+                Ok(serde_json::json!({ "ok": true }))
+            }
         }
     }
 
@@ -386,6 +548,8 @@ impl CommandHost {
             "revision": self.revision(),
             "canUndo": self.dispatcher.can_undo(),
             "canRedo": self.dispatcher.can_redo(),
+            "activeGraphId": self.active_graph,
+            "activeGraph": self.dispatcher.project.graphs.get(&self.active_graph),
         })
     }
 }

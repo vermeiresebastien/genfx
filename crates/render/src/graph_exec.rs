@@ -20,9 +20,11 @@ pub struct RuntimeGraph {
     pub graph_id: String,
     pub compiled: CompiledGraph,
     pub graph_version: u64,
-    /// Two ping-pong scratch targets.
-    targets: Vec<(wgpu::Texture, wgpu::TextureView)>,
-    /// Dedicated final output target (never used as a pass input).
+    /// One output texture per non-terminal node, so arbitrary DAG topologies
+    /// (series + parallel branches) render correctly by binding each input to
+    /// its source node's texture.
+    node_targets: HashMap<String, (wgpu::Texture, wgpu::TextureView)>,
+    /// Dedicated final output target (written by the graph's output node).
     output_target: (wgpu::Texture, wgpu::TextureView),
     node_uniforms: HashMap<String, NodeParamsBuffer>,
     frame_buf: wgpu::Buffer,
@@ -62,11 +64,17 @@ impl RuntimeGraph {
                 .map_err(|e| FluxError::new(ErrorCode::ShaderCompile, "render", e.message))?;
         }
 
-        // Two ping-pong targets keep read/write from aliasing within a pass.
-        let targets = vec![
-            render_target(gpu, width, height),
-            render_target(gpu, width, height),
-        ];
+        // One output texture per non-terminal node (DAG execution). The graph's
+        // output node writes the dedicated output target instead.
+        let mut node_targets: HashMap<String, (wgpu::Texture, wgpu::TextureView)> = HashMap::new();
+        for pass in &compiled.passes {
+            if pass.node_id == compiled.output_node {
+                continue;
+            }
+            node_targets
+                .entry(pass.node_id.clone())
+                .or_insert_with(|| render_target(gpu, width, height));
+        }
         let output_target = render_target(gpu, width, height);
         let frame_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("frame-uniform"),
@@ -171,6 +179,7 @@ impl RuntimeGraph {
                             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                             count: None,
                         },
+                        tex_entry(3),
                     ],
                 });
             let bg1 = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -179,7 +188,7 @@ impl RuntimeGraph {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&targets[0].1),
+                        resource: wgpu::BindingResource::TextureView(&output_target.1),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -188,6 +197,10 @@ impl RuntimeGraph {
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Sampler(compiler.sampler()),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::TextureView(&compiler.dummy_tex),
                     },
                 ],
             });
@@ -202,7 +215,7 @@ impl RuntimeGraph {
             graph_id: graph.id.clone(),
             compiled,
             graph_version,
-            targets,
+            node_targets,
             output_target,
             node_uniforms,
             frame_buf,
@@ -298,53 +311,57 @@ impl RuntimeGraph {
                 label: Some("graph"),
             });
 
-        // Intermediate passes alternate between the two scratch targets; the
-        // final pass writes the dedicated output target. A pass must never read
-        // and write the same texture in one render pass, so the write slot is
-        // chosen to differ from the read slot.
-        let mut last_written: Option<usize> = None; // 0 or 1 scratch, or 2 = output
-        let pass_count = self.compiled.passes.len();
+        // True DAG execution: every non-terminal node renders into its own
+        // texture; each pass binds its input ports to the *source node's*
+        // texture. This makes series AND parallel branches (fan-out + merge via
+        // a two-input node) render correctly.
+        let mut output_written = false;
+        let mut last_node: Option<String> = None;
 
-        for (pass_idx, pass) in self.compiled.passes.iter().enumerate() {
+        for pass in &self.compiled.passes {
             let Some(entry) = catalog.get(&pass.type_id) else {
                 continue;
             };
             let Some(pipeline) = compiler.pipeline(&pass.type_id) else {
                 continue;
             };
-            let is_last = pass_idx + 1 == pass_count;
-
-            // Resolve the input texture view (scratch/output) or the external source.
-            let read_scratch: Option<usize> = last_written;
-            let input_view: &wgpu::TextureView = match pass.inputs.get("source") {
-                Some(InputBinding::NodeOutput(_)) | Some(InputBinding::ScopeSource) => {
-                    match read_scratch {
-                        Some(2) => &self.output_target.1,
-                        Some(i) => &self.targets[i].1,
-                        None => source,
-                    }
-                }
-                _ => source,
-            };
-
-            let has_source = entry.manifest.inputs.iter().any(|p| p.id == "source");
-            // Scope-source nodes present the external texture even though they
-            // declare no typed input port.
+            let is_output = pass.node_id == self.compiled.output_node;
             let is_scope_source =
                 pass.type_id == "flux.source" || pass.type_id == "flux.mask_input";
-            // A producer node (vector/scene/simulation) supplies its own texture.
             let produced = producers.get(&pass.node_id);
+
+            // Resolve ports to texture views (all immutable borrows of self).
+            // src (binding 0): producer texture > scope source > "source"/"a" > dummy.
             let src_binding: &wgpu::TextureView = if let Some(pv) = produced {
                 pv
-            } else if has_source || is_scope_source {
-                if is_scope_source {
-                    source
-                } else {
-                    input_view
+            } else if is_scope_source {
+                source
+            } else if let Some(b) = pass.inputs.get("source").or_else(|| pass.inputs.get("a")) {
+                match b {
+                    InputBinding::NodeOutput(nid) => {
+                        self.node_tex(nid).unwrap_or(&compiler.dummy_tex)
+                    }
+                    InputBinding::ScopeSource => source,
+                    InputBinding::Default(_) => &compiler.dummy_tex,
                 }
             } else {
                 &compiler.dummy_tex
             };
+            // mask (binding 1): "mask" edge, else white.
+            let mask_binding: &wgpu::TextureView = match pass.inputs.get("mask") {
+                Some(InputBinding::NodeOutput(nid)) => {
+                    self.node_tex(nid).unwrap_or(&compiler.white_mask)
+                }
+                _ => &compiler.white_mask,
+            };
+            // aux (binding 3): second image input "b" for two-input nodes.
+            let aux_binding: &wgpu::TextureView = match pass.inputs.get("b") {
+                Some(InputBinding::NodeOutput(nid)) => {
+                    self.node_tex(nid).unwrap_or(&compiler.dummy_tex)
+                }
+                _ => &compiler.dummy_tex,
+            };
+
             let input_layout = make_input_layout(gpu);
             let input_bg = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("per-pass-input"),
@@ -356,27 +373,27 @@ impl RuntimeGraph {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&compiler.white_mask),
+                        resource: wgpu::BindingResource::TextureView(mask_binding),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
                         resource: wgpu::BindingResource::Sampler(compiler.sampler()),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::TextureView(aux_binding),
+                    },
                 ],
             });
 
-            // Choose write slot: never equal to the read scratch slot.
-            let write_slot: usize = if is_last {
-                2
-            } else if read_scratch == Some(0) {
-                1
-            } else {
-                0
-            };
-            let write_view: &wgpu::TextureView = if write_slot == 2 {
+            // Write view: output node → dedicated output target; else its own texture.
+            let write_view: &wgpu::TextureView = if is_output {
                 &self.output_target.1
             } else {
-                &self.targets[write_slot].1
+                match self.node_targets.get(&pass.node_id) {
+                    Some((_, v)) => v,
+                    None => continue,
+                }
             };
 
             let bgl0 = make_bind0_layout(gpu);
@@ -420,36 +437,47 @@ impl RuntimeGraph {
                 rpass.set_bind_group(1, &input_bg, &[]);
                 rpass.draw(0..3, 0..1);
             }
-            last_written = Some(write_slot);
+            if is_output {
+                output_written = true;
+            } else {
+                last_node = Some(pass.node_id.clone());
+            }
         }
 
-        // If the last pass did not write the output target, copy its result in.
-        if let Some(slot) = last_written {
-            if slot != 2 {
-                let src_tex = &self.targets[slot].0;
-                encoder.copy_texture_to_texture(
-                    wgpu::TexelCopyTextureInfo {
-                        texture: src_tex,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    wgpu::TexelCopyTextureInfo {
-                        texture: &self.output_target.0,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    wgpu::Extent3d {
-                        width: self.output_target.0.width(),
-                        height: self.output_target.0.height(),
-                        depth_or_array_layers: 1,
-                    },
-                );
+        // If the graph had no writable output node, copy the last node's result so
+        // the target is never left stale.
+        if !output_written {
+            if let Some(nid) = last_node {
+                if let Some((tex, _)) = self.node_targets.get(&nid) {
+                    encoder.copy_texture_to_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: tex,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d::ZERO,
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &self.output_target.0,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d::ZERO,
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        wgpu::Extent3d {
+                            width: self.output_target.0.width(),
+                            height: self.output_target.0.height(),
+                            depth_or_array_layers: 1,
+                        },
+                    );
+                }
             }
         }
         gpu.queue.submit(Some(encoder.finish()));
         Ok(())
+    }
+
+    /// The output texture view for a node, if it rendered one.
+    fn node_tex(&self, id: &str) -> Option<&wgpu::TextureView> {
+        self.node_targets.get(id).map(|(_, v)| v)
     }
 }
 
@@ -466,6 +494,7 @@ fn make_input_layout(gpu: &Gpu) -> wgpu::BindGroupLayout {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                tex_entry(3),
             ],
         })
 }

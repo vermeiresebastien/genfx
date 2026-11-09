@@ -101,6 +101,7 @@ pub fn export_project(
             media_worker.as_ref(),
             opts.width,
             opts.height,
+            None,
         )?;
         let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
         flux_media::write_png_rgba(&path, opts.width, opts.height, &px)?;
@@ -234,6 +235,33 @@ impl PreviewRenderer {
             None,
             width,
             height,
+            None,
+        )
+    }
+
+    /// Render an explicit graph (the node editor's canvas) — bypasses the
+    /// timeline entirely. `time` still drives animated/uniform parameters.
+    pub fn render_graph(
+        &mut self,
+        graph: &flux_domain::Graph,
+        project: &Project,
+        time: RationalTime,
+        width: u32,
+        height: u32,
+    ) -> FluxResult<Vec<u8>> {
+        let frame_ctx = FrameContext::for_project(project, time, 0);
+        render_single_frame(
+            &self.gpu,
+            &self.catalog,
+            &mut self.compiler,
+            project,
+            &frame_ctx,
+            &mut self.roots_cache,
+            &mut self.router,
+            None,
+            width,
+            height,
+            Some(graph),
         )
     }
 }
@@ -249,6 +277,7 @@ fn render_single_frame(
     worker: Option<&MediaWorker>,
     width: u32,
     height: u32,
+    graph_override: Option<&flux_domain::Graph>,
 ) -> FluxResult<Vec<u8>> {
     // The render targets are at the export resolution, so the frame context's
     // dimensions must match them (otherwise full-frame source sampling is wrong).
@@ -283,13 +312,23 @@ fn render_single_frame(
 
     // Fallback: a solid color plate graph (transparent) — a well-defined image
     // when no clip is present, never a panic.
-    let graph = match graph {
-        Some(g) => g,
-        None => solid_fallback(),
+    let graph = match graph_override {
+        Some(g) => g.clone(),
+        None => match graph {
+            Some(g) => g,
+            None => solid_fallback(),
+        },
     };
 
-    let key = graph.id.clone();
+    // Cache key = graph CONTENT hash (not id), so edits rebuild the pipeline and
+    // a stale cached runtime can never render a blank/old frame.
+    let key = graph_content_key(&graph);
     if !roots_cache.contains_key(&key) {
+        // Bound the cache: keep it small so it cannot grow unbounded over an
+        // editing session.
+        if roots_cache.len() >= 12 {
+            roots_cache.clear();
+        }
         let rt = RuntimeGraph::activate(gpu, compiler, catalog, &graph, width, height, 1)?;
         roots_cache.insert(key.clone(), rt);
     }
@@ -317,7 +356,15 @@ fn render_single_frame(
                 project,
             )?;
             let (_, layout) = flux_catalog::pack::params_wgsl(&e.manifest.parameters);
+            let node = graph.node(&pass.node_id);
             for slot in &layout.slots {
+                // Apply the node's stored param (colour / vec / enum / bool / int)
+                // — without this, only floats changed and everything else stayed at
+                // the manifest default (the "clicking does nothing" bug).
+                if let Some(pv) = node.and_then(|n| n.params.get(&slot.id)) {
+                    apply_param_value(&mut buf, slot, pv, &e.manifest);
+                }
+                // Resolved (keyframed/modulated) value wins for scalar slots.
                 if let Some(v) = values.get(&slot.id) {
                     match slot.kind {
                         flux_catalog::pack::SlotKind::F32 => {
@@ -493,6 +540,100 @@ fn render_single_frame(
     let (_w, _h, px) = read_full(gpu, &rt.target_texture(), width, height)?;
     let _ = producer_textures;
     Ok(px)
+}
+
+/// Write a node's `ParamValue` into the uniform buffer slot according to the
+/// slot's kind. Handles colour/vec2/vec3/vec4, int/bool/enum (enum string ->
+/// index using the manifest options). Ignores mismatched value kinds.
+fn apply_param_value(
+    buf: &mut NodeParamsBuffer,
+    slot: &flux_catalog::pack::ParamSlot,
+    pv: &flux_domain::ParamValue,
+    manifest: &flux_catalog::Manifest,
+) {
+    use flux_catalog::pack::SlotKind;
+    use flux_domain::ParamValue;
+    match slot.kind {
+        SlotKind::F32 => {
+            let v = match pv {
+                ParamValue::Float { value } => *value,
+                ParamValue::Int { value } => *value as f64,
+                ParamValue::Bool { value } => {
+                    if *value {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
+                _ => return,
+            };
+            buf.floats[slot.vec4_index][slot.component] = v as f32;
+        }
+        SlotKind::Vec2 => {
+            if let ParamValue::Vec2 { value } = pv {
+                let f = &mut buf.floats[slot.vec4_index];
+                f[slot.component] = value[0] as f32;
+                f[slot.component + 1] = value[1] as f32;
+            }
+        }
+        SlotKind::Vec3 => {
+            if let ParamValue::Vec3 { value } = pv {
+                let f = &mut buf.floats[slot.vec4_index];
+                f[slot.component] = value[0] as f32;
+                f[slot.component + 1] = value[1] as f32;
+                f[slot.component + 2] = value[2] as f32;
+            }
+        }
+        SlotKind::Vec4 => {
+            if let ParamValue::Color { value } = pv {
+                let f = &mut buf.floats[slot.vec4_index];
+                for i in 0..4 {
+                    f[i] = value[i] as f32;
+                }
+            }
+        }
+        SlotKind::U32 => {
+            let v = match pv {
+                ParamValue::Int { value } => (*value).max(0) as u32,
+                ParamValue::Bool { value } => *value as u32,
+                ParamValue::Float { value } => (*value).max(0.0) as u32,
+                ParamValue::Enum { value } => manifest
+                    .parameters
+                    .iter()
+                    .find(|p| p.id == slot.id)
+                    .and_then(|p| p.options.iter().position(|o| o == value))
+                    .unwrap_or(0) as u32,
+                _ => return,
+            };
+            buf.uints[slot.vec4_index][slot.component] = v;
+        }
+    }
+}
+
+/// Stable content hash of a graph (id + nodes + edges + output + params), used as
+/// the runtime cache key so edits always invalidate the cached pipeline.
+fn graph_content_key(graph: &flux_domain::Graph) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    graph.id.hash(&mut h);
+    graph.output_node.hash(&mut h);
+    for n in &graph.nodes {
+        n.id.hash(&mut h);
+        n.type_id.hash(&mut h);
+        n.type_version.hash(&mut h);
+        n.bypass.hash(&mut h);
+        for (k, v) in &n.params {
+            k.hash(&mut h);
+            format!("{v:?}").hash(&mut h);
+        }
+    }
+    for e in &graph.edges {
+        e.from_node.hash(&mut h);
+        e.from_port.hash(&mut h);
+        e.to_node.hash(&mut h);
+        e.to_port.hash(&mut h);
+    }
+    format!("{:016x}", h.finish())
 }
 
 /// Convert a manifest default JSON value into a `ParamValue`.

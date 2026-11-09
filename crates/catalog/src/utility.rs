@@ -167,7 +167,23 @@ const MASK_BODY: &str = r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> { return src; }
 "#;
 const BLEND_BODY: &str = r#"
-fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> { return src; }
+fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
+  // Two real image inputs: `a` = src_tex (binding 0), `b` = aux_tex (binding 3).
+  let a = unpremul(src);
+  let b = unpremul(textureSampleLevel(aux_tex, src_sampler, uv, 0.0));
+  let m = p_mode();
+  var c = a;
+  if (m == 1) { c = a + b; }
+  else if (m == 2) { c = 1.0 - (1.0 - a) * (1.0 - b); }
+  else if (m == 3) { c = a * b; }
+  else if (m == 4) { c = mix(2.0 * a * b, 1.0 - 2.0 * (1.0 - a) * (1.0 - b), step(vec3<f32>(0.5), b)); }
+  else if (m == 5) { c = mix(2.0 * a * b + a * a * (1.0 - 2.0 * b), sqrt(a) * (2.0 * b - 1.0) + 2.0 * a * (1.0 - b), step(vec3<f32>(0.5), b)); }
+  else if (m == 6) { c = mix(2.0 * a * b, 1.0 - 2.0 * (1.0 - a) * (1.0 - b), step(vec3<f32>(0.5), b)); }
+  else if (m == 7) { c = abs(a - b); }
+  else if (m == 8) { c = a + b - 2.0 * a * b; }
+  c = clamp(c, vec3<f32>(0.0), vec3<f32>(4.0));
+  return premul(mix(a, c, p_opacity()), src.a);
+}
 "#;
 const NOISE_BODY: &str = r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {

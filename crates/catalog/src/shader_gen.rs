@@ -90,6 +90,7 @@ struct AudioFeatures {
 @group(1) @binding(0) var src_tex: texture_2d<f32>;
 @group(1) @binding(1) var mask_tex: texture_2d<f32>;
 @group(1) @binding(2) var src_sampler: sampler;
+@group(1) @binding(3) var aux_tex: texture_2d<f32>;
 "#,
         );
     } else {
@@ -98,13 +99,14 @@ struct AudioFeatures {
 @group(1) @binding(0) var src_tex: texture_2d<f32>;
 @group(1) @binding(1) var mask_tex: texture_2d<f32>;
 @group(1) @binding(2) var src_sampler: sampler;
+@group(1) @binding(3) var aux_tex: texture_2d<f32>;
 "#,
         );
     }
     for (i, name) in spec.extra_textures.iter().enumerate() {
         s.push_str(&format!(
             "@group(1) @binding({}) var {name}: texture_2d<f32>;\n",
-            3 + i
+            4 + i
         ));
     }
 
