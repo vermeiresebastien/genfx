@@ -3747,7 +3747,8 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations live (source/sink contracts, truthful status)"
+        "crates/integrations ndi tests (runtime load + discovery)",
+        "implementation/evidence/ndi-discovery.txt"
       ],
       "blocker": null
     },

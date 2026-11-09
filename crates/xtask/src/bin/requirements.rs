@@ -371,7 +371,14 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
                 "apps/max-for-live/check-maxpat.cjs (source patch structure)".into(),
             ],
         ),
-        "AT060" | "AT061" | "AT062" => (
+        "AT060" => (
+            "implemented_unverified",
+            vec![
+                "crates/integrations ndi tests (runtime load + discovery)".into(),
+                "implementation/evidence/ndi-discovery.txt".into(),
+            ],
+        ),
+        "AT061" | "AT062" => (
             "implemented_unverified",
             vec!["crates/integrations live (source/sink contracts, truthful status)".into()],
         ),
