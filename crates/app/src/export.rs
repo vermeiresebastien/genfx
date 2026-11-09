@@ -123,20 +123,19 @@ pub fn export_project(
 
     // Encode video if requested and supported.
     let mut video = None;
-    if !matches!(opts.codec, EncodeCodec::None) {
+    if !matches!(opts.codec, EncodeCodec::None | EncodeCodec::JpegSequence) {
         if let Ok(worker) = MediaWorker::new() {
             let fps_str = format!("{}/{}", fps.num, fps.den);
+            let ext = match opts.codec {
+                EncodeCodec::Gif => "gif",
+                EncodeCodec::ProRes => "mov",
+                _ => "mp4",
+            };
             let out = opts
                 .out_dir
-                .join(format!("{}.mp4", sanitize(&opts.project_name)));
+                .join(format!("{}.{ext}", sanitize(&opts.project_name)));
             let res = if matches!(opts.codec, EncodeCodec::Gif) {
-                worker.encode_video_from_frames(
-                    &frames_dir,
-                    &fps_str,
-                    None,
-                    &out.with_extension("gif"),
-                    EncodeCodec::Gif,
-                )
+                worker.encode_video_from_frames(&frames_dir, &fps_str, None, &out, EncodeCodec::Gif)
             } else {
                 worker.encode_video_from_frames(
                     &frames_dir,
@@ -147,12 +146,19 @@ pub fn export_project(
                 )
             };
             if res.is_ok() {
-                video = Some(if matches!(opts.codec, EncodeCodec::Gif) {
-                    out.with_extension("gif")
-                } else {
-                    out
-                });
+                video = Some(out);
             }
+        }
+    } else if matches!(opts.codec, EncodeCodec::JpegSequence) {
+        if let Ok(worker) = MediaWorker::new() {
+            let fps_str = format!("{}/{}", fps.num, fps.den);
+            let _ = worker.encode_video_from_frames(
+                &frames_dir,
+                &fps_str,
+                None,
+                &opts.out_dir.join("unused"),
+                EncodeCodec::JpegSequence,
+            );
         }
     }
 

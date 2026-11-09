@@ -9,6 +9,7 @@ members = [
   "crates/catalog",
   "crates/xtask",
   "crates/app",
+  "crates/integrations",
   "crates/tests",
 ]
 [workspace.package]

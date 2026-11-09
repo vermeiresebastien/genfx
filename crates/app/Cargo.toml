@@ -19,9 +19,11 @@ flux-catalog = { path = "../catalog" }
 flux-render = { path = "../render" }
 flux-media = { path = "../media" }
 flux-audio = { path = "../audio" }
+flux-integrations = { path = "../integrations" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 wgpu = { workspace = true }
 bytemuck = { workspace = true }
 pollster = { workspace = true }
+crossbeam-channel = { workspace = true }

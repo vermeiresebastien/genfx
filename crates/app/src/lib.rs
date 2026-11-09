@@ -2,5 +2,7 @@
 //! orchestrator, exposed for the `flux` CLI binary and integration tests.
 
 pub mod export;
+pub mod job;
+pub mod persistence;
 pub mod producer;
 pub mod samples;

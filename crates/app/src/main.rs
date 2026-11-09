@@ -64,7 +64,42 @@ fn run(args: &[String]) -> FluxResult<()> {
                 )
             })?);
             let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
-            cmd_render(&project, &dir)
+            let codec = args
+                .iter()
+                .position(|a| a == "--codec")
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+                .unwrap_or_else(|| "h264".into());
+            cmd_render(&project, &dir, &codec)
+        }
+        "recover" => {
+            let dir = PathBuf::from(args.get(1).cloned().ok_or_else(|| {
+                FluxError::new(
+                    flux_domain::ErrorCode::InvalidCommand,
+                    "cli",
+                    "recover needs a project dir",
+                )
+            })?);
+            cmd_recover(&dir)
+        }
+        "collect" => {
+            let project = PathBuf::from(args.get(1).cloned().ok_or_else(|| {
+                FluxError::new(
+                    flux_domain::ErrorCode::InvalidCommand,
+                    "cli",
+                    "collect needs a project path",
+                )
+            })?);
+            cmd_collect(&project)
+        }
+        "caps" => cmd_caps(),
+        "integrations" => cmd_integrations(),
+        "osc" => {
+            let port = args
+                .get(1)
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(flux_integrations::osc::DEFAULT_RECV_PORT);
+            cmd_osc_listen(port)
         }
         "gui" | "editor" => {
             eprintln!("The GUI is not included in this build. Use `flux demo-render` / `flux render` for headless rendering.");
@@ -72,7 +107,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         }
         other => {
             eprintln!("unknown command: {other}");
-            eprintln!("usage: flux [list|doctor|new-demo|demo-render|render|gui]");
+            eprintln!("usage: flux [list|doctor|caps|new-demo|demo-render|demo-media|contact-sheet|render|recover|collect|gui]");
             std::process::exit(2);
         }
     }
@@ -236,14 +271,19 @@ fn cmd_contact_sheet(dir: &std::path::Path) -> FluxResult<()> {
     Ok(())
 }
 
-fn cmd_render(project_path: &std::path::Path, dir: &std::path::Path) -> FluxResult<()> {
+fn cmd_render(
+    project_path: &std::path::Path,
+    dir: &std::path::Path,
+    codec: &str,
+) -> FluxResult<()> {
     let project = load_project(project_path)?;
+    let codec = flux_app::job::parse_codec(codec);
     let result = export::export_project(
         &project,
         &export::ExportOptions {
             out_dir: dir.to_path_buf(),
             project_name: project.name.clone(),
-            codec: flux_media::EncodeCodec::H264,
+            codec,
             width: project.settings.size.width,
             height: project.settings.size.height,
             range: None,
@@ -262,49 +302,96 @@ fn cmd_render(project_path: &std::path::Path, dir: &std::path::Path) -> FluxResu
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
+    if let Some(w) = &result.wav {
+        println!("wav:   {}", w.display());
+    }
     Ok(())
 }
 
-/// Atomic project save: write temp, flush, replace.
-pub fn save_project(project: &Project, path: &std::path::Path) -> FluxResult<()> {
-    let json = serde_json::to_string_pretty(project)
-        .map_err(|e| FluxError::new(flux_domain::ErrorCode::Io, "persist", e.to_string()))?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+fn cmd_recover(dir: &std::path::Path) -> FluxResult<()> {
+    match flux_app::persistence::find_recovery(dir) {
+        Some(m) => {
+            println!(
+                "recoverable snapshot: rev {} at {} (schema {})",
+                m.revision, m.timestamp_utc, m.schema_version
+            );
+            println!("autosave: {}", m.autosave_path);
+            let p = flux_app::persistence::load(std::path::Path::new(&m.autosave_path))?;
+            let out = dir.join(format!("{}_recovered.flux.json", sanitize(&p.name)));
+            flux_app::persistence::save_atomic(&p, &out)?;
+            println!("recovered -> {}", out.display());
+        }
+        None => println!("no recoverable autosave in {}", dir.display()),
     }
-    let tmp = path.with_extension("flux.json.tmp");
-    {
-        use std::io::Write;
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(json.as_bytes())?;
-        f.flush()?;
-        f.sync_all()?;
-    }
-    std::fs::rename(&tmp, path)?;
     Ok(())
+}
+
+fn cmd_collect(project_path: &std::path::Path) -> FluxResult<()> {
+    let mut project = load_project(project_path)?;
+    let dir = project_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let n = flux_app::persistence::collect_media(&mut project, dir)?;
+    flux_app::persistence::save_atomic(&project, project_path)?;
+    println!(
+        "collected {n} media files into {}",
+        dir.join("media").display()
+    );
+    Ok(())
+}
+
+fn cmd_integrations() -> FluxResult<()> {
+    for c in flux_integrations::capability_report() {
+        println!(
+            "{:<8} available={} implemented={} verified={}  ({})",
+            c.id, c.available, c.implemented, c.verified, c.limitation
+        );
+    }
+    Ok(())
+}
+
+fn cmd_osc_listen(port: u16) -> FluxResult<()> {
+    let (tx, rx) = crossbeam_channel::bounded(256);
+    let (recv, handle) = flux_integrations::osc::OscReceiver::start(port, tx)
+        .map_err(|e| FluxError::new(flux_domain::ErrorCode::OscMalformed, "osc", e.to_string()))?;
+    println!("listening for OSC on 127.0.0.1:{port} (Ctrl-C to stop)");
+    let start = std::time::Instant::now();
+    // Run for up to 30s or until 100 controls, printing each; demonstrates the
+    // real receiver without any command/file execution from network input.
+    while start.elapsed().as_secs() < 30 {
+        match rx.recv_timeout(std::time::Duration::from_millis(500)) {
+            Ok(c) => println!("{c:?}"),
+            Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
+            Err(_) => break,
+        }
+    }
+    recv.stop();
+    let _ = handle.join();
+    Ok(())
+}
+
+fn cmd_caps() -> FluxResult<()> {
+    use flux_media::MediaWorker;
+    match MediaWorker::new() {
+        Ok(w) => {
+            let c = w.capabilities();
+            println!(
+                "{{\"h264\":{},\"hevc\":{},\"prores\":{},\"aac\":{},\"gif\":{},\"png\":{},\"wav\":{}}}",
+                c.h264, c.hevc, c.prores, c.aac, c.gif, c.png, c.wav
+            );
+        }
+        Err(e) => println!("{{\"error\":{e:?}}}"),
+    }
+    Ok(())
+}
+
+/// Atomic project save (delegates to the persistence module).
+pub fn save_project(project: &Project, path: &std::path::Path) -> FluxResult<()> {
+    flux_app::persistence::save_atomic(project, path)
 }
 
 pub fn load_project(path: &std::path::Path) -> FluxResult<Project> {
-    let data = std::fs::read_to_string(path)?;
-    let project: Project = serde_json::from_str(&data).map_err(|e| {
-        FluxError::new(
-            flux_domain::ErrorCode::ProjectCorrupt,
-            "persist",
-            e.to_string(),
-        )
-    })?;
-    if project.schema_version > flux_domain::SCHEMA_VERSION {
-        return Err(FluxError::new(
-            flux_domain::ErrorCode::ProjectVersion,
-            "persist",
-            format!(
-                "project schema {} is newer than supported {}",
-                project.schema_version,
-                flux_domain::SCHEMA_VERSION
-            ),
-        ));
-    }
-    Ok(project)
+    flux_app::persistence::load(path)
 }
 
 pub fn new_dispatcher(project: Project) -> Dispatcher {

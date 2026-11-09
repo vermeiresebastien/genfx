@@ -394,6 +394,7 @@ impl MediaWorker {
         if let Some(a) = audio_wav {
             cmd.args(["-i", a.to_str().unwrap_or_default()]);
         }
+        let is_mp4 = matches!(codec, EncodeCodec::H264 | EncodeCodec::Hevc);
         match codec {
             EncodeCodec::H264 => {
                 cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"]);
@@ -414,24 +415,45 @@ impl MediaWorker {
             EncodeCodec::Gif => {
                 cmd.args(["-vf", "fps=15,scale=640:-1:flags=lanczos", "-loop", "0"]);
             }
+            EncodeCodec::JpegSequence => {
+                // JPEG acceptance matrix entry: write numbered JPEGs beside PNGs.
+                let jpeg_dir = frames_dir.with_file_name(format!(
+                    "{}_jpeg",
+                    frames_dir
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("frames")
+                ));
+                let _ = std::fs::create_dir_all(&jpeg_dir);
+                cmd.args(["-c:v", "mjpeg", "-q:v", "3"]);
+                cmd.arg(jpeg_dir.join("frame_%06d.jpg"));
+                return finish_encode(cmd);
+            }
             EncodeCodec::None => {}
         }
         if audio_wav.is_some() && !matches!(codec, EncodeCodec::Gif) {
             cmd.args(["-c:a", "aac", "-b:a", "192k"]);
         }
-        cmd.args(["-movflags", "+faststart"]).arg(out);
-        let status = cmd
-            .status()
-            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
-        if !status.success() {
-            return Err(FluxError::new(
-                ErrorCode::ExportEncoder,
-                "media",
-                format!("encoder exited with {status}"),
-            ));
+        if is_mp4 {
+            cmd.args(["-movflags", "+faststart"]);
         }
-        Ok(())
+        cmd.arg(out);
+        finish_encode(cmd)
     }
+}
+
+fn finish_encode(mut cmd: Command) -> FluxResult<()> {
+    let status = cmd
+        .status()
+        .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
+    if !status.success() {
+        return Err(FluxError::new(
+            ErrorCode::ExportEncoder,
+            "media",
+            format!("encoder exited with {status}"),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -440,6 +462,7 @@ pub enum EncodeCodec {
     Hevc,
     ProRes,
     Gif,
+    JpegSequence,
     None,
 }
 
