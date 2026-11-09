@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "profile": "baseline",
+  "compiled": 216,
+  "failures": [],
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 2080 Ti",
+    "backend": "Vulkan",
+    "deviceType": "DiscreteGpu",
+    "driver": "NVIDIA 560.94",
+    "maxTexture2D": 8192,
+    "supportsRgba16fFilter": true,
+    "maxUniformBindingSize": 65536
+  }
+}

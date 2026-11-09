@@ -6,8 +6,6 @@
 //!   flux demo-render <gen> <dir>  build a demo and export it in one step
 //!   flux gui [project]            launch the native editor (default)
 
-#[cfg(feature = "gui")]
-mod editor;
 mod export;
 mod samples;
 
@@ -50,17 +48,8 @@ fn run(args: &[String]) -> FluxResult<()> {
             cmd_render(&project, &dir)
         }
         "gui" | "editor" => {
-            #[cfg(feature = "gui")]
-            {
-                let project = args.get(1).map(PathBuf::from);
-                editor::run_gui(project)
-            }
-            #[cfg(not(feature = "gui"))]
-            {
-                let _ = args;
-                eprintln!("This build was compiled without the gui feature.");
-                std::process::exit(2);
-            }
+            eprintln!("The GUI is not included in this build. Use `flux demo-render` / `flux render` for headless rendering.");
+            std::process::exit(2);
         }
         other => {
             eprintln!("unknown command: {other}");

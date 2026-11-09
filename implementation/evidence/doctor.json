@@ -1,0 +1,37 @@
+{
+  "ok": true,
+  "data": {
+    "os": "windows",
+    "arch": "x86_64",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 2080 Ti",
+      "backend": "Vulkan",
+      "deviceType": "DiscreteGpu",
+      "driver": "NVIDIA 560.94",
+      "maxTexture2D": 8192,
+      "supportsRgba16fFilter": true,
+      "maxUniformBindingSize": 65536
+    },
+    "ffmpeg": "C:\\Users\\Sebastien\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0-full_build\\bin\\ffmpeg.exe",
+    "encoders": {
+      "h264": true,
+      "hevc": true,
+      "prores": true,
+      "aac": true,
+      "gif": true,
+      "png": true,
+      "wav": true
+    },
+    "catalogEntries": 216,
+    "blockers": [
+      "NDI",
+      "Spout",
+      "Syphon(macOS)",
+      "Max for Live host",
+      "macOS hosts",
+      "code signing",
+      "vision models"
+    ]
+  }
+}

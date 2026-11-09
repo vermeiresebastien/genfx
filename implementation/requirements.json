@@ -1,0 +1,3929 @@
+{
+  "specVersion": "2.0",
+  "generatedBy": "cargo xtask report (requirements)",
+  "counts": {
+    "product": 24,
+    "effects": 28,
+    "effectFamilies": 24,
+    "generators": 156,
+    "tasks": 28,
+    "acceptance": 85
+  },
+  "records": [
+    {
+      "id": "R001",
+      "title": "Windows x64 and macOS arm64/x64 standalone builds",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "macOS hosts unavailable; Windows x64 built"
+    },
+    {
+      "id": "R002",
+      "title": "Max for Live audio-analysis and MIDI/control companions",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "Max for Live host not installed; source .maxpat only"
+    },
+    {
+      "id": "R003",
+      "title": "Native GPU rendering and WebGPU-compatible shader core",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog/src/effects_a.rs",
+        "crates/render"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R004",
+      "title": "Video, image, audio, image-sequence, SVG, and Lottie import",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/media"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R005",
+      "title": "Webcam, display/window/region capture, microphone, system audio",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "platform capture adapters implemented; runtime device verification pending"
+    },
+    {
+      "id": "R006",
+      "title": "Spout on Windows, Syphon on macOS, NDI send and receive",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "NDI SDK/Spout SDK/Syphon(macOS) not available"
+    },
+    {
+      "id": "R007",
+      "title": "Typed node graph with macros, groups, feedback, and reusable presets",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/engine/src/graph.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R008",
+      "title": "Conventional timeline editing and audio mixing",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/engine/src/timeline.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R009",
+      "title": "Every one of the 28 requested named effects/fills",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog",
+        "crates/catalog/src/effects_a.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R010",
+      "title": "Analog, print, optical, material, glitch, and technical effects",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R011",
+      "title": "Procedural 2D, SVG animation, image animation, typography",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog",
+        "crates/catalog/src/effects_a.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R012",
+      "title": "3D blobs/SDFs, meshes, cameras, lights, imported models",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R013",
+      "title": "GPU particles, physics, fluids, and evolving simulations",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/catalog"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R014",
+      "title": "Audio-driven visuals, control nodes, OSC/MIDI input and output",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/audio"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R015",
+      "title": "Internal, external, and recorded musical synchronization",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "Ableton Link license not resolved; MIDI/Max transport only"
+    },
+    {
+      "id": "R016",
+      "title": "Real-time editor preview, detached output, multiple monitors",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R017",
+      "title": "Recording and deterministic offline export",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/app/src/export.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R018",
+      "title": "Project/preset files, autosave, recovery, media relinking",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/domain/src/document.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R019",
+      "title": "Performance diagnostics, resource limits, failure recovery",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R020",
+      "title": "Tests, sample projects, installers, documentation, evidence",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "implementation"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R021",
+      "title": "External creative-code sources and recorded live data",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "external creative-code runtimes not installed"
+    },
+    {
+      "id": "R022",
+      "title": "Depth, motion, masking, and optional vision/model inputs",
+      "class": "required",
+      "status": "pending",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": "vision models not installed; conditional"
+    },
+    {
+      "id": "R023",
+      "title": "Conventional rates, aspect ratios, sizes, and capability detection",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "crates/domain/src/time.rs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "R024",
+      "title": "Repository reuse, pinned dependencies, distribution records",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "Cargo.lock"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX001",
+      "title": "Bloom",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.bloom"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX002",
+      "title": "Bokeh blur",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.bokeh_blur"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX003",
+      "title": "Channel mixer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.channel_mixer"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX004",
+      "title": "Chromatic metal",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.chromatic_metal"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX005",
+      "title": "Color adjustment",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.color_adjustment"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX006",
+      "title": "Colored edges",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.colored_edges"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX007",
+      "title": "Dither",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.dither"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX008",
+      "title": "Filter presets",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "preset.color_filter"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX009",
+      "title": "Gooey merge",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.gooey_merge"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX010",
+      "title": "Gradient map",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.gradient_map"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX011",
+      "title": "Halftone",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.halftone"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX012",
+      "title": "Hatching",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.hatching"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX013",
+      "title": "Lens distortion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.lens_distortion"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX014",
+      "title": "Outlines",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.outlines"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX015",
+      "title": "Pattern refraction",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.pattern_refraction"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX016",
+      "title": "Pixel stretch",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.pixel_stretch"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX017",
+      "title": "Pixelate",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.pixelate"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX018",
+      "title": "Slice shift",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.slice_shift"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX019",
+      "title": "Warp",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.warp"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX020",
+      "title": "Clouds",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.clouds"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX021",
+      "title": "Concentric patterns",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.concentric"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX022",
+      "title": "Fractal noise",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.fractal_noise"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX023",
+      "title": "Glowing wave",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.glowing_wave"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX024",
+      "title": "Mesh gradient",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.mesh_gradient"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX025",
+      "title": "Moiré",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.moire"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX026",
+      "title": "Nebula",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.nebula"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX027",
+      "title": "Pattern grid",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.pattern_grid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX028",
+      "title": "Water caustic",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.water_caustic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX100",
+      "title": "tone",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.tone"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX101",
+      "title": "color",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.color_ops"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX102",
+      "title": "noise",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.noise"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX103",
+      "title": "blur",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.blur"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX104",
+      "title": "glow",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.glow"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX105",
+      "title": "chromatic",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.chromatic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX106",
+      "title": "VHS",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.vhs"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX107",
+      "title": "CRT",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.crt"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX108",
+      "title": "glitch",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.glitch"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX109",
+      "title": "pixel",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.pixel_ops"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX110",
+      "title": "smear",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.smear"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX111",
+      "title": "geometry",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.geometry"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX112",
+      "title": "glass",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.glass"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX113",
+      "title": "materials",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.materials"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX114",
+      "title": "texture",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.texture"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX115",
+      "title": "print",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.print"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX116",
+      "title": "technical",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.technical"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX117",
+      "title": "text/graphic",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.text_graphic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX118",
+      "title": "temporal",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.temporal"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX119",
+      "title": "feedback",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.feedback"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX120",
+      "title": "keys/mattes",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.keys"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX121",
+      "title": "masks",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.masks"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX122",
+      "title": "composite",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.composite"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "FX123",
+      "title": "transforms",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "fx.transforms"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G001",
+      "title": "Solid/color plate",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.solid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G002",
+      "title": "Linear/radial/conic gradient",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.gradient"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G003",
+      "title": "Mesh gradient",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.mesh_gradient_fill"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G004",
+      "title": "Noise/fBm/turbulence/ridged",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.noise"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G005",
+      "title": "Voronoi/cellular/crackle",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.voronoi"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G006",
+      "title": "Plasma",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.plasma"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G007",
+      "title": "Grid/dots/checker/triangular/hex",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.grid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G008",
+      "title": "Concentric/radial rays/spiral",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.radial_rays"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G009",
+      "title": "Moiré/interference",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.interference"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G010",
+      "title": "Halftone/hatching pattern fill",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.pattern_fill"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G011",
+      "title": "Topographic contours",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.topographic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G012",
+      "title": "Clouds/nebula/aurora",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.aurora"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G013",
+      "title": "Glowing wave/oscilloscope",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.oscilloscope"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G014",
+      "title": "Water caustics/ripples",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.caustics"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G015",
+      "title": "Mandelbrot/Julia/Burning Ship",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.fractal"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G016",
+      "title": "Lissajous/rose/spirograph",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.lissajous"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G017",
+      "title": "Superformula/superellipse",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.superformula"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G018",
+      "title": "Truchet tiles/maze",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.truchet"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G019",
+      "title": "Texture fields",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.texture_field"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G020",
+      "title": "Starfield/galaxy/space tunnel",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.starfield"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G021",
+      "title": "Scan/test signal",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.test_signal"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G022",
+      "title": "Polar tunnel/vortex",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.polar_tunnel"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G023",
+      "title": "Fractal tree/L-system",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.lsystem"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G024",
+      "title": "Strange attractor plot",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.attractor"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G025",
+      "title": "Kaleidoscopic pattern",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.kaleidoscope"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G026",
+      "title": "Recursive geometry/tiling",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.recursive_tiling"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G027",
+      "title": "Cellular automata",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.automata"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G028",
+      "title": "Reaction-diffusion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.reaction_diffusion"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G030",
+      "title": "SVG source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.svg"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G031",
+      "title": "Primitive shape/path editor",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.shape"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G032",
+      "title": "Trim paths/draw-on",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.trim_paths"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G033",
+      "title": "Follow path",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.follow_path"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G034",
+      "title": "Path morph",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.path_morph"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G035",
+      "title": "Shape morph",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.shape_morph"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G036",
+      "title": "Repeater",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.repeater"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G037",
+      "title": "Vector deform",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.vector_deform"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G038",
+      "title": "Stroke effects",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.stroke_fx"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G039",
+      "title": "Gradient/fill animator",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.gradient_animator"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G040",
+      "title": "Vector mask/clip animation",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.vector_mask"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G041",
+      "title": "Vector to particles",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.vector_particles"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G042",
+      "title": "Vector to mesh",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.vector_mesh"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G043",
+      "title": "Lottie source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.lottie"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G044",
+      "title": "Animated icon/logo scene",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.icon_scene"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G045",
+      "title": "Hand-drawn vector loop",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.handdrawn"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G050",
+      "title": "Transform/Ken Burns",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.ken_burns"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G051",
+      "title": "Perspective/corner pin",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.corner_pin"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G052",
+      "title": "Mesh warp/puppet",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.mesh_warp"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G053",
+      "title": "Displace/liquify",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.liquify"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G054",
+      "title": "2.5D layered parallax",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.parallax"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G055",
+      "title": "Heightfield image",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.heightfield"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G056",
+      "title": "Image to particles",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.image_particles"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G057",
+      "title": "Image fragmentation",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.fragmentation"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G058",
+      "title": "Image slices/accordion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.image_slices"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G059",
+      "title": "Slit scan/time displacement",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.slit_scan"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G060",
+      "title": "Polar/sphere/cylinder projection",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.polar_projection"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G061",
+      "title": "Collage/cutout",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.collage"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G062",
+      "title": "Sprite/flipbook",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sprite"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G063",
+      "title": "Motion brush/cinemagraph",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.motion_brush"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G064",
+      "title": "Optical-flow advection",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.optical_flow"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G065",
+      "title": "Image morph/dissolve",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.image_morph"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G066",
+      "title": "Image field extraction",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.field_extraction"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G067",
+      "title": "Infinite zoom/Droste",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.droste"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G068",
+      "title": "Stop-motion animator",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.stop_motion"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G070",
+      "title": "Text plate",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.text"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G071",
+      "title": "Kinetic type",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.kinetic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G072",
+      "title": "Typewriter/scramble",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.typewriter"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G073",
+      "title": "Text on path/ring",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.text_path"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G074",
+      "title": "3D text",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.text_3d"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G075",
+      "title": "Text to particles",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.text_particles"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G076",
+      "title": "Physics type",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.physics_type"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G077",
+      "title": "Counters/clock/data labels",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.counter"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G078",
+      "title": "Charts/radar/dashboard",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.chart"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G079",
+      "title": "Technical overlays",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.overlays"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G080",
+      "title": "SDF primitives",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_primitive"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G081",
+      "title": "Blob/metaballs",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_blob"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G082",
+      "title": "SDF Boolean",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_boolean"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G083",
+      "title": "SDF domain",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_domain"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G084",
+      "title": "SDF noise displacement",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_noise"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G085",
+      "title": "Gyroid/lattice",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_gyroid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G086",
+      "title": "Fractal bulb/box",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_fractal"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G087",
+      "title": "SDF render",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_render"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G088",
+      "title": "SDF material",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_material"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G089",
+      "title": "SDF mesh conversion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sdf_mesh"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G090",
+      "title": "Mesh primitives",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.mesh_primitive"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G091",
+      "title": "Parametric surfaces",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.parametric"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G092",
+      "title": "Path extrusion/ribbon",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.extrusion"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G093",
+      "title": "Mesh deformer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.deformer"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G094",
+      "title": "Geometry instancer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.instancer"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G095",
+      "title": "Terrain/heightfield",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.terrain"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G096",
+      "title": "Voxel scene",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.voxel"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G097",
+      "title": "Point cloud",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.point_cloud"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G098",
+      "title": "Model scene",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.model"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G099",
+      "title": "Scene composition",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.scene"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G100",
+      "title": "Camera",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.camera"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G101",
+      "title": "Lights/environment",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.lights"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G102",
+      "title": "Material",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.material"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G103",
+      "title": "Scene animation",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.scene_animation"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G104",
+      "title": "Procedural architecture",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.architecture"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G105",
+      "title": "Planet/asteroid/galaxy",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.planet"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G106",
+      "title": "Ocean surface",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.ocean"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G107",
+      "title": "Volumetric field",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.volume"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G110",
+      "title": "Emitter",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_emitter"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G111",
+      "title": "Initializer/lifetime",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_init"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G112",
+      "title": "Forces",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_forces"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G113",
+      "title": "Over-life curves",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_overlife"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G114",
+      "title": "Collision",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_collision"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G115",
+      "title": "Renderer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_render"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G116",
+      "title": "Trails/ribbons",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_trails"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G117",
+      "title": "Morph/attractor target",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_morph"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G118",
+      "title": "Boids/flocking",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_boids"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G119",
+      "title": "Agent trails/slime field",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_slime"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G120",
+      "title": "Event output",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.particle_events"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G130",
+      "title": "Rigid-body world",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.rigid_world"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G131",
+      "title": "Body/collider",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.rigid_body"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G132",
+      "title": "Joint/chain",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.joint_chain"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G133",
+      "title": "Pendulum system",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.pendulum"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G134",
+      "title": "Physics shards",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.physics_shards"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G135",
+      "title": "Cloth/flag",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.cloth"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G136",
+      "title": "Jelly/soft mesh",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.jelly"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G137",
+      "title": "Elastic motion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.elastic"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G140",
+      "title": "2D stable fluids",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.fluid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G141",
+      "title": "Ink/smoke fluid styles",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.ink_fluid"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G142",
+      "title": "Shallow water/ripple tank",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.shallow_water"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G143",
+      "title": "Reaction-diffusion",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.reaction_brush"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G144",
+      "title": "Sand/falling cellular material",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sand"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G145",
+      "title": "Particle fluid",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.sph"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G146",
+      "title": "Magnetic/electric field",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.em_field"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G147",
+      "title": "Wave interference",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.wave_interference"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G148",
+      "title": "Volume smoke/fire",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.volume_smoke"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G150",
+      "title": "Audio spectrum/wave/spectrogram",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.audio_visual"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G151",
+      "title": "Beat/rhythm generator",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.rhythm"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G152",
+      "title": "Oscillator bank",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.oscillators"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G153",
+      "title": "Envelope/trigger",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.envelope"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G154",
+      "title": "MIDI visual source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.midi_source"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G155",
+      "title": "OSC value/event source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.osc_source"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G156",
+      "title": "CSV/JSON chart source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.csv_source"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G157",
+      "title": "Network data source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.network_source"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G158",
+      "title": "Interaction source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.interaction"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G159",
+      "title": "Clock/metadata source",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.clock"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G160",
+      "title": "File watcher/asset sequencer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.file_sequencer"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G161",
+      "title": "Event sequencer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.event_sequencer"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G162",
+      "title": "Control math",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.control_math"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G170",
+      "title": "Optical-flow analysis",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.optical_flow_model"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G171",
+      "title": "Face/hand/pose landmarks",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.landmarks"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G172",
+      "title": "Person/foreground segmentation",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.segmentation"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G173",
+      "title": "Monocular depth",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.depth_model"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G174",
+      "title": "Object/marker tracking",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.tracking"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G175",
+      "title": "Webcam motion heatmap",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.motion_heatmap"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G176",
+      "title": "Gaussian splat scene",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.gaussian_splat"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G177",
+      "title": "Neural animation source",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.neural_animation"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G180",
+      "title": "WGSL custom generator",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.custom_wgsl"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G181",
+      "title": "p5/Canvas sketch",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.p5_sketch"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G182",
+      "title": "Three.js scene",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.three_scene"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G183",
+      "title": "Lottie/Rive-like animation adapter",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.lottie_runtime"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G184",
+      "title": "Python/process generator",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.python_source"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "G185",
+      "title": "External app feed",
+      "class": "conditional",
+      "status": "implemented_unverified",
+      "implementation_paths": [
+        "gen.external_feed"
+      ],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T00",
+      "title": "Inspect, resolve dependencies, and prove native integration",
+      "class": "required",
+      "status": "verified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T01",
+      "title": "Workspace, domain, and persistence foundation",
+      "class": "required",
+      "status": "verified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T02",
+      "title": "Native renderer and authoritative preview",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T03",
+      "title": "First real media playback and export",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T04",
+      "title": "Graph model/compiler and editable node UI",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T05",
+      "title": "Audio analysis, modulation, and automation",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T06",
+      "title": "Conventional timeline and mixer",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T07",
+      "title": "Exact requested effects and fills",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T08",
+      "title": "Additional effect families and temporal state",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T09",
+      "title": "General generator source system and 2D/math library",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T10",
+      "title": "Vector scene/SVG/Lottie",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T11",
+      "title": "Image animation and typography",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T12",
+      "title": "SDF/3D blob system",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T13",
+      "title": "Mesh scenes and imported model animation",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T14",
+      "title": "GPU particles and field agents",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T15",
+      "title": "Physics, cloth, fluids, and simulation seeking",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T16",
+      "title": "OSC/MIDI/data/interaction control",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T17",
+      "title": "Native capture and system audio",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T18",
+      "title": "External video protocols",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T19",
+      "title": "Max for Live companions and transport",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T20",
+      "title": "Live performance, scene routing, and recording",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T21",
+      "title": "Export matrix and final media correctness",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T22",
+      "title": "Recovery, relinking, and error hardening",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T23",
+      "title": "Conditional vision/creative runtime adapters",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T24",
+      "title": "WebGPU harness and backend parity",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T25",
+      "title": "Performance, accessibility, and product polish",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T26",
+      "title": "Packaging, examples, docs, and license records",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "T27",
+      "title": "Reconcile and deliver",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT001",
+      "title": "Create/open/save project; Unicode name and spaced path; stable UUID/revision and exact rational settings survive round trip.",
+      "class": "required",
+      "status": "verified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "crates/domain tests (AT001)"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT002",
+      "title": "Command transactions/undo/redo/stale revision; illegal operation changes no state; undo group restores exact structure.",
+      "class": "required",
+      "status": "verified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "crates/domain tests (AT002)"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT003",
+      "title": "Schema migration/invalid/newer document; migration backup exists, corrupt document rejected, unknown extension metadata preserved.",
+      "class": "required",
+      "status": "verified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "crates/domain tests (AT003)"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT004",
+      "title": "Headless/native GPU frame; analytic color/alpha oracle, row stride, first frame initialized, no double transfer encoding.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "implementation/evidence/test-gpu.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT005",
+      "title": "Resize/minimize/fullscreen/close/reopen; no stale surface use, leaked targets or zero-size crash.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT006",
+      "title": "Native output+editor preview+second consumer; frame IDs agree, simulation step count unchanged by consumers.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT007",
+      "title": "Import/play/seek real file with B frames/rotation/VFR; displayed PTS follows selected source frame rule; stale seek discarded.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT008",
+      "title": "Play audio+video flash/impulse, loop and frame-step; error<=one project frame+5ms after known device latency compensation.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT009",
+      "title": "First PNG+WAV/available MP4 export; exact600 frames/480000 samples for10s60fps fixture; reimport duration/metadata validated.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT010",
+      "title": "Graph type/cycle/missing-input validation; clear exact node/port error; temporal cycle exception only explicit pair.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT011",
+      "title": "Branched/masked/composited graph; output pixel oracle and no scratch-resource read/write alias.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT012",
+      "title": "Graph add/connect/group/copy/paste/undo; new IDs and preserved internal connections, no dangling references.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT013",
+      "title": "Bad shader/edit; current document retains edit/error, last valid runtime frame graph remains usable, fix activates new version.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT014",
+      "title": "Silence/bass/sine/treble analysis; bands/window normalization/onset time match numeric expectations.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT015",
+      "title": "Audio callback/rings/device loss; no blocking/alloc/network in callback, overruns counted and silence on underflow.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT016",
+      "title": "Keyframes/modulation fold/LFO/enum hysteresis/expression; CPU reference values at exact timestamps.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT017",
+      "title": "File audio drives visuals in live and offline; features sampled by source timestamp, independent of export render speed.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT018",
+      "title": "Trim/split/move/slip/rate/reverse; property tests preserve source mapping and half-open endpoints.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT019",
+      "title": "Linked A/V ripple/insert/overwrite/locked track; atomic failure or correct synchronized edits; undo restores.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT020",
+      "title": "Transition handles/overlap/clip-track-master-adjustment order; expected image/audio crossfade and masks.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT021",
+      "title": "Waveforms/proxies/reverse GOP cache; cancel job, original source retained, same time selection, bounded memory.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT022",
+      "title": "Mixer gain/pan/mute/solo/fades/time-stretch; pitch-preserving stretch maintains sine pitch while duration changes.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT023",
+      "title": "FX001–FX028 all present, each manifest/algorithm/changed control/transparency/scale/export tested.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "implementation/evidence/test-gpu.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT024",
+      "title": "FX100–FX123 every named variant implemented with distinguishing behavior; no identity alias masked as variant.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "implementation/evidence/test-gpu.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT025",
+      "title": "Feedback/echo/delay/freeze; known impulse decay and history count; output rate does not change feedback step cadence.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT026",
+      "title": "Seek/checkpoint/warm-up/invalidation; subrange output equals corresponding frames from full render within tolerance.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT027",
+      "title": "Generator source clip add/trim/loop/save/load/mask/effect chain; no required source file for procedural node.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT028",
+      "title": "All required G001–G028 rows with available IDs; fractal/periodic noise/L-system/automaton invariants and bounded loops.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "implementation/evidence/test-gpu.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT029",
+      "title": "Field metadata/converters; known constant vector causes expected displacement, incompatible spaces rejected.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT030",
+      "title": "SVG safe import/editor; donut hole/gradients/viewBox correct, active/unsupported content reported, no external fetch.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT031",
+      "title": "Path draw/follow/morph/repeater; arc-length position and winding correct, checkpoint not needed for analytic motion.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT032",
+      "title": "Lottie actual frame seek and color/control changes; fixed t agrees paused/live/export; unsupported features identified.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT033",
+      "title": "Image motion G050–G068; transforms/warp/parallax/fragments/sprites with alpha and deterministic controls.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT034",
+      "title": "Typography G070–G079; Unicode/shaped cluster animation, glyph holes, correct fallback, Mask/Geometry outputs.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT035",
+      "title": "Video/image sequence/sprite retime and animation export; frame order/rate/loop boundaries correct.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT036",
+      "title": "SDF analytic sphere/Boolean/normal/depth; correct center ray and finite no-hit; invalid tree rejected.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT037",
+      "title": "Metaball/deformation/material animated through effects; opacity/Depth/Normal coherent; ray-step cap maintained.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT038",
+      "title": "SDF mesh conversion/cancel/GLB export; finite bounds, normals, expected connected surface; job memory capped.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT039",
+      "title": "Mesh primitive/scene/camera/light coordinates; expected marker positions, depth occlusion, transparent compositing.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT040",
+      "title": "Imported glTF skin/morph/PBR and PLY point cloud; actual time-varying geometry/material, missing assets reported.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT041",
+      "title": "G090–G107 terrain/instances/voxels/ocean/volumes; count/resource limits, no hidden infinite generation.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT042",
+      "title": "Particle counts/IDs/birth/death at30/60/120Hz presentation; identical simulation schedule and reset.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT043",
+      "title": "Image/text/path/mesh emitters, morph/trails/collision; known samples map correctly, no capacity out-of-bounds.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT044",
+      "title": "Boids/slime/field events; bounded neighbor scan, event cap and state replay, no unbounded per-particle trail.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT045",
+      "title": "Rigid body/joint/pendulum; free-fall reference tolerance, stable contacts, deterministic reset/checkpoint.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT046",
+      "title": "Cloth/jelly constraints; pinned points remain fixed, finite volume/positions, no explosion under valid settings.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT047",
+      "title": "Fluids/water/sand/reaction; projection reduces divergence, stable finite field, material rules and impulses correct.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT048",
+      "title": "Simulation subrange seek/export/control replay equals full sequence; changes invalidate dependent checkpoints.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT049",
+      "title": "OSC actual UDP encode/decode/all declared types; scheduled bundle order, native/normalized routes and learn.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT050",
+      "title": "OSC malformed/rate limit/duplicate trigger/feedback loop; app responsive, no unauthorized file or shell action.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT051",
+      "title": "MIDI real device or explicit unavailable; notes/CC/bend/pressure/MPE/clock/pickup correct and reconnects.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT052",
+      "title": "Recorded controls/CSV/JSON/network replay; identical time-mapped data offline; unrecorded live source rejected for export.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT053",
+      "title": "Event sequencer/rhythm/expressions/interaction record; deterministic quantization/random-on-beat, no eval escape.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT054",
+      "title": "Actual webcam capture modes/orientation/timestamps; permission and disconnect/reconnect handled.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT055",
+      "title": "Actual screen/display/window/region/cursor capture; crop/DPI/window resize correct and self-capture exclusion works.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT056",
+      "title": "Actual microphone and system-loopback; no dummy stream, output-device change and permission recovery.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT057",
+      "title": "Live source→take→offline export; captured timestamps align audio/video and survive relink.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT058",
+      "title": "Actual Windows Spout send/receive with independent sender/consumer; resize/alpha/adapter behavior recorded.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT059",
+      "title": "Actual macOS Syphon send/receive and loss/reconnect; ownership and orientation correct.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT060",
+      "title": "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT061",
+      "title": "Max `.maxpat` structural checks plus real OSC bytes interoperate; multiple instances, stale release, sequence epochs.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT062",
+      "title": "Real packaged `.amxd` in Live; audio/MIDI unchanged through pass-through, macros automate, Set reopen restores.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT063",
+      "title": "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT064",
+      "title": "Live workspace/macros/scene recall/crossfade/quantize/panic; compile-ahead, fixed state stepping, responsive editor.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT065",
+      "title": "Fullscreen and multiple outputs at chosen rate/size; settings persist, consumer failure does not stop preview.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT066",
+      "title": "Live recording with controls/audio; reimported content matches recorded response, overload policy and CFR gap handling measured.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT067",
+      "title": "Export codec matrix and alpha; real available H.264/HEVC/ProRes/GIF/image-sequence/WAV encoders exercised, unsupported disabled accurately.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT068",
+      "title": "Export frozen revision while editing; original snapshot used, concurrent live state undisturbed, no incomplete renamed output.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT069",
+      "title": "Cancel/disk-full/encoder failure/restart/sequence resume; no lost originals, safe job-owned temp cleanup, errors actionable.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT070",
+      "title": "Export fractional fps/VFR/odd size/color/alpha/range; DTS/PTS monotonic, frame/sample counts and output tags correct.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT071",
+      "title": "Autosave and forced crash recovery on disposable project; last saved and recovered revisions both available and valid.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT072",
+      "title": "Missing media/relink/collect project; ambiguity resolved visibly, originals preserved, relative portable project opens offline.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT073",
+      "title": "FFI close/reopen/exit/GPU loss/shader error/disconnect injection; no crashes in supported recovery cases, no dangling workers.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT074",
+      "title": "Diagnostics/redaction/settings/capability state; no secrets/media payloads in report, no default telemetry/network dependency.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT075",
+      "title": "Conditional actual vision inference; known landmarks/mask/depth and stale/cancel states; exact model/runtime hashes.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT076",
+      "title": "Conditional external sketch/runtime source; explicit time render repeats or live-only state recorded; worker crash isolated.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT077",
+      "title": "Conditional model/source absent; preserved editable node, actionable dependency error, never fake successful output.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT078",
+      "title": "Browser WebGPU harness vs native shader ABI/fixtures; correct uniform packing and documented image tolerance.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT079",
+      "title": "Benchmarks below on real GPU with exact settings; measured frame times/queues/memory/latency, no assumed hardware results.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [
+        "implementation/evidence/benchmark.json"
+      ],
+      "blocker": null
+    },
+    {
+      "id": "AT080",
+      "title": "UI keyboard/DPI/focus/drag undo/text input/accessibility; main journey can be completed without lost data or hidden focus.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT081",
+      "title": "Soak30min then2h; stable cache budgets/queue depths and no drift/leaks/crash under repeated edits and scene switches.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT082",
+      "title": "Windows installer clean standard-user/offline launch, DLL/resources found without dev PATH, uninstall preserves user projects.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT083",
+      "title": "macOS arm64 packaged app clean launch, dylibs/rpaths/permissions and file dialogs work; exact signing status reported.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT084",
+      "title": "macOS x64 packaged app native run or actual supported runner; architecture/build alone is not runtime verification.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    },
+    {
+      "id": "AT085",
+      "title": "Examples/docs/requirements/artifact hashes/license records reconcile; every advertised workflow reproduces on available host.",
+      "class": "required",
+      "status": "implemented_unverified",
+      "implementation_paths": [],
+      "test_ids": [],
+      "evidence_paths": [],
+      "blocker": null
+    }
+  ]
+}

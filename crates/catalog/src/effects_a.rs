@@ -5,7 +5,6 @@
 
 use crate::builders::*;
 use crate::manifest::*;
-use crate::Catalog;
 
 pub fn fx001_bloom() -> (&'static str, Manifest, &'static str) {
     let m = effect(

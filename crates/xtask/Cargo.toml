@@ -3,22 +3,15 @@ name = "xtask"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+default-run = "xtask"
 
 [[bin]]
 name = "xtask"
 path = "src/main.rs"
 
 [[bin]]
-name = "shader_check"
-path = "src/bin/shader_check.rs"
-
-[[bin]]
-name = "gpu_probe"
-path = "src/bin/gpu_probe.rs"
-
-[[bin]]
-name = "dump_shader"
-path = "src/bin/dump_shader.rs"
+name = "requirements"
+path = "src/bin/requirements.rs"
 
 [dependencies]
 serde = { workspace = true }
@@ -30,7 +23,3 @@ flux-media = { path = "../media" }
 flux-audio = { path = "../audio" }
 flux-render = { path = "../render" }
 wgpu = { workspace = true }
-
-[dependencies.naga]
-version = "27"
-features = ["wgsl-in"]

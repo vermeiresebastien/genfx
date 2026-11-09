@@ -1,3 +1,11 @@
 target/
 fixtures/generated/
 *.log
+test_out/
+out/
+*.tmp
+se.txt
+te.txt
+err.txt
+shader_errors.txt
+solid.wgsl
