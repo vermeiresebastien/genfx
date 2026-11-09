@@ -34,6 +34,38 @@ The project is complete when all of the following are true:
   `STATE.json`, `requirements.json`, and `BLOCKERS.md` agree with the observed
   implementation state.
 
+## 2A. Upstream reuse policy
+
+Before implementing any remaining integration, the agent must inspect the
+official SDK repository, official examples, and mature reference integrations on
+GitHub. Reuse is preferred when the license, platform, ABI, and maintenance
+status are acceptable.
+
+Record the result in `implementation/DECISIONS.md`, including the repository
+URL and commit/tag, license constraints, source or API patterns reused, whether
+the code is vendored or wrapped behind a feature, required SDK/runtime setup,
+and the tests proving compatibility with Flux's contracts.
+
+Do not copy an entire application or plugin into Flux when a small adapter is
+sufficient. Keep external integrations behind feature flags and preserve the
+current truthful `unavailable` status when an SDK/runtime is absent.
+
+Useful starting points are:
+
+- Ableton Link: `https://github.com/Ableton/link` for the cross-platform library,
+  headers, examples, build configuration, and test plan.
+- Spout2: `https://github.com/leadedge/Spout2` for Windows shared-texture,
+  DirectX interop, frame synchronization, sender, receiver, and example code.
+- NDI reference integration: `https://github.com/Palakis/obs-ndi` for lifecycle,
+  discovery, format, and timestamp handling. It still requires the official NDI
+  SDK/runtime and does not remove that prerequisite.
+- Syphon: use the official Syphon framework repository and examples on the macOS
+  host, then wrap only the required API surface.
+
+Prefer official SDKs over random bindings. Treat third-party bindings as
+reference material until their license, ABI coverage, and maintenance status are
+confirmed.
+
 ## 3. Workstream A: finalize the authoritative baseline
 
 ### A1. Freeze the supported baseline
@@ -67,12 +99,12 @@ The project is complete when all of the following are true:
 - Keep the CLI usable independently of the GUI and external live-performance
   integrations.
 
-## 4. Workstream B: wire the incomplete generator families
+## 4. Workstream B: maintain and optimize generator producers
 
-The manifests and WGSL pipelines exist for the SDF, mesh, particle, physics,
-fluid, vector, and text families, but the current export path can present an
-uploaded texture instead of producing the requested content. Complete these in
-the following order.
+The current implementation already has a common producer contract and verified
+CPU producers for text, vector, SDF, mesh, particle, physics, field, and control
+families. This workstream is therefore limited to performance, coverage, and
+any remaining requirement-level gaps; do not rebuild these producers.
 
 ### B1. Common producer contract
 
@@ -168,6 +200,9 @@ Choose this only if the team accepts a renderer rework.
   user media unless explicitly requested.
 - Add automated tests for mocked devices and a documented manual test matrix for
   physical devices.
+- Use maintained Windows API examples and libraries as references for WASAPI,
+  Media Foundation/Windows Capture, and device-notification behavior. Extend the
+  current enumeration and capture contracts rather than replacing them.
 
 ## 7. Workstream E: external live-performance integrations
 
@@ -176,6 +211,8 @@ Treat each integration as optional and independently testable.
 ### E1. NDI
 
 - Obtain the NDI SDK/runtime and confirm redistribution terms.
+- Compare the current adapter contract with `obs-ndi` lifecycle and timestamp
+  handling, then port only the applicable adapter patterns.
 - Implement discovery, sender, receiver, format negotiation, frame timing,
   connection loss, and shutdown.
 - Verify local loopback and two-process communication.
@@ -183,6 +220,8 @@ Treat each integration as optional and independently testable.
 ### E2. Spout2 and Syphon
 
 - Obtain the Windows Spout2 SDK and a macOS Syphon environment.
+- Start from the SDK examples and reference implementations for shared texture
+  ownership, synchronization, orientation, and device-loss behavior.
 - Implement texture-sharing adapters without copying through CPU memory when the
   platform permits.
 - Verify sender/receiver interoperability with known reference applications.
@@ -190,6 +229,8 @@ Treat each integration as optional and independently testable.
 ### E3. Ableton Link
 
 - Resolve licensing and distribution requirements.
+- Start from Ableton's `link` repository and examples instead of implementing a
+  new beat and tempo synchronization system.
 - Implement transport state, tempo, beat phase, start/stop, peer changes, and
   loss/reconnect behavior.
 - Verify that Link transport remains separate from the existing internal/MIDI
@@ -294,11 +335,16 @@ At the end of each workstream, update:
 The next implementation batch should be:
 
 1. Add CI and a clean-checkout verification script.
-2. Define the common generator producer contract.
-3. Implement one end-to-end text or vector producer as the reference producer.
-4. Add a golden project covering the reference producer through export.
-5. Decide between Tauri 2 + React and the renderer upgrade for the GUI.
-6. Record the decision in `implementation/DECISIONS.md` before starting GUI work.
+2. Audit the current implementation against `FINAL-REPORT.md`, `STATE.json`, and
+   `requirements.json`; do not redo already verified producer or GUI work.
+3. For each remaining external integration, perform the upstream GitHub audit in
+   section 2A and record the selected repository and license.
+4. Provision the first available SDK, host, or device and implement one thin
+   adapter end to end, preserving the existing contracts and feature flags.
+5. Add loopback or device evidence for that adapter, then repeat in priority
+   order for the remaining integrations.
+6. Record unresolved environment blockers explicitly rather than claiming an
+   integration is complete without live verification.
 
 This sequence reduces rework: it stabilizes the current product path, proves the
 missing-producer integration point, and prevents the GUI from becoming a second,

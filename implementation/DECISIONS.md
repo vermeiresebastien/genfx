@@ -75,4 +75,27 @@ COM endpoints + PnP camera class) and is verified on-host. NDI, Spout, Syphon, A
 Link, and Max for Live require SDKs/hosts/licenses that are absent; their adapters are
 capability records marked `blocked_external`, never faked as working.
 
+## D010 — Upstream audit (completion plan §2A)
+Shallow clones audited on 2026-11-09 (recorded in `implementation/UPSTREAM.md`):
+
+| Repo | URL | Commit | License | Decision |
+|------|-----|--------|---------|----------|
+| Ableton link | https://github.com/Ableton/link | `5ba907ae` | **GPLv2-or-later** | Build `abl_link` C-API from source, wrap behind `link` feature. GPLv2 is a **redistribution constraint**: shipping Flux with Link requires Flux to be GPL-compatible or Link to be a separately-loaded plugin. Local build+verify is fine. |
+| Spout2 | https://github.com/leadedge/Spout2 | `6b68a5b4` | **BSD-2-Clause** | Permissive; wrap Spout2 shared-texture API behind `spout` feature on Windows. Needs Spout2 build + a DX11 device; not available in this headless run. |
+| obs-ndi | https://github.com/Palakis/obs-ndi | `fa41b38f` | GPLv2 | Reference **only** for NDI lifecycle/timestamps; still needs official NDI SDK/runtime (separate license + redistribution terms). Not vendored. |
+| Syphon | https://github.com/Syphon/Syphon-Framework | `f4761677` | BSD-2-Clause | macOS-only; wrap behind `syphon` feature; cannot build/verify on Windows. |
+
+Only **Ableton Link** is buildable and verifiable on this host without a proprietary
+SDK, so it is the first adapter implemented end-to-end (DECISIONS D011).
+
+## D011 — Ableton Link adapter (thin FFI)
+`flux-integrations::link` wraps the `abl_link.h` C API with raw `extern "C"` FFI and no
+extra crate. Build path: clone `Ableton/link`, `cmake -G "Visual Studio 18 2026" -A x64`,
+`cmake --build --target abl_link`, then link `abl_link.lib`. The Rust side links the lib
+via a `build.rs` that reads `FLUX_ABLETON_LINK_LIB` (dir) and is only compiled with
+`--features link`. When the feature is off or the runtime is absent, `protocol_status`
+reports `unavailable` truthfully. Transport stays separate from the internal/MIDI
+transport and can be disabled without affecting offline rendering.
+
+
 

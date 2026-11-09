@@ -190,7 +190,7 @@
       ],
       "test_ids": [],
       "evidence_paths": [],
-      "blocker": "Ableton Link license not resolved; MIDI/Max transport only"
+      "blocker": "Ableton Link adapter built+verified locally; GPLv2+ redistribution constraint unresolved"
     },
     {
       "id": "R016",
@@ -3783,7 +3783,8 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations live (source/sink contracts, truthful status)"
+        "crates/integrations link tests (two-session discovery + tempo convergence)",
+        "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1)"
       ],
       "blocker": null
     },

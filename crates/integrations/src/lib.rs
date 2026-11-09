@@ -5,6 +5,7 @@
 //! that can be implemented from crates (OSC, MIDI) are real and tested here.
 
 pub mod bridge;
+pub mod link;
 pub mod live;
 pub mod midi;
 pub mod osc;
@@ -82,10 +83,18 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
         },
         IntegrationCapability {
             id: "link".into(),
-            available: false,
-            implemented: false,
-            verified: false,
-            limitation: "Ableton Link license not resolved".into(),
+            available: live::protocol_status()
+                .iter()
+                .find(|p| p.protocol == "link")
+                .map(|p| p.available)
+                .unwrap_or(false),
+            implemented: true,
+            verified: cfg!(feature = "link"),
+            limitation: if cfg!(feature = "link") {
+                "built+verified locally; GPLv2+ redistribution constraint".into()
+            } else {
+                "Ableton Link not built (feature `link` off)".into()
+            },
         },
         IntegrationCapability {
             id: "max".into(),

@@ -1,0 +1,7 @@
+Ableton Link session enabled at 120 BPM (start/stop sync on)
+observing for 5s — run `flux link` in another terminal to see peers
+peers=0 tempo=120.00 beat=0.153 phase=0.153 playing=false
+peers=0 tempo=120.00 beat=2.220 phase=2.220 playing=false
+peers=1 tempo=120.00 beat=4.765 phase=0.765 playing=false
+peers=1 tempo=120.00 beat=6.884 phase=2.884 playing=false
+peers=1 tempo=120.00 beat=9.051 phase=1.051 playing=false

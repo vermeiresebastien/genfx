@@ -83,6 +83,24 @@ records present, `blocked_external`. macOS builds unverified. Live camera/screen
 and GUI webview pixel verification need a device/session. SDF/particle CPU producers not
 realtime at 4K.
 
+### 6a. Ableton Link — built and verified (licensing is the only remaining blocker)
+Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton
+Link was the only external integration buildable on this host without a proprietary SDK.
+A thin raw-FFI adapter (`crates/integrations/src/link.rs`, feature `link`) wraps the
+official `abl_link` C API, built from `https://github.com/Ableton/link @ 5ba907ae`.
+
+Verified on this host:
+- 4 automated tests: session enable + start/stop sync, clock advance, set/read playing,
+  and **two independent sessions discovering each other and converging on tempo**.
+- **Cross-process**: two `flux.exe link` processes saw `peers=0 → peers=1` and shared a
+  synchronized beat/phase clock (`implementation/evidence/link-a.txt`, `link-b.txt`).
+
+Blockers: **GPLv2-or-later** means a distributed Flux binary that statically links Link is
+a derivative work (must be GPL-compatible, or Link shipped as a separate plugin) — a
+release decision, not a code gap. "Single-master" arbitration and seek/loop over Link are
+not yet asserted (AT063 stays `implemented_unverified`). Build: set
+`FLUX_ABLETON_LINK_LIB` and `cargo build --features link`.
+
 ## 7. Honest overall status
 A runnable Windows x64 development build: exact-time editing, native wgpu renderer running
 the whole 216-entry catalog, deterministic export to real H.264/HEVC/ProRes/GIF/JPEG/WAV,

@@ -28,3 +28,7 @@ wgpu = { workspace = true }
 bytemuck = { workspace = true }
 pollster = { workspace = true }
 crossbeam-channel = { workspace = true }
+
+[features]
+default = []
+link = ["flux-integrations/link"]

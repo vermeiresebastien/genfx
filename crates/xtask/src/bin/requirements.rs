@@ -265,7 +265,7 @@ fn blocker_for(id: &str) -> Option<&'static str> {
         "R002" => Some("Max for Live host not installed; source .maxpat only"),
         "R005" => Some("capture adapters implemented; device enumeration verified, live capture needs a device"),
         "R006" => Some("NDI SDK/Spout SDK/Syphon(macOS) not available"),
-        "R015" => Some("Ableton Link license not resolved; MIDI/Max transport only"),
+        "R015" => Some("Ableton Link adapter built+verified locally; GPLv2+ redistribution constraint unresolved"),
         "R021" => Some("external creative-code runtimes not installed"),
         "R022" => Some("vision models not installed; conditional"),
         _ => None,
@@ -371,9 +371,19 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
                 "apps/max-for-live/check-maxpat.cjs (source patch structure)".into(),
             ],
         ),
-        "AT060" | "AT061" | "AT062" | "AT063" => (
+        "AT060" | "AT061" | "AT062" => (
             "implemented_unverified",
             vec!["crates/integrations live (source/sink contracts, truthful status)".into()],
+        ),
+        // Ableton Link: real adapter built from upstream; tempo/beat/phase/peer
+        // discovery and start-stop verified with two processes. "Single master"
+        // and seek/loop arbitration not yet asserted, so implemented_unverified.
+        "AT063" => (
+            "implemented_unverified",
+            vec![
+                "crates/integrations link tests (two-session discovery + tempo convergence)".into(),
+                "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1)".into(),
+            ],
         ),
         "AT052" | "AT053" => (
             "verified",

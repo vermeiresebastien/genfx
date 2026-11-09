@@ -79,6 +79,15 @@ pub fn protocol_status() -> Vec<ProtocolStatus> {
                 "Syphon requires macOS + feature `syphon`".into()
             },
         },
+        ProtocolStatus {
+            protocol: "link".into(),
+            available: cfg!(feature = "link"),
+            reason: if cfg!(feature = "link") {
+                "Ableton Link linked (GPLv2+ — redistribution constraint)".into()
+            } else {
+                "Ableton Link not built (feature `link` off)".into()
+            },
+        },
     ]
 }
 

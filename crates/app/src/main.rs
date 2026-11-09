@@ -96,6 +96,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "capture" => cmd_capture(),
         "diagnostics" => cmd_diagnostics(),
         "integrations" => cmd_integrations(),
+        "link" => cmd_link(),
         "osc" => {
             let port = args
                 .get(1)
@@ -388,6 +389,48 @@ fn cmd_collect(project_path: &std::path::Path) -> FluxResult<()> {
         dir.join("media").display()
     );
     Ok(())
+}
+
+fn cmd_link() -> FluxResult<()> {
+    #[cfg(feature = "link")]
+    {
+        use flux_integrations::link::LinkSession;
+        let bpm = std::env::var("FLUX_LINK_BPM")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(120.0);
+        let secs: u64 = std::env::var("FLUX_LINK_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(6);
+        let session = LinkSession::new(bpm).ok_or_else(|| {
+            FluxError::new(
+                flux_domain::ErrorCode::InvalidCommand,
+                "link",
+                "failed to create Link session",
+            )
+        })?;
+        println!("Ableton Link session enabled at {bpm} BPM (start/stop sync on)");
+        println!("observing for {secs}s — run `flux link` in another terminal to see peers");
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs() < secs {
+            let s = session.state();
+            println!(
+                "peers={} tempo={:.2} beat={:.3} phase={:.3} playing={}",
+                s.num_peers, s.tempo, s.beat, s.phase, s.playing
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "link"))]
+    {
+        println!("Ableton Link is not built into this binary (feature `link` off).");
+        println!(
+            "Build with `--features link` and FLUX_ABLETON_LINK_LIB set to abl_link.lib's dir."
+        );
+        Ok(())
+    }
 }
 
 fn cmd_integrations() -> FluxResult<()> {
