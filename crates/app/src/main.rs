@@ -103,6 +103,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "ndi-send" => cmd_ndi_send(args),
         "spout" => cmd_spout(),
         "spout-send" => cmd_spout_send(args),
+        "spout-send-dx" => cmd_spout_send_dx(args),
         "osc" => {
             let port = args
                 .get(1)
@@ -627,6 +628,76 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
         let _ = args;
         println!("NDI is not built into this binary (feature `ndi` off).");
         Ok(())
+    }
+}
+
+fn cmd_spout_send_dx(args: &[String]) -> FluxResult<()> {
+    #[cfg(feature = "spout")]
+    {
+        use flux_integrations::spout::SpoutDxSender;
+        let name = args
+            .get(1)
+            .cloned()
+            .unwrap_or_else(|| "Flux Spout DX".into());
+        let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
+        let (w, h) = (640u32, 360u32);
+        // Prefer the in-process DLL path.
+        if let Some(sender) = SpoutDxSender::load(&name, w, h) {
+            println!(
+                "SpoutDX status bitmask: {} (1=init 2=ready)",
+                sender.status()
+            );
+            let mut img = vec![0u8; (w * h * 4) as usize];
+            let start = std::time::Instant::now();
+            let mut sent = 0u32;
+            while start.elapsed().as_secs() < secs {
+                let t = start.elapsed().as_millis() as u32;
+                fill_gradient(&mut img, w, h, t);
+                if sender.send(&img, w, h) {
+                    sent += 1;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(33));
+            }
+            println!("SpoutDX sent {sent} frames to '{}'", name);
+            return Ok(());
+        }
+        // Fall back to the standalone sender EXE (the DLL form fails to load with
+        // ERROR_INVALID_DLL/182 on this host; the EXE runs the identical code).
+        let exe = std::path::Path::new("apps/spout-bridge/spout_sender.exe");
+        if exe.exists() {
+            println!("DLL path unavailable; launching spout_sender.exe helper");
+            let status = std::process::Command::new(exe)
+                .arg(&name)
+                .arg(secs.to_string())
+                .status();
+            match status {
+                Ok(s) if s.success() => println!("spout_sender.exe finished ({s})"),
+                Ok(s) => println!("spout_sender.exe exited with {s}"),
+                Err(e) => println!("failed to launch spout_sender.exe: {e}"),
+            }
+            return Ok(());
+        }
+        println!("SpoutDX unavailable (no loadable DLL and no spout_sender.exe helper).");
+        Ok(())
+    }
+    #[cfg(not(feature = "spout"))]
+    {
+        let _ = args;
+        println!("Spout is not built into this binary (feature `spout` off).");
+        Ok(())
+    }
+}
+
+#[cfg(feature = "spout")]
+fn fill_gradient(img: &mut [u8], w: u32, h: u32, t: u32) {
+    for y in 0..h {
+        for x in 0..w {
+            let i = ((y * w + x) * 4) as usize;
+            img[i] = ((x * 255 / w + t / 8) % 256) as u8;
+            img[i + 1] = (y * 255 / h) as u8;
+            img[i + 2] = 128;
+            img[i + 3] = 255;
+        }
     }
 }
 

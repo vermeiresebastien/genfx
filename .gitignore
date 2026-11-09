@@ -29,3 +29,8 @@ apps/ndi-bridge/*.def
 apps/ndi-bridge/exports.txt
 apps/ndi-bridge/Processing.NDI.Lib.x64.dll
 apps/ndi-bridge/ndi_shim.dll
+apps/spout-bridge/*.exe
+apps/spout-bridge/*.obj
+apps/spout-bridge/dx_build.txt
+apps/spout-bridge/*.pdb
+apps/spout-bridge/*.ilk

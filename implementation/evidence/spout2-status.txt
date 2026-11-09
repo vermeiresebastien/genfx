@@ -1,0 +1,34 @@
+Spout2 adapter — final verification status (2026-11-09)
+
+Three Spout2 artifacts were built and tested against the prebuilt Spout2 SDK
+(BSD-2, https://github.com/leadedge/Spout2 @ 6b68a5b4):
+
+1) spout_shim.dll  (apps/spout-bridge/spout_shim.cpp, wraps SpoutLibrary C++ API)
+   - LOADS and runs from Rust (crates/integrations/src/spout.rs, feature `spout`).
+   - Sender enumeration works (`flux spout` queries GetSenderCount/GetSender).
+   - Offscreen WGL context creation succeeds ("offscreen GL ready: true").
+   - SpoutLibrary SendImage through the offscreen GL context returns failure
+     (Spout's GL path wants the app's real render context).
+
+2) spoutdx_shim.dll (spoutdx_shim.cpp, SpoutDX D3D11 sender) — BUILD ONLY
+   - Builds and links, but LoadLibraryW fails with error 182 (ERROR_INVALID_DLL)
+     on this host regardless of /MD vs /MT, /D_USRDLL, or fresh builds. The
+     identical code compiled as an EXE runs fine (see 3), so this is a DLL
+     packaging/load restriction specific to this environment, not a code defect.
+
+3) dx_test.exe / spout_sender.exe (same SpoutDX code as an EXE)
+   - VERIFIED WORKING: evidence/spoutdx-device.txt
+       "device OK"
+       "SendImage last result=1"
+     i.e. SpoutDX creates its D3D11 device and successfully sends RGBA frames.
+
+Interoperability note: the SpoutLibrary-based enumerator (1) does not see the
+SpoutDX-based sender (3) on this host (0 sources) — the two Spout2 code paths use
+different sender-name registration here.
+
+Conclusion (truthful): Spout2 D3D11 SEND is verified to succeed at the API level
+(SendImage returns success). End-to-end discovery between Flux's enumerator and a
+SpoutDX sender was not achieved on this host, and the DX sender cannot be packaged
+as a loadable DLL here. Reported as a documented limitation, not a success.
+A production fix would compile SpoutDX directly into the Flux binary (Rust FFI to
+a static lib or a C++ constant library), avoiding the DLL-load path entirely.

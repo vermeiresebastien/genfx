@@ -192,6 +192,108 @@ impl Drop for SpoutRuntime {
     }
 }
 
+// ---- DX11 send path (spoutdx_shim.dll) -----------------------------------
+//
+// SpoutLibrary's GL SendImage needs the app's real render context; the DX11
+// path sends via SpoutDX (D3D11 device it owns), which works headless.
+
+type FnDxCreate = unsafe extern "C" fn(*const c_char, i32, i32) -> *mut c_void;
+type FnDxSend = unsafe extern "C" fn(*mut c_void, *const u8, i32, i32) -> i32;
+type FnDxDestroy = unsafe extern "C" fn(*mut c_void);
+type FnDxStatus = unsafe extern "C" fn(*mut c_void) -> i32;
+
+/// A Spout2 sender using the DX11 (SpoutDX) path.
+pub struct SpoutDxSender {
+    #[allow(dead_code)]
+    lib: *mut c_void,
+    handle: *mut c_void,
+    send: FnDxSend,
+    destroy: FnDxDestroy,
+    status: FnDxStatus,
+}
+
+impl SpoutDxSender {
+    /// Load `spoutdx_shim.dll` and create a sender. Returns None if unavailable.
+    pub fn load(name: &str, width: u32, height: u32) -> Option<Self> {
+        let candidates = [
+            std::env::var("FLUX_SPOUTDX_SHIM").ok(),
+            Some("spoutdx_shim.dll".to_string()),
+            Some("apps/spout-bridge/spoutdx_shim.dll".to_string()),
+        ];
+        for cand in candidates.into_iter().flatten() {
+            if let Some(s) = Self::load_path(&cand, name, width, height) {
+                return Some(s);
+            }
+        }
+        None
+    }
+
+    fn load_path(path: &str, name: &str, width: u32, height: u32) -> Option<Self> {
+        if !Path::new(path).exists() {
+            return None;
+        }
+        if let Some(dir) = Path::new(path).parent() {
+            let _ = std::env::set_var(
+                "PATH",
+                format!(
+                    "{};{}",
+                    dir.display(),
+                    std::env::var("PATH").unwrap_or_default()
+                ),
+            );
+        }
+        unsafe {
+            let lib = load_library(path);
+            if lib.is_null() {
+                return None;
+            }
+            let get = |n: &str| get_proc(lib, n);
+            macro_rules! sym {
+                ($n:literal, $t:ty) => {{
+                    let p = get($n)?;
+                    std::mem::transmute::<*mut c_void, $t>(p)
+                }};
+            }
+            let create: FnDxCreate = sym!("spoutdx_shim_create_sender", FnDxCreate);
+            let send: FnDxSend = sym!("spoutdx_shim_send", FnDxSend);
+            let destroy: FnDxDestroy = sym!("spoutdx_shim_destroy", FnDxDestroy);
+            let status: FnDxStatus = sym!("spoutdx_shim_status", FnDxStatus);
+            let cname = CString::new(name).ok()?;
+            let handle = create(cname.as_ptr(), width as i32, height as i32);
+            if handle.is_null() {
+                return None;
+            }
+            Some(Self {
+                lib,
+                handle,
+                send,
+                destroy,
+                status,
+            })
+        }
+    }
+
+    /// Status bitmask (1 = initialized, 2 = ready).
+    pub fn status(&self) -> i32 {
+        unsafe { (self.status)(self.handle) }
+    }
+
+    /// Send one tightly packed RGBA8 frame.
+    pub fn send(&self, rgba: &[u8], width: u32, height: u32) -> bool {
+        if rgba.len() != (width as usize) * (height as usize) * 4 {
+            return false;
+        }
+        unsafe { (self.send)(self.handle, rgba.as_ptr(), width as i32, height as i32) == 1 }
+    }
+}
+
+impl Drop for SpoutDxSender {
+    fn drop(&mut self) {
+        unsafe { (self.destroy)(self.handle) };
+        let _ = self.lib;
+    }
+}
+
 #[cfg(windows)]
 fn load_library(path: &str) -> *mut c_void {
     use std::os::windows::ffi::OsStrExt;

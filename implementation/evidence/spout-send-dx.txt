@@ -1,0 +1,4 @@
+DLL path unavailable; launching spout_sender.exe helper
+Spout DX sender 'FluxDX' broadcasting 640x360 for 3s
+sent 83 frames
+spout_sender.exe finished (exit code: 0)

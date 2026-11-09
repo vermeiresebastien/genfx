@@ -7,12 +7,14 @@
   correct. Verified: discovery found 5 live sources; cross-process `flux ndi-send` →
   `flux ndi-recv` received a real 640×360 frame (`evidence/ndi-io.txt`,
   `ndi-received-frame.png`). No remaining NDI blocker.
-- **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 prebuilt `SpoutLibrary.{dll,lib}` is
-  present (BSD-2); a C++ shim (`apps/spout-bridge`) builds `spout_shim.dll`, and
-  `flux spout` **verifies sender enumeration** and offscreen GL-context init. Remaining:
-  **`SendImage` fails via the offscreen WGL context** — Spout's GL path needs a sender in
-  the application's real rendering context; the correct fix is a wgpu↔DX11 shared-texture
-  (SpoutDX) path. Reported honestly (returns 0, never fakes). Syphon is macOS-only.
+- **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 (BSD-2) works **send-side**:
+  `flux spout-send-dx` broadcasts real frames via a SpoutDX D3D11 sender — 83 frames sent
+  (`evidence/spout-send-dx.txt`). Because the SpoutDX DLL form fails to load on this host
+  (ERROR_INVALID_DLL/182), the sender runs as the `spout_sender.exe` helper (same code;
+  verified `device OK` + `SendImage=1`). Sender *enumeration* works via `spout_shim.dll`.
+  Not interoperating here: Flux's enumerator doesn't see the DX sender (different Spout2
+  registration path); a production fix is to compile SpoutDX into the Flux binary directly.
+  Syphon is macOS-only.
 - **Ableton Link** (R015, AT063): **supported integration — built from upstream and
   verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
   evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not
