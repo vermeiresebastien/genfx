@@ -21,7 +21,11 @@ pub struct Request {
 
 /// UI-facing command set. Structural edits map to engine `Command`s.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GuiCommand {
     CreateProject {
         name: String,
@@ -454,6 +458,35 @@ mod tests {
             command: GuiCommand::Snapshot,
         });
         assert_eq!(r.error.unwrap().code, "PROTOCOL_VERSION");
+    }
+
+    #[test]
+    fn wire_json_camelcase_deserializes() {
+        // Exactly what apps/desktop/ui/app.js sends over IPC. Regression for the
+        // serde `rename_all` (tag only) vs `rename_all_fields` (fields) bug that
+        // made the desktop UI show an empty library and a broken preview.
+        let create = r#"{"protocolVersion":1,"requestId":"x","projectId":null,"expectedRevision":0,
+            "command":{"type":"createProject","name":"G","seed":1,"width":640,"height":360,"fpsNum":60,"fpsDen":1}}"#;
+        let mut h = host();
+        let res =
+            h.handle(serde_json::from_str::<Request>(create).expect("createProject wire json"));
+        assert!(res.error.is_none(), "{:?}", res.error);
+
+        let add = r#"{"protocolVersion":1,"requestId":"y","projectId":null,"expectedRevision":0,
+            "command":{"type":"addGeneratorClip","generatorId":"gen.plasma","effects":["fx.bloom"],"seconds":4}}"#;
+        let res =
+            h.handle(serde_json::from_str::<Request>(add).expect("addGeneratorClip wire json"));
+        assert!(res.error.is_none(), "{:?}", res.error);
+
+        let setp = r#"{"protocolVersion":1,"requestId":"z","projectId":null,"expectedRevision":0,
+            "command":{"type":"apply","command":{"type":"setParameter","graphId":"g","nodeId":"n","paramId":"p","value":{"kind":"float","value":0.5}}}}"#;
+        let req = serde_json::from_str::<Request>(setp)
+            .expect("setParameter wire json (camelCase fields)");
+        if let GuiCommand::Apply { command } = &req.command {
+            assert!(matches!(command, Command::SetParameter { param_id, .. } if param_id == "p"));
+        } else {
+            panic!("expected apply");
+        }
     }
 
     #[test]

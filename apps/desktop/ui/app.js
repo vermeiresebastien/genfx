@@ -4,6 +4,22 @@
 
 const invoke = window.__TAURI__.core.invoke;
 
+function rid() {
+  try {
+    if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch (e) {}
+  return "r-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+window.addEventListener("error", (e) => {
+  const s = document.getElementById("status");
+  if (s) s.textContent = "UI error: " + (e.message || e.error);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const s = document.getElementById("status");
+  if (s) s.textContent = "UI error: " + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+
 const state = {
   revision: 0,
   project: null,
@@ -22,7 +38,7 @@ function setStatus(msg) {
 async function call(command, expectedRevision = state.revision) {
   const req = {
     protocolVersion: 1,
-    requestId: crypto.randomUUID(),
+    requestId: rid(),
     projectId: state.project?.projectId ?? null,
     expectedRevision,
     command,
