@@ -39,6 +39,13 @@ export async function renderGraphPreview(graphId, timeSeconds, width, height, ou
   });
 }
 
-export async function exportProject(outDir, width, height) {
-  return invoke("export_project_cmd", { outDir, width, height });
+export async function exportProject(outDir, width, height, codec = "h264", keepFrames = false) {
+  return invoke("export_project_cmd", { outDir, width, height, codec, keepFrames });
+}
+
+/** Subscribe to a Tauri event; returns the unlisten promise. */
+export function listen(event, handler) {
+  const ev = window.__TAURI__.event;
+  if (!ev || !ev.listen) return Promise.resolve(() => {});
+  return ev.listen(event, (e) => handler(e.payload));
 }

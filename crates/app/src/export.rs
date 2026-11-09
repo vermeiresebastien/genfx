@@ -43,6 +43,19 @@ pub struct ExportResult {
     pub video: Option<PathBuf>,
 }
 
+/// Map the UI's format token to an encoder. Unknown tokens fall back to H.264 so
+/// export always yields a video by default.
+pub fn codec_from_name(name: &str) -> EncodeCodec {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "hevc" | "h265" => EncodeCodec::Hevc,
+        "prores" | "mov" => EncodeCodec::ProRes,
+        "gif" => EncodeCodec::Gif,
+        "jpeg" | "jpg" => EncodeCodec::JpegSequence,
+        "png" | "sequence" | "none" => EncodeCodec::None,
+        _ => EncodeCodec::H264,
+    }
+}
+
 /// Render the whole timeline at project resolution into a PNG sequence + WAV and
 /// optionally encode an MP4. Returns exact counts.
 pub fn export_project(
@@ -104,7 +117,10 @@ pub fn export_project(
             None,
         )?;
         let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
-        flux_media::write_png_rgba(&path, opts.width, opts.height, &px)?;
+        // Encode PNG in-process. Shelling out to ffmpeg per frame dominated
+        // export time (one process spawn per frame) and made progress feel frozen.
+        let png = flux_media::encode_png_rgba(opts.width, opts.height, &px)?;
+        std::fs::write(&path, png)?;
         rendered += 1;
         if let Some(cb) = &progress {
             cb(i + 1, total);
@@ -146,8 +162,11 @@ pub fn export_project(
                     opts.codec,
                 )
             };
-            if res.is_ok() {
-                video = Some(out);
+            // Surface encoder failures: silently leaving a PNG sequence behind was
+            // the "export produced no video" bug.
+            match res {
+                Ok(()) => video = Some(out),
+                Err(e) => return Err(e),
             }
         }
     } else if matches!(opts.codec, EncodeCodec::JpegSequence) {
@@ -1013,4 +1032,20 @@ pub fn export_default(project: &Project, out_dir: &Path) -> FluxResult<ExportRes
         },
         None,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codec_names_map_to_encoders() {
+        assert_eq!(codec_from_name("h264"), EncodeCodec::H264);
+        assert_eq!(codec_from_name("MP4"), EncodeCodec::H264);
+        assert_eq!(codec_from_name("hevc"), EncodeCodec::Hevc);
+        assert_eq!(codec_from_name("prores"), EncodeCodec::ProRes);
+        assert_eq!(codec_from_name("gif"), EncodeCodec::Gif);
+        assert_eq!(codec_from_name("png"), EncodeCodec::None);
+        assert_eq!(codec_from_name("unknown"), EncodeCodec::H264);
+    }
 }

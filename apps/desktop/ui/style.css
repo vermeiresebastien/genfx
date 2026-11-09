@@ -45,11 +45,12 @@ body {
 /* ---------- app chrome ---------- */
 #top {
   grid-area: top;
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 12px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   z-index: 20;
+  overflow: hidden;
 }
 #top h1 { font-size: 15px; margin: 0; letter-spacing: .5px; }
 #top .spacer { flex: 1; }
@@ -349,8 +350,8 @@ label { color: var(--muted); }
 #monitor img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
 #monitor .mbody { padding: 6px 10px; display: flex; gap: 8px; align-items: center; font-size: 11px; }
 
-#saveBar { display: flex; align-items: center; gap: 6px; }
-#saveBar input { width: 220px; }
+#saveBar { display: flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; }
+#saveBar input { width: 118px; }
 
 /* stacking: frames < cables < nodes */
 .frame { z-index: 0; }

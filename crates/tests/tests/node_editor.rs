@@ -118,6 +118,45 @@ fn center(px: &[u8], w: u32, h: u32) -> (u8, u8, u8, u8) {
 }
 
 #[test]
+fn master_graph_export_writes_video() {
+    let _g = gpu_lock();
+    let mut p = Project::new("export", 1);
+    p.settings.size = flux_domain::Size { width: 160, height: 90 };
+    let g = samples::chain_graph("gen.plasma", &["fx.bloom"]);
+    p.timeline.master_graph_id = Some(g.id.clone());
+    p.graphs.insert(g.id.clone(), g);
+    p.timeline.range = TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(1));
+
+    let out = std::env::temp_dir().join(format!(
+        "flux-export-test-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).unwrap();
+
+    let res = flux_app::export::export_project(
+        &p,
+        &flux_app::export::ExportOptions {
+            out_dir: out.clone(),
+            project_name: "export".into(),
+            codec: flux_media::EncodeCodec::H264,
+            width: 160,
+            height: 90,
+            range: None,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        },
+        None,
+    )
+    .expect("export");
+
+    let video = res.video.expect("a video file must be produced (not only PNGs)");
+    assert!(video.exists(), "video missing: {}", video.display());
+    let meta = std::fs::metadata(&video).unwrap();
+    assert!(meta.len() > 0, "video is empty");
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
 fn create_project_snapshot_has_starter_graph() {
     let mut host = CommandHost::new(Project::new("t", 1));
     let res = host.handle(req(GuiCommand::CreateProject {

@@ -6,7 +6,7 @@ import {
   state, subscribe, setCatalog, syncCanvasMeta, manifestOf, selectedNodes,
 } from "./store.js";
 import * as commands from "./commands.js";
-import { renderPreview, renderGraphPreview, exportProject } from "./ipc.js";
+import { renderPreview, renderGraphPreview, exportProject, listen } from "./ipc.js";
 import { initCanvas } from "./view/canvas.js";
 import { initLibrary, render as renderLibrary } from "./view/library.js";
 import { initInspector, render as renderInspector } from "./view/inspector.js";
@@ -315,22 +315,66 @@ function toggleMinimap() {
 // ---- transport ------------------------------------------------------------
 
 let playTimer = null;
-function togglePlay() {
-  state.playing = !state.playing;
-  const btn = document.getElementById("playBtn");
-  btn.textContent = state.playing ? "Pause" : "Play";
-  btn.classList.toggle("on", state.playing);
-  if (state.playing) {
-    playTimer = setInterval(() => {
-      const dur = durationSeconds();
-      state.time += 1 / 30;
-      if (state.time >= dur) state.time = state.time % dur;
-      requestPreviews();
-      renderTimeline();
-    }, 100);
+state.loopMode = (() => {
+  try { return localStorage.getItem("flux.loopMode") || "forward"; } catch (e) { return "forward"; }
+})();
+state.playDir = 1;
+
+function applyLoopButton() {
+  const btn = document.getElementById("loopBtn");
+  if (!btn) return;
+  btn.textContent = state.loopMode === "pingpong" ? "Loop: Ping" : "Loop: Fwd";
+  btn.classList.toggle("on", state.loopMode === "pingpong");
+}
+
+function toggleLoopMode() {
+  state.loopMode = state.loopMode === "pingpong" ? "forward" : "pingpong";
+  state.playDir = 1;
+  try { localStorage.setItem("flux.loopMode", state.loopMode); } catch (e) {}
+  applyLoopButton();
+}
+
+function playbackTick() {
+  const dur = durationSeconds();
+  const dt = 1 / 30;
+  if (state.loopMode === "pingpong") {
+    state.time += dt * state.playDir;
+    if (state.time >= dur) {
+      state.time = Math.max(0, dur - 0.001);
+      state.playDir = -1;
+    } else if (state.time <= 0) {
+      state.time = 0;
+      state.playDir = 1;
+    }
   } else {
-    clearInterval(playTimer);
+    state.time += dt;
+    if (state.time >= dur) state.time = state.time % Math.max(0.001, dur);
   }
+  requestPreviews();
+  renderTimeline();
+}
+
+function startPlayback() {
+  if (state.playing) return;
+  state.playing = true;
+  const btn = document.getElementById("playBtn");
+  btn.textContent = "Pause";
+  btn.classList.add("on");
+  playTimer = setInterval(playbackTick, 100);
+}
+
+function stopPlayback() {
+  state.playing = false;
+  clearInterval(playTimer);
+  playTimer = null;
+  const btn = document.getElementById("playBtn");
+  btn.textContent = "Play";
+  btn.classList.remove("on");
+}
+
+function togglePlay() {
+  if (state.playing) stopPlayback();
+  else startPlayback();
 }
 
 function durationSeconds() {
@@ -449,10 +493,22 @@ async function onExport() {
   const outDir = document.getElementById("outDir").value || "out";
   const w = Number(document.getElementById("expW").value) || 1280;
   const h = Number(document.getElementById("expH").value) || 720;
-  setStatus("exporting…");
+  const codec = document.getElementById("exportCodec").value || "h264";
+  const keepFrames = document.getElementById("keepFrames").checked;
+
+  // Show the composition while it renders: open the monitor and keep the loop
+  // playing for the duration of the export.
+  if (!overlay.isMonitorOpen()) {
+    overlay.toggleMonitor(true);
+    document.getElementById("monitorBtn").classList.add("on");
+  }
+  startPlayback();
+
+  setStatus(`exporting ${codec.toUpperCase()}…`);
   try {
-    const msg = await exportProject(outDir, w, h);
-    setStatus(msg);
+    const msg = await exportProject(outDir, w, h, codec, keepFrames);
+    if (msg === "export started") setStatus("exporting… rendering frames");
+    else setStatus(String(msg));
   } catch (e) {
     setStatus("export failed: " + (e?.message || e), true);
   }
@@ -544,6 +600,8 @@ async function boot() {
   subscribe((evt) => { if (evt === "snapshot") scheduleRender(); });
 
   document.getElementById("playBtn").onclick = togglePlay;
+  document.getElementById("loopBtn").onclick = toggleLoopMode;
+  applyLoopButton();
   document.getElementById("fitBtn").onclick = () => canvas.fit();
   document.getElementById("monitorBtn").onclick = () => {
     const open = overlay.toggleMonitor();
@@ -567,6 +625,21 @@ async function boot() {
   document.getElementById("openBtn").onclick = openFile;
   document.getElementById("openFile").addEventListener("change", onOpenFile);
   document.getElementById("exportBtn").onclick = onExport;
+
+  // Export runs on a background thread; progress arrives as events so the
+  // preview loop keeps playing while frames are rendered.
+  listen("export-progress", (p) => {
+    const total = Number(p.total) || 0;
+    const done = Number(p.done) || 0;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    setStatus(`exporting… ${pct}% (${done}/${total} frames)`);
+  });
+  listen("export-done", (p) => {
+    if (p.video) setStatus(`video → ${p.video}`);
+    else if (p.framesDir) setStatus(`frames → ${p.framesDir} (no video produced)`);
+    else setStatus(`export done: ${p.frames} frames`);
+  });
+  listen("export-error", (p) => setStatus("export error: " + (p.message || "unknown"), true));
 
   const vp = document.getElementById("viewport");
   vp.addEventListener("contextmenu", onContextMenu);

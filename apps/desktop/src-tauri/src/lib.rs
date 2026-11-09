@@ -9,7 +9,9 @@ use flux_app::commands::{CommandHost, GuiCommand, Request, Response};
 use flux_app::export::{export_project, ExportOptions, PreviewRenderer};
 use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::Emitter;
 
 struct AppState {
     host: Mutex<CommandHost>,
@@ -17,6 +19,8 @@ struct AppState {
     /// GPU doesn't break app startup). Reusing it avoids recreating the device
     /// and recompiling shaders on every frame.
     preview: Mutex<Option<PreviewRenderer>>,
+    /// True while a background export is running (prevents concurrent GPU work).
+    exporting: Arc<AtomicBool>,
 }
 
 #[tauri::command]
@@ -93,39 +97,93 @@ fn b64(data: &[u8]) -> String {
     out
 }
 
+/// Start an export on a background thread. Progress and completion are reported
+/// through events (`export-progress`, `export-done`, `export-error`) so the
+/// webview can keep playing the preview loop while frames are rendered.
 #[tauri::command]
 fn export_project_cmd(
+    app: tauri::AppHandle,
     state: tauri::State<AppState>,
     out_dir: String,
     width: u32,
     height: u32,
+    codec: Option<String>,
+    keep_frames: Option<bool>,
 ) -> Result<String, String> {
     let project = {
         let host = state.host.lock().unwrap();
         host.dispatcher.project.clone()
     };
-    let res = export_project(
-        &project,
-        &ExportOptions {
-            out_dir: std::path::PathBuf::from(&out_dir),
+    if state.exporting.swap(true, Ordering::SeqCst) {
+        return Err("an export is already running".into());
+    }
+    let exporting = state.exporting.clone();
+    // Resolve relative output dirs against the process CWD so the reported path
+    // is absolute and the user can find the file.
+    let out_dir = {
+        let p = std::path::PathBuf::from(&out_dir);
+        if p.is_absolute() {
+            p
+        } else {
+            std::env::current_dir()
+                .map(|d| d.join(&p))
+                .unwrap_or(p)
+        }
+    };
+    let codec = flux_app::export::codec_from_name(codec.as_deref().unwrap_or("h264"));
+    let keep = keep_frames.unwrap_or(false);
+
+    std::thread::spawn(move || {
+        let progress_app = app.clone();
+        let progress: flux_app::export::ProgressFn = Box::new(move |done, total| {
+            let _ = progress_app.emit(
+                "export-progress",
+                serde_json::json!({ "done": done, "total": total }),
+            );
+        });
+        let opts = ExportOptions {
+            out_dir,
             project_name: project.name.clone(),
-            codec: flux_media::EncodeCodec::H264,
+            codec,
             width,
             height,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
-        },
-        None,
-    )
-    .map_err(|e| format!("{e:?}"))?;
-    Ok(format!(
-        "rendered {} frames, {} samples -> {}",
-        res.frames,
-        res.samples,
-        res.video
-            .map(|p| p.display().to_string())
-            .unwrap_or_default()
-    ))
+        };
+        match export_project(&project, &opts, Some(progress)) {
+            Ok(res) => {
+                exporting.store(false, Ordering::SeqCst);
+                // A PNG sequence is an implementation detail of encoding; remove it
+                // unless the caller explicitly asked to keep it (or there is no video).
+                if !keep && res.video.is_some() {
+                    let _ = std::fs::remove_dir_all(&res.frames_dir);
+                }
+                let _ = app.emit(
+                    "export-done",
+                    serde_json::json!({
+                        "frames": res.frames,
+                        "samples": res.samples,
+                        "video": res.video.as_ref().map(|p| p.display().to_string()),
+                        "wav": res.wav.as_ref().map(|p| p.display().to_string()),
+                        "framesDir": if keep || res.video.is_none() {
+                            Some(res.frames_dir.display().to_string())
+                        } else {
+                            None
+                        },
+                    }),
+                );
+            }
+            Err(e) => {
+                exporting.store(false, Ordering::SeqCst);
+                let _ = app.emit(
+                    "export-error",
+                    serde_json::json!({ "message": format!("{e:?}") }),
+                );
+            }
+        }
+    });
+
+    Ok("export started".into())
 }
 
 #[tauri::command]
@@ -211,6 +269,7 @@ pub fn run() {
         .manage(AppState {
             host: Mutex::new(host),
             preview: Mutex::new(None),
+            exporting: Arc::new(AtomicBool::new(false)),
         })
         .invoke_handler(tauri::generate_handler![
             dispatch,

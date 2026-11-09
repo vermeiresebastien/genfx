@@ -13,7 +13,8 @@
       <span id="projName" class="muted">Untitled</span>
       <span class="badge" id="revBadge">rev 0</span>
 
-      <button id="playBtn" title="Play / pause (spacebar is add-node)">Play</button>
+      <button id="playBtn" title="Play / pause">Play</button>
+      <button id="loopBtn" class="ghost" title="Toggle loop: forward / ping-pong">Loop: Fwd</button>
       <button id="fitBtn" class="ghost" title="Fit graph (1)">Fit</button>
       <button id="monitorBtn" class="ghost" title="Detached preview monitor">Monitor</button>
       <button id="newGraphBtn" class="ghost" title="New empty composition">New graph</button>
@@ -25,9 +26,19 @@
         <button id="saveBtn">Save</button>
         <button id="openBtn">Open</button>
         <input id="openFile" type="file" accept=".json,.flux" style="display:none" />
-        <input id="outDir" type="text" value="out" style="width:80px" title="Export output directory" />
-        <input id="expW" type="number" value="1280" style="width:70px" title="Export width" />
-        <input id="expH" type="number" value="720" style="width:70px" title="Export height" />
+        <input id="outDir" type="text" value="out" style="width:60px" title="Export output directory" />
+        <select id="exportCodec" title="Export format" style="width:112px">
+          <option value="h264">MP4 · H.264</option>
+          <option value="hevc">MP4 · HEVC</option>
+          <option value="prores">ProRes · .mov</option>
+          <option value="gif">GIF</option>
+          <option value="png">PNG sequence</option>
+        </select>
+        <label class="badge" title="Keep the intermediate PNG frames" style="display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input id="keepFrames" type="checkbox" style="width:auto" /> frames
+        </label>
+        <input id="expW" type="number" value="1280" style="width:56px" title="Export width" />
+        <input id="expH" type="number" value="720" style="width:56px" title="Export height" />
         <button id="exportBtn" class="primary">Export</button>
       </div>
 
