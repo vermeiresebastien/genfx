@@ -219,4 +219,77 @@ mod tests {
         let tb = b.state().tempo;
         assert!((ta - tb).abs() < 1.0, "tempo converged A={ta} B={tb}");
     }
+
+    fn wait_peers(a: &LinkSession, b: &LinkSession, secs: u64) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(secs);
+        while Instant::now() < deadline {
+            if a.num_peers() >= 1 && b.num_peers() >= 1 {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        false
+    }
+
+    #[test]
+    fn single_master_tempo_wins_across_peers() {
+        // One session changes tempo; the peer that was left alone adopts it —
+        // i.e. a single proposer's tempo becomes the session tempo.
+        let a = LinkSession::new(120.0).unwrap();
+        let b = LinkSession::new(120.0).unwrap();
+        assert!(wait_peers(&a, &b, 5), "peers must connect");
+
+        a.set_tempo(101.0);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut ta = 0.0;
+        let mut tb = 0.0;
+        while Instant::now() < deadline {
+            ta = a.state().tempo;
+            tb = b.state().tempo;
+            if (ta - 101.0).abs() < 1.0 && (tb - 101.0).abs() < 1.0 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert!(
+            (ta - 101.0).abs() < 1.5,
+            "A adopts proposed tempo, got {ta}"
+        );
+        assert!(
+            (tb - 101.0).abs() < 1.5,
+            "B adopts proposed tempo, got {tb}"
+        );
+    }
+
+    #[test]
+    fn start_stop_propagates_to_peer() {
+        let a = LinkSession::new(120.0).unwrap();
+        let b = LinkSession::new(120.0).unwrap();
+        assert!(wait_peers(&a, &b, 5), "peers must connect");
+
+        a.set_playing(true);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut b_playing = false;
+        while Instant::now() < deadline {
+            b_playing = b.state().playing;
+            if b_playing {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert!(b_playing, "start propagated to peer");
+        assert!(a.state().playing, "initiator is playing");
+
+        a.set_playing(false);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut stopped = false;
+        while Instant::now() < deadline {
+            if !b.state().playing {
+                stopped = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert!(stopped, "stop propagated to peer");
+    }
 }

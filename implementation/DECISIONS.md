@@ -97,5 +97,16 @@ via a `build.rs` that reads `FLUX_ABLETON_LINK_LIB` (dir) and is only compiled w
 reports `unavailable` truthfully. Transport stays separate from the internal/MIDI
 transport and can be disabled without affecting offline rendering.
 
+## D012 — Ableton Link licensing resolved (product owner decision)
+The product owner has stated Flux will not be sold or distributed commercially. Ableton
+Link is GPLv2-or-later; under this decision the GPL terms are acceptable for the project's
+use, so **the redistribution constraint recorded in D010 is lifted** for this project.
+Link is therefore treated as a **supported integration**, not an experimental/optional one:
+it is built and verified on this host (two-process peer discovery + tempo/beat/phase), and
+its capability is reported as `available=true, implemented=true, verified=true` when the
+`link` feature is compiled in. The feature stays behind the flag so SDK-less machines still
+build cleanly, but enabling it is the intended configuration for a Flux build that offers
+live tempo sync. `flux link` is documented in the user guide.
+
 
 

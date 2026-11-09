@@ -13,13 +13,13 @@ license, what is reused, and the resulting Flux decision.
   `cmake --build . --config Release --target abl_link`. ASIO submodule
   (`chriskohlhoff/asio @ 8806a68`) fetched for the library build.
 - **Flux decision:** wrap `abl_link.h` behind `flux-integrations` feature `link` with a
-  thin raw-FFI adapter (`crates/integrations/src/link.rs`). **GPLv2 is a redistribution
-  constraint** — a distributed Flux build that statically links Link is a derivative
-  work and must be GPL-compatible, or Link must ship as a separately-loaded plugin.
-  Local build and loopback verification are unaffected; redistribution is a release
-  decision recorded in BLOCKERS/FINAL-REPORT.
-- **Verification:** two `abl_link` instances (and cross-process) discover each other,
-  agree on tempo/beat/phase, and reflect start/stop (see link tests + `flux link` command).
+  thin raw-FFI adapter (`crates/integrations/src/link.rs`). **Licensing resolved:** the
+  product owner has stated Flux is not sold/distributed commercially, so the GPLv2-or-later
+  terms are acceptable (DECISIONS D012). Link is a **supported integration**; the feature
+  flag remains only so SDK-less machines build cleanly.
+- **Verification:** two `abl_link` instances (and two separate processes) discover each
+  other, agree on tempo/beat/phase, arbitrate a single tempo proposer, and propagate
+  start/stop (6 tests + cross-process evidence `evidence/link-a.txt`, `link-b.txt`).
 
 ## Spout2
 - **URL:** https://github.com/leadedge/Spout2

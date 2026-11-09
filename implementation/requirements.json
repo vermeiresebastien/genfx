@@ -190,7 +190,7 @@
       ],
       "test_ids": [],
       "evidence_paths": [],
-      "blocker": "Ableton Link adapter built+verified locally; GPLv2+ redistribution constraint unresolved"
+      "blocker": "Ableton Link built+verified (feature `link`); licensing resolved (not sold)"
     },
     {
       "id": "R016",
@@ -3779,11 +3779,11 @@
       "id": "AT063",
       "title": "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "verified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations link tests (two-session discovery + tempo convergence)",
+        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable)",
         "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1)"
       ],
       "blocker": null

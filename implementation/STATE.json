@@ -10,16 +10,17 @@
     "ffmpeg": "9.0-full_build",
     "tauri": "2"
   },
-  "test_totals": { "passed": 165, "failed": 0, "suites_failed": 0, "note": "161 default + 4 link tests with --features link" },
+  "test_totals": { "passed": 167, "failed": 0, "suites_failed": 0, "note": "161 default + 6 link tests with --features link" },
   "integrations": {
     "osc": "verified (real UDP loopback)",
     "midi": "verified (message parsing)",
     "bridge_max": "verified (protocol decode + maxpat structure)",
     "ableton_link": {
-      "status": "built+verified locally (feature `link`)",
+      "status": "supported + verified (feature `link`)",
+      "licensing": "resolved — product not sold; GPLv2+ acceptable (DECISIONS D012)",
       "upstream": "https://github.com/Ableton/link @ 5ba907ae (GPLv2-or-later)",
-      "evidence": "implementation/evidence/link-a.txt + link-b.txt (two-process peers=1)",
-      "remaining": "GPLv2 redistribution constraint (DECISIONS D010); single-master/seek-loop not asserted",
+      "evidence": "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1); 6 tests",
+      "verified_async_behaviors": "peer discovery, tempo convergence, single-master tempo arbitration, start/stop propagation, clock, enable",
       "build": "clone link; cmake -G 'Visual Studio 18 2026' -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo build --features link"
     },
     "ndi": "blocked_external (official SDK absent)",

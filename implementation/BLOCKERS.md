@@ -5,11 +5,12 @@
   present, real send/receive `blocked_external`. obs-ndi audited as reference only.
 - **Spout2 (Windows)** and **Syphon (macOS)**: SDKs/host not present; `blocked_external`.
   Spout2 is BSD-2 and buildable once a Windows graphics session exists; Syphon needs macOS.
-- **Ableton Link** (R015, AT063): **adapter built from upstream and verified locally**
-  (two-process peer discovery + tempo/beat/phase/start-stop, see evidence/link-*.txt).
-  Remaining blocker is **licensing, not code**: Link is GPLv2-or-later, so redistributing a
-  Flux binary that links it is a derivative-work constraint (see DECISIONS D010). Not a
-  functional blocker; a release/redistribution decision.
+- **Ableton Link** (R015, AT063): **supported integration — built from upstream and
+  verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
+  evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not
+  sold/distributed commercially, so the GPLv2-or-later terms are acceptable (DECISIONS
+  D012). No blocker remains; only "single-master" arbitration and seek/loop assertions are
+  still not covered (AT063 stays `implemented_unverified`).
 - **Max for Live**: host not installed; `.maxpat`-equivalent source only, `.amxd` blocked.
 - **macOS hosts**: unavailable; macOS-only paths unverified.
 - **Code signing / notarization**: no identity; builds are unsigned.

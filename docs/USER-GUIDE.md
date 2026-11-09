@@ -55,6 +55,10 @@ frame — no wall-clock in evaluation. This is why offline export matches previe
 
 - **OSC**: `flux osc 9000` listens for `/flux/v1/project/{id}/node/{node}/param/{param}`.
 - **MIDI**: CC/note/pitch-bend/pressure/clock are parsed into normalized controls.
+- **Ableton Link**: `flux link` joins a Link session (tempo, beat, phase, start/stop sync).
+  `FLUX_LINK_BPM` sets the starting tempo, `FLUX_LINK_SECS` the observation time. Run it in
+  two terminals (or on two machines on the same LAN) to see peer discovery. Requires a
+  build with `--features link` and `FLUX_ABLETON_LINK_LIB` pointing at `abl_link.lib`.
 - **Max for Live**: source devices + OSC bridge in `apps/max-for-live/`.
 
 ## Troubleshooting
