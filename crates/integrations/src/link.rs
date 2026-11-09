@@ -1,4 +1,4 @@
-//! Ableton Link adapter — thin FFI over the official `abl_link` C API
+//! Ableton Link adapter â€” thin FFI over the official `abl_link` C API
 //! (`https://github.com/Ableton/link`, GPL-2.0-or-later). Only compiled with the
 //! `link` feature. See `implementation/UPSTREAM.md` and DECISIONS D010/D011.
 //!
@@ -158,10 +158,21 @@ unsafe impl Send for LinkSession {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
+
+    // All Link sessions join the same process/network-wide session. Tests that
+    // assert cross-session behaviour must not run concurrently (they would create
+    // interfering peers with different tempos). Serialize them on this mutex.
+    static LINK_NET: Mutex<()> = Mutex::new(());
+
+    fn lock_net() -> std::sync::MutexGuard<'static, ()> {
+        LINK_NET.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn session_creates_enabled_with_start_stop() {
+        let _g = lock_net();
         let s = LinkSession::new(120.0).expect("link session");
         assert!(s.is_enabled());
         assert!(s.start_stop_sync_enabled());
@@ -174,6 +185,7 @@ mod tests {
 
     #[test]
     fn clock_advances() {
+        let _g = lock_net();
         let s = LinkSession::new(120.0).unwrap();
         let t0 = s.clock_micros();
         std::thread::sleep(Duration::from_millis(20));
@@ -183,6 +195,7 @@ mod tests {
 
     #[test]
     fn set_playing_reflected_in_state() {
+        let _g = lock_net();
         let s = LinkSession::new(120.0).unwrap();
         s.set_playing(true);
         assert!(s.state().playing, "playing after set_playing(true)");
@@ -192,6 +205,7 @@ mod tests {
 
     #[test]
     fn two_sessions_discover_and_share_tempo() {
+        let _g = lock_net();
         // Two independent Link instances on this host should discover each
         // other over the loopback interface and converge on tempo.
         let a = LinkSession::new(120.0).unwrap();
@@ -233,7 +247,8 @@ mod tests {
 
     #[test]
     fn single_master_tempo_wins_across_peers() {
-        // One session changes tempo; the peer that was left alone adopts it —
+        let _g = lock_net();
+        // One session changes tempo; the peer that was left alone adopts it â€”
         // i.e. a single proposer's tempo becomes the session tempo.
         let a = LinkSession::new(120.0).unwrap();
         let b = LinkSession::new(120.0).unwrap();
@@ -263,6 +278,7 @@ mod tests {
 
     #[test]
     fn start_stop_propagates_to_peer() {
+        let _g = lock_net();
         let a = LinkSession::new(120.0).unwrap();
         let b = LinkSession::new(120.0).unwrap();
         assert!(wait_peers(&a, &b, 5), "peers must connect");

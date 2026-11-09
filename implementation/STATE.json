@@ -24,7 +24,7 @@
       "build": "clone link; cmake -G 'Visual Studio 18 2026' -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo build --features link"
     },
     "ndi": "runtime present (v5.5.1); discovery verified (feature `ndi`); live send/receive needs headers+stream",
-    "spout": "interface present; blocked_external (needs Spout2 build + DX11 session)",
+    "spout": "C++ shim built (spout_shim.dll); sender enumeration verified (feature `spout`); SendImage needs GL context",
     "syphon": "interface present; blocked_external (needs macOS)"
   },
   "gui_status": {

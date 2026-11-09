@@ -3760,7 +3760,8 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations live (source/sink contracts, truthful status)"
+        "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout",
+        "implementation/evidence/spout-registry.txt (bounded enumeration verified)"
       ],
       "blocker": null
     },
@@ -3772,7 +3773,8 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations live (source/sink contracts, truthful status)"
+        "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout",
+        "implementation/evidence/spout-registry.txt (bounded enumeration verified)"
       ],
       "blocker": null
     },

@@ -98,6 +98,7 @@ fn run(args: &[String]) -> FluxResult<()> {
         "integrations" => cmd_integrations(),
         "link" => cmd_link(),
         "ndi" => cmd_ndi(),
+        "spout" => cmd_spout(),
         "osc" => {
             let port = args
                 .get(1)
@@ -390,6 +391,34 @@ fn cmd_collect(project_path: &std::path::Path) -> FluxResult<()> {
         dir.join("media").display()
     );
     Ok(())
+}
+
+fn cmd_spout() -> FluxResult<()> {
+    #[cfg(feature = "spout")]
+    {
+        use flux_integrations::spout::SpoutRuntime;
+        let Some(rt) = SpoutRuntime::load() else {
+            println!("spout_shim.dll not found (set FLUX_SPOUT_SHIM, or build apps/spout-bridge).");
+            return Ok(());
+        };
+        let (senders, timed_out) = rt.senders_timeout(std::time::Duration::from_secs(3));
+        if timed_out {
+            println!("Spout sender query timed out (no sender / registry busy); 0 shown.");
+        }
+        println!("Spout sender registry: {} sender(s)", senders.len());
+        for s in &senders {
+            match (s.width, s.height) {
+                (Some(w), Some(h)) => println!("  {}  {}x{}", s.name, w, h),
+                _ => println!("  {}", s.name),
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "spout"))]
+    {
+        println!("Spout is not built into this binary (feature `spout` off).");
+        Ok(())
+    }
 }
 
 fn cmd_ndi() -> FluxResult<()> {

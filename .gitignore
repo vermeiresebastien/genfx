@@ -18,3 +18,7 @@ smoke/
 "apps/shader-harness/shaders.json"  
 _upstream/  
 target_link/  
+apps/spout-bridge/*.obj
+apps/spout-bridge/*.dll
+apps/spout-bridge/*.lib
+apps/spout-bridge/*.exp

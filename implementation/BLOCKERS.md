@@ -8,8 +8,10 @@
   Remaining blocker: **live send/receive** needs the full NDI header ABI (no headers
   shipped) plus an active stream; not faked. obs-ndi consulted as reference only.
 - **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 prebuilt `SpoutLibrary.{dll,lib}` is
-  present (BSD-2) but exposes a **C++ pure-virtual** interface; adapting it needs a small
-  C++ `extern "C"` shim + a live GL/DX context (not done). Syphon is macOS-only.
+  present (BSD-2); a C++ shim (`apps/spout-bridge`) builds `spout_shim.dll` and
+  `flux spout` **verifies sender enumeration**. Remaining: `SendImage` needs a bound GL
+  context, and `GetSenderCount` blocks when no sender exists (documented). Syphon is
+  macOS-only.
 - **Ableton Link** (R015, AT063): **supported integration — built from upstream and
   verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
   evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not

@@ -85,3 +85,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build with ndi feature (compiles; discovery tests skip without runtime)
         run: cargo test -p flux-integrations --features ndi ndi::
+
+  # Spout2 (optional). Builds the C++ shim from the Spout2 SDK, then the Rust adapter.
+  spout-feature:
+    name: spout (optional)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch Spout2 and build the C++ shim
+        run: |
+          git clone --depth 1 https://github.com/leadedge/Spout2 _upstream/spout2
+          cmd /c "call `"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat`" && cd apps\spout-bridge && build_shim.bat && link_shim.bat"
+        shell: pwsh
+      - name: Build + test flux with spout feature
+        run: |
+          $env:FLUX_SPOUT_SHIM = "$PWD\apps\spout-bridge\spout_shim.dll"
+          cargo test -p flux-integrations --features spout spout::
+        shell: pwsh

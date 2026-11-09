@@ -380,7 +380,10 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         ),
         "AT061" | "AT062" => (
             "implemented_unverified",
-            vec!["crates/integrations live (source/sink contracts, truthful status)".into()],
+            vec![
+                "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout".into(),
+                "implementation/evidence/spout-registry.txt (bounded enumeration verified)".into(),
+            ],
         ),
         // Ableton Link: adapter built from upstream; tempo/beat/phase/peer
         // discovery, single-master tempo arbitration, and start/stop propagation

@@ -97,8 +97,13 @@ broadcasting). **Live send/receive** remains blocked on the full NDI header ABI 
 stream — not faked.
 
 **Spout2**: prebuilt `SpoutLibrary.{dll,lib}` (x64, BSD-2) is present but exposes a **C++
-pure-virtual** interface; wrapping it needs a small `extern "C"` shim + live GL/DX context.
-**Syphon**: macOS-only. Both remain `blocked_external` with the reason recorded.
+pure-virtual** interface, so `apps/spout-bridge/spout_shim.cpp` wraps it in a flat `extern
+"C"` ABI and links `SpoutLibrary.lib` → `spout_shim.dll`. `crates/integrations/src/spout.rs`
+(feature `spout`) runtime-loads the shim; `flux spout` enumerates the OS-wide sender
+registry. Verified: shim builds + links, unit test loads it and enumerates without crashing
+(`evidence/spout-registry.txt`). **Limitations:** `SendImage` needs a bound GL context (shim
+returns 0, never fakes success) and `GetSenderCount` can block when no sender exists, so
+tight polling isn't ready yet. **Syphon**: macOS-only, not buildable here.
 
 ### 6a. Ableton Link — supported and verified (licensing resolved)
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton

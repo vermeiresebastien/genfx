@@ -29,6 +29,12 @@ license, what is reused, and the resulting Flux decision.
   `spout` on Windows. Requires a built Spout2 DLL and a live DX11 device — not available
   in this headless run. Adapter contract + capability status are present; live
   sender/receiver is `blocked_external` until a Windows graphics session exists.
+- **Runtime status (2026-11-09):** the prebuilt `SpoutLibrary.{dll,lib}` (x64) is present.
+  A C++ `extern "C"` shim (`apps/spout-bridge/spout_shim.cpp`, linked against
+  `SpoutLibrary.lib`) exposes a flat ABI; `crates/integrations/src/spout.rs` (feature
+  `spout`) runtime-loads it and **verifies sender enumeration**. `GetSenderCount` can
+  block when no sender exists; `SendImage` needs a bound GL context (shim returns 0,
+  never fakes success). Evidence: `evidence/spout-registry.txt`.
 
 ## obs-ndi (reference only)
 - **URL:** https://github.com/Palakis/obs-ndi

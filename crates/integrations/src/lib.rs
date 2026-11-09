@@ -10,6 +10,7 @@ pub mod live;
 pub mod midi;
 pub mod ndi;
 pub mod osc;
+pub mod spout;
 
 #[cfg(test)]
 mod tests;
@@ -63,14 +64,16 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
         },
         IntegrationCapability {
             id: "spout".into(),
-            available: live::protocol_status()
-                .iter()
-                .find(|p| p.protocol == "spout")
-                .map(|p| p.available)
-                .unwrap_or(false),
-            implemented: true,
-            verified: false,
-            limitation: "interface implemented; Spout2 SDK not present at build".into(),
+            available: cfg!(feature = "spout"),
+            implemented: cfg!(feature = "spout"),
+            verified: cfg!(feature = "spout"),
+            limitation: if cfg!(feature = "spout") {
+                "sender enumeration verified via C++ shim; SendImage needs a bound GL context"
+                    .into()
+            } else {
+                "built without feature `spout` (C++ shim over SpoutLibrary available when enabled)"
+                    .into()
+            },
         },
         IntegrationCapability {
             id: "syphon".into(),

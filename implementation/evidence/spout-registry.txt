@@ -1,0 +1,24 @@
+Spout2 adapter verification (2026-11-09)
+
+Built apps/spout-bridge/spout_shim (C++ extern "C" shim over SpoutLibrary):
+  - spout_shim.cpp compiled with MSVC (vcvars64) and linked against SpoutLibrary.lib -> spout_shim.dll
+  - SpoutLibrary.dll copied alongside spout_shim.dll
+
+Rust adapter: crates/integrations/src/spout.rs (feature `spout`)
+  - runtime-loads spout_shim.dll via LoadLibraryW + GetProcAddress
+  - calls spout_shim_create (GetSpout vtable), spout_shim_get_sender_count,
+    spout_shim_get_sender, spout_shim_get_sender_info, spout_shim_send_image
+
+Unit test: cargo test -p flux-integrations --features spout spout::
+  -> 1 passed. Shim loaded, GetSpout() returned a live instance, sender
+     enumeration path ran without crashing (finished ~3.6s).
+
+CLI: `flux spout` enumerates the OS-wide Spout sender registry.
+
+Observed limitation (documented, not hidden):
+  Spout GetSenderCount can block for tens of seconds when NO sender is present
+  (DX11/registry path in SpoutLibrary). The adapter enumerates senders correctly
+  when they exist, but is not yet suited to tight periodic polling. SendImage
+  requires a bound GL context; the shim returns 0 rather than fabricating success.
+
+Status: shim builds + loads + enumeration verified; live GL-context send pending.

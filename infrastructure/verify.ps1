@@ -52,6 +52,13 @@ if ($env:FLUX_ABLETON_LINK_LIB) {
 }
 # NDI discovery — runs when the runtime is discoverable; tests skip cleanly otherwise.
 Step 'ndi-discovery' { cargo test -p flux-integrations --features ndi ndi:: }
+# Spout2 — runs when the C++ shim DLL is available; test skips cleanly otherwise.
+if ($env:FLUX_SPOUT_SHIM) {
+    Step 'spout-enumeration' { cargo test -p flux-integrations --features spout spout:: }
+} else {
+    Write-Host "== spout-enumeration: skipped (FLUX_SPOUT_SHIM not set) =="
+    $results['spout-enumeration'] = @{ ok = $true; skipped = $true; reason = 'FLUX_SPOUT_SHIM unset' }
+}
 
 $evidence = Join-Path $root 'implementation/evidence'
 New-Item -ItemType Directory -Force -Path $evidence | Out-Null
