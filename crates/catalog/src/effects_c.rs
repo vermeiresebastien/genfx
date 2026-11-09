@@ -16,7 +16,16 @@ fn generator(
 ) -> Manifest {
     params.insert(0, p_float("wet", "Opacity", 1.0, 0.0, 1.0, ""));
     params.push(p_bool("transparent", "Transparent background", true));
-    let mut m = effect(id, name, category, shader, quality, vec![], help, requirement);
+    let mut m = effect(
+        id,
+        name,
+        category,
+        shader,
+        quality,
+        vec![],
+        help,
+        requirement,
+    );
     m.parameters = params;
     m.inputs = vec![mask_port()];
     m.outputs = vec![color_output()];

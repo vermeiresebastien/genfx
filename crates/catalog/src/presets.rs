@@ -50,7 +50,12 @@ fn n(index: usize, type_id: &str, params: &[(&str, serde_json::Value)]) -> Prese
 }
 
 fn e(from: usize, to: usize) -> PresetEdge {
-    PresetEdge { from, from_port: "color".into(), to, to_port: "source".into() }
+    PresetEdge {
+        from,
+        from_port: "color".into(),
+        to,
+        to_port: "source".into(),
+    }
 }
 
 fn chain(types: &[&str], ids: &str) -> Preset {
@@ -81,32 +86,94 @@ pub fn all_presets() -> Vec<Preset> {
 
     // Bass Impact: blob -> chromatic metal -> bloom (bass->deformation via mapping)
     {
-        let mut p = chain(&["flux.source", "gen.sdf_blob", "fx.chromatic_metal", "fx.bloom"], "preset.bass_impact");
+        let mut p = chain(
+            &[
+                "flux.source",
+                "gen.sdf_blob",
+                "fx.chromatic_metal",
+                "fx.bloom",
+            ],
+            "preset.bass_impact",
+        );
         p.name = "Bass Impact".into();
-        p.description = "Blob -> Chromatic metal -> Bloom. Bass drives deformation, onset triggers a pulse.".into();
+        p.description =
+            "Blob -> Chromatic metal -> Bloom. Bass drives deformation, onset triggers a pulse."
+                .into();
         p.requirement_refs = vec!["FX001".into(), "G081".into(), "R014".into()];
-        p.macros = vec!["bass->blob.radius".into(), "onset->bloom.intensity".into(), "treble->grain".into()];
+        p.macros = vec![
+            "bass->blob.radius".into(),
+            "onset->bloom.intensity".into(),
+            "treble->grain".into(),
+        ];
         if let Some(node) = p.nodes.iter_mut().find(|n| n.type_id == "gen.sdf_blob") {
-            node.params.insert("bassAmount".into(), serde_json::json!(1.2));
+            node.params
+                .insert("bassAmount".into(), serde_json::json!(1.2));
         }
         v.push(p);
     }
-    v.push(chain(&["flux.source", "fx.chromatic", "fx.vhs", "fx.crt"], "preset.vhs_tracking"));
-    v.push(chain(&["flux.source", "fx.crt", "fx.noise"], "preset.crt_phosphor"));
-    v.push(chain(&["flux.source", "fx.color_adjustment", "fx.halftone", "fx.noise"], "preset.editorial_halftone"));
+    v.push(chain(
+        &["flux.source", "fx.chromatic", "fx.vhs", "fx.crt"],
+        "preset.vhs_tracking",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.crt", "fx.noise"],
+        "preset.crt_phosphor",
+    ));
+    v.push(chain(
+        &[
+            "flux.source",
+            "fx.color_adjustment",
+            "fx.halftone",
+            "fx.noise",
+        ],
+        "preset.editorial_halftone",
+    ));
     v.push(chain(&["flux.source", "fx.print"], "preset.cmyk_print"));
-    v.push(chain(&["flux.source", "fx.tone", "fx.print", "fx.noise"], "preset.risograph"));
+    v.push(chain(
+        &["flux.source", "fx.tone", "fx.print", "fx.noise"],
+        "preset.risograph",
+    ));
     v.push(chain(&["flux.source", "fx.dither"], "preset.sierra_dither"));
-    v.push(chain(&["flux.source", "fx.pixel_ops"], "preset.modular_pixel_dissolve"));
-    v.push(chain(&["flux.source", "fx.technical"], "preset.industrial_ct"));
-    v.push(chain(&["flux.source", "fx.gradient_map", "fx.bloom"], "preset.thermal_vision"));
-    v.push(chain(&["flux.source", "fx.technical"], "preset.cad_wireframe"));
-    v.push(chain(&["flux.source", "fx.technical"], "preset.technical_cutaway"));
-    v.push(chain(&["flux.source", "fx.pattern_refraction"], "preset.reeded_glass"));
-    v.push(chain(&["flux.source", "fx.pattern_refraction"], "preset.fluted_glass"));
-    v.push(chain(&["flux.source", "fx.pattern_refraction"], "preset.microprism_glass"));
-    v.push(chain(&["flux.source", "fx.chromatic_metal", "fx.materials"], "preset.liquid_chrome_metal"));
-    v.push(chain(&["gen.water_caustic", "flux.color"], "preset.water_caustics"));
+    v.push(chain(
+        &["flux.source", "fx.pixel_ops"],
+        "preset.modular_pixel_dissolve",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.technical"],
+        "preset.industrial_ct",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.gradient_map", "fx.bloom"],
+        "preset.thermal_vision",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.technical"],
+        "preset.cad_wireframe",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.technical"],
+        "preset.technical_cutaway",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.pattern_refraction"],
+        "preset.reeded_glass",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.pattern_refraction"],
+        "preset.fluted_glass",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.pattern_refraction"],
+        "preset.microprism_glass",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.chromatic_metal", "fx.materials"],
+        "preset.liquid_chrome_metal",
+    ));
+    v.push(chain(
+        &["gen.water_caustic", "flux.color"],
+        "preset.water_caustics",
+    ));
     v.push(chain(&["gen.fractal_noise"], "preset.fractal_noise"));
     v.push(chain(&["gen.clouds"], "preset.clouds"));
     v.push(chain(&["gen.nebula"], "preset.nebula"));
@@ -121,23 +188,46 @@ pub fn all_presets() -> Vec<Preset> {
     v.push(chain(&["gen.topographic"], "preset.topographic_contours"));
     v.push(chain(&["fx.text_graphic"], "preset.shapes_mosaic"));
     v.push(chain(&["fx.text_graphic"], "preset.code_rain"));
-    v.push(chain(&["flux.source", "fx.slice_shift", "fx.chromatic", "fx.glitch"], "preset.cyberpunk_glitch"));
-    v.push(chain(&["flux.source", "fx.glow", "fx.bloom"], "preset.bloom_and_halo"));
-    v.push(chain(&["gen.fractal_noise"], "preset.fractal_noise_template"));
+    v.push(chain(
+        &["flux.source", "fx.slice_shift", "fx.chromatic", "fx.glitch"],
+        "preset.cyberpunk_glitch",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.glow", "fx.bloom"],
+        "preset.bloom_and_halo",
+    ));
+    v.push(chain(
+        &["gen.fractal_noise"],
+        "preset.fractal_noise_template",
+    ));
     v.push(chain(&["gen.nebula"], "preset.nebula_template"));
     v.push(chain(&["gen.aurora"], "preset.aurora"));
     {
         let mut p = chain(
-            &["flux.source", "gen.particle_emitter", "gen.particle_render", "fx.bloom"],
+            &[
+                "flux.source",
+                "gen.particle_emitter",
+                "gen.particle_render",
+                "fx.bloom",
+            ],
             "preset.flow_field_particles",
         );
         p.description = "Curl field -> particles -> trails -> bloom.".into();
         p.requirement_refs = vec!["G110".into(), "G112".into(), "FX001".into()];
         v.push(p);
     }
-    v.push(chain(&["gen.sdf_blob", "fx.chromatic_metal", "fx.bloom"], "preset.liquid_blob"));
-    v.push(chain(&["gen.sdf_blob", "gen.sdf_material", "fx.bloom"], "preset.metaball_glow"));
-    v.push(chain(&["flux.source", "fx.crt", "fx.vhs"], "preset.crt_vhs_mix"));
+    v.push(chain(
+        &["gen.sdf_blob", "fx.chromatic_metal", "fx.bloom"],
+        "preset.liquid_blob",
+    ));
+    v.push(chain(
+        &["gen.sdf_blob", "gen.sdf_material", "fx.bloom"],
+        "preset.metaball_glow",
+    ));
+    v.push(chain(
+        &["flux.source", "fx.crt", "fx.vhs"],
+        "preset.crt_vhs_mix",
+    ));
     v.push(chain(&["gen.reaction_diffusion"], "preset.reaction_skin"));
     v
 }

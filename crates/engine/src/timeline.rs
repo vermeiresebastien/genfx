@@ -1,16 +1,32 @@
 //! Timeline evaluation: pick the visible clip at a project time, compute
 //! source time via the exact rational mapping, and enumerate track composition.
 
-use flux_domain::{Clip, ClipSource, FrameRate, LoopPolicy, Project, RationalTime, TimeRange, TrackKind};
+use flux_domain::{
+    Clip, ClipSource, FrameRate, LoopPolicy, Project, RationalTime, TimeRange, TrackKind,
+};
 
 /// The source content a clip resolves to at a project time.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedSource {
-    Generator { generator_id: String, local: RationalTime, phase: f64 },
-    Asset { asset_id: String, source_time: RationalTime },
-    Freeze { asset_id: String, time: RationalTime },
-    Live { source_id: String },
-    Take { take_id: String },
+    Generator {
+        generator_id: String,
+        local: RationalTime,
+        phase: f64,
+    },
+    Asset {
+        asset_id: String,
+        source_time: RationalTime,
+    },
+    Freeze {
+        asset_id: String,
+        time: RationalTime,
+    },
+    Live {
+        source_id: String,
+    },
+    Take {
+        take_id: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -44,19 +60,30 @@ pub fn map_source_time(clip: &Clip, local: RationalTime) -> RationalTime {
     // scaled = local * rate
     let mut scaled = local.mul_int(rate_num).unwrap_or(RationalTime::ZERO);
     if rate_den != 1 {
-        scaled = RationalTime::new(scaled.numerator(), (scaled.denominator() as i64 * rate_den) as u32)
-            .unwrap_or(RationalTime::ZERO);
+        scaled = RationalTime::new(
+            scaled.numerator(),
+            (scaled.denominator() as i64 * rate_den) as u32,
+        )
+        .unwrap_or(RationalTime::ZERO);
     }
-    let mut src = clip.source_range.start.add(scaled).unwrap_or(clip.source_range.start);
+    let mut src = clip
+        .source_range
+        .start
+        .add(scaled)
+        .unwrap_or(clip.source_range.start);
     if clip.loop_policy == LoopPolicy::Loop {
         let span = clip.source_range.duration;
         if !span.is_zero() {
             // wrap src into [start, start+duration)
-            let rel = src.sub(clip.source_range.start).unwrap_or(RationalTime::ZERO);
+            let rel = src
+                .sub(clip.source_range.start)
+                .unwrap_or(RationalTime::ZERO);
             // modulo via division
             let k = rel.div_floor(span);
             if k != 0 {
-                let wrapped = rel.sub(span.mul_int(k).unwrap_or(RationalTime::ZERO)).unwrap_or(RationalTime::ZERO);
+                let wrapped = rel
+                    .sub(span.mul_int(k).unwrap_or(RationalTime::ZERO))
+                    .unwrap_or(RationalTime::ZERO);
                 src = clip.source_range.start.add(wrapped).unwrap_or(src);
             }
         }
@@ -106,16 +133,30 @@ fn resolve_source(project: &Project, clip: &Clip, local: RationalTime) -> Resolv
             } else {
                 0.0
             };
-            ResolvedSource::Generator { generator_id: generator_id.clone(), local, phase }
+            ResolvedSource::Generator {
+                generator_id: generator_id.clone(),
+                local,
+                phase,
+            }
         }
         ClipSource::Asset { asset_id } => {
             let t = map_source_time(clip, local);
             let _ = project;
-            ResolvedSource::Asset { asset_id: asset_id.clone(), source_time: normalise_video_pts(t, project.settings.frame_rate) }
+            ResolvedSource::Asset {
+                asset_id: asset_id.clone(),
+                source_time: normalise_video_pts(t, project.settings.frame_rate),
+            }
         }
-        ClipSource::FreezeFrame { asset_id, time } => ResolvedSource::Freeze { asset_id: asset_id.clone(), time: *time },
-        ClipSource::LiveSource { source_id } => ResolvedSource::Live { source_id: source_id.clone() },
-        ClipSource::RecordedTake { take_id } => ResolvedSource::Take { take_id: take_id.clone() },
+        ClipSource::FreezeFrame { asset_id, time } => ResolvedSource::Freeze {
+            asset_id: asset_id.clone(),
+            time: *time,
+        },
+        ClipSource::LiveSource { source_id } => ResolvedSource::Live {
+            source_id: source_id.clone(),
+        },
+        ClipSource::RecordedTake { take_id } => ResolvedSource::Take {
+            take_id: take_id.clone(),
+        },
     }
 }
 
@@ -131,8 +172,15 @@ pub fn normalise_video_pts(source_time: RationalTime, rate: FrameRate) -> Ration
 /// so build the list of (track, visible clip) with adjustment markers.
 #[derive(Debug, Clone)]
 pub enum RenderItem {
-    Clip { track_id: String, clip: VisibleClip },
-    Adjustment { track_id: String, graph_id: String, opacity: f64 },
+    Clip {
+        track_id: String,
+        clip: VisibleClip,
+    },
+    Adjustment {
+        track_id: String,
+        graph_id: String,
+        opacity: f64,
+    },
 }
 
 pub fn render_items(project: &Project, project_time: RationalTime) -> Vec<RenderItem> {
@@ -145,7 +193,11 @@ pub fn render_items(project: &Project, project_time: RationalTime) -> Vec<Render
         }
         if track.kind == TrackKind::Adjustment {
             if let Some(gid) = &track.graph_id {
-                out.push(RenderItem::Adjustment { track_id: track.id.clone(), graph_id: gid.clone(), opacity: track.opacity });
+                out.push(RenderItem::Adjustment {
+                    track_id: track.id.clone(),
+                    graph_id: gid.clone(),
+                    opacity: track.opacity,
+                });
             }
             continue;
         }
@@ -213,7 +265,9 @@ mod tests {
         Clip {
             id: "c".into(),
             name: "c".into(),
-            source: ClipSource::Asset { asset_id: "a".into() },
+            source: ClipSource::Asset {
+                asset_id: "a".into(),
+            },
             range: TimeRange::new(rt(start, 1), rt(dur, 1)),
             source_range: TimeRange::new(rt(10, 1), rt(dur, 1)),
             rate,
@@ -266,7 +320,10 @@ mod tests {
         let source = rt(101, 100);
         let n = source.div_floor(RationalTime::frame_duration(fr));
         assert_eq!(n, 60);
-        assert_eq!(normalise_video_pts(source, fr), RationalTime::from_frames(60, fr).unwrap());
+        assert_eq!(
+            normalise_video_pts(source, fr),
+            RationalTime::from_frames(60, fr).unwrap()
+        );
     }
 
     #[test]

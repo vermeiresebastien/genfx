@@ -10,7 +10,11 @@ pub mod pod;
 pub mod router;
 pub mod timeline;
 
-pub use frame::{export_frame_count, frame_time, AudioSnapshot, FrameContext, FrameUniform, MusicState};
+pub use frame::{
+    export_frame_count, frame_time, AudioSnapshot, FrameContext, FrameUniform, MusicState,
+};
 pub use graph::{compile, validate, CompiledGraph, Registry};
 pub use router::{pack_params, ResolvedParams, Router};
-pub use timeline::{export_range, map_source_time, render_items, visible_clips, RenderItem, VisibleClip};
+pub use timeline::{
+    export_range, map_source_time, render_items, visible_clips, RenderItem, VisibleClip,
+};

@@ -34,9 +34,18 @@ fn sine_frequency_and_rms() {
     let s = sine(1000.0, amp, 4096, 48_000);
     let f = analyze(&s);
     let expected_rms = amp / std::f32::consts::SQRT_2;
-    assert!((f.rms - expected_rms).abs() / expected_rms < 0.05, "rms={} expected={}", f.rms, expected_rms);
+    assert!(
+        (f.rms - expected_rms).abs() / expected_rms < 0.05,
+        "rms={} expected={}",
+        f.rms,
+        expected_rms
+    );
     // centroid near 1 kHz (within a few bins)
-    assert!((f.centroid_hz - 1000.0).abs() < 60.0, "centroid={}", f.centroid_hz);
+    assert!(
+        (f.centroid_hz - 1000.0).abs() < 60.0,
+        "centroid={}",
+        f.centroid_hz
+    );
     // peak band is mid (500-2500)
     let mid = f.bands[2];
     assert!(mid > f.bands[0], "mid {} bass {}", mid, f.bands[0]);
@@ -47,14 +56,24 @@ fn sine_frequency_and_rms() {
 fn bass_tone_lands_in_bass_band() {
     let s = sine(80.0, 0.5, 4096, 48_000);
     let f = analyze(&s);
-    assert!(f.bands[0] > f.bands[2], "bass {} mid {}", f.bands[0], f.bands[2]);
+    assert!(
+        f.bands[0] > f.bands[2],
+        "bass {} mid {}",
+        f.bands[0],
+        f.bands[2]
+    );
 }
 
 #[test]
 fn treble_tone_lands_in_treble_band() {
     let s = sine(8000.0, 0.5, 4096, 48_000);
     let f = analyze(&s);
-    assert!(f.bands[4] > f.bands[0], "treble {} bass {}", f.bands[4], f.bands[0]);
+    assert!(
+        f.bands[4] > f.bands[0],
+        "treble {} bass {}",
+        f.bands[4],
+        f.bands[0]
+    );
 }
 
 #[test]
@@ -67,7 +86,11 @@ fn band_edges_cap_at_nyquist() {
 
 #[test]
 fn onset_detected_on_impulse() {
-    let cfg = AnalysisConfig { onset_sensitivity: 1.2, refractory_ms: 10.0, ..Default::default() };
+    let cfg = AnalysisConfig {
+        onset_sensitivity: 1.2,
+        refractory_ms: 10.0,
+        ..Default::default()
+    };
     let mut a = Analyzer::new(cfg);
     // Speak a steady tone first, then a broadband impulse window.
     let steady = sine(440.0, 0.2, 2048, 48_000);

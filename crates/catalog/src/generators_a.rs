@@ -28,7 +28,13 @@ macro_rules! gen {
 
 pub fn g001_solid() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.solid", "Solid color", "Generators", "gen_solid", QualityClass::L, "G001", TimeModel::Analytic,
+        "gen.solid",
+        "Solid color",
+        "Generators",
+        "gen_solid",
+        QualityClass::L,
+        "G001",
+        TimeModel::Analytic,
         "Premultiplied solid color plate; supports transparent color plates.",
         [p_color("color", "Color", [1.0, 1.0, 1.0, 1.0])],
         r#"
@@ -42,7 +48,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g002_gradient() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.gradient", "Gradient", "Generators", "gen_gradient", QualityClass::L, "G002", TimeModel::Analytic,
+        "gen.gradient",
+        "Gradient",
+        "Generators",
+        "gen_gradient",
+        QualityClass::L,
+        "G002",
+        TimeModel::Analytic,
         "Linear, radial and conic gradients with editable stops and repeat/clamp.",
         [
             p_enum("kind", "Kind", "linear", &["linear", "radial", "conic"]),
@@ -75,16 +87,31 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g003_mesh_gradient() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.mesh_gradient_fill", "Mesh gradient", "Generators", "gen_mesh_gradient", QualityClass::M, "G003", TimeModel::Analytic,
+        "gen.mesh_gradient_fill",
+        "Mesh gradient",
+        "Generators",
+        "gen_mesh_gradient",
+        QualityClass::M,
+        "G003",
+        TimeModel::Analytic,
         "Animated mesh gradient (shared FX024 contract).",
-        [p_float("speed", "Speed", 0.1, 0.0, 4.0, "cycles/s"), p_float("turbulence", "Turbulence", 0.1, 0.0, 1.0, "")],
+        [
+            p_float("speed", "Speed", 0.1, 0.0, 4.0, "cycles/s"),
+            p_float("turbulence", "Turbulence", 0.1, 0.0, 1.0, "")
+        ],
         include_str!("g_mesh.inc.wgsl")
     )
 }
 
 pub fn g004_noise() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.noise", "Noise", "Generators", "gen_noise", QualityClass::M, "G004", TimeModel::Analytic,
+        "gen.noise",
+        "Noise",
+        "Generators",
+        "gen_noise",
+        QualityClass::M,
+        "G004",
+        TimeModel::Analytic,
         "Value fBm, turbulence, ridged multifractal with scale/octaves and periodic seam mode.",
         [
             p_enum("kind", "Kind", "fbm", &["fbm", "turbulence", "ridged"]),
@@ -109,12 +136,23 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g005_voronoi() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.voronoi", "Voronoi", "Generators", "gen_voronoi", QualityClass::M, "G005", TimeModel::Analytic,
+        "gen.voronoi",
+        "Voronoi",
+        "Generators",
+        "gen_voronoi",
+        QualityClass::M,
+        "G005",
+        TimeModel::Analytic,
         "Voronoi/cellular field with nearest, second-nearest and difference distance modes.",
         [
             p_float("density", "Density", 12.0, 1.0, 64.0, "cells/axis"),
             p_float("jitter", "Jitter", 1.0, 0.0, 1.0, ""),
-            p_enum("mode", "Mode", "cell", &["cell", "edge", "second", "difference"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "cell",
+                &["cell", "edge", "second", "difference"]
+            ),
             p_float("speed", "Speed", 0.1, -2.0, 2.0, "cycles/s"),
         ],
         r#"
@@ -146,7 +184,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g006_plasma() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.plasma", "Plasma", "Generators", "gen_plasma", QualityClass::L, "G006", TimeModel::Analytic,
+        "gen.plasma",
+        "Plasma",
+        "Generators",
+        "gen_plasma",
+        QualityClass::L,
+        "G006",
+        TimeModel::Analytic,
         "Bounded sum-of-sinusoids plasma through a palette.",
         [
             p_float("frequency", "Frequency", 4.0, 0.1, 32.0, ""),
@@ -206,7 +250,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g008_concentric() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.radial_rays", "Radial rays / spiral", "Generators", "gen_radial_rays", QualityClass::L, "G008", TimeModel::Analytic,
+        "gen.radial_rays",
+        "Radial rays / spiral",
+        "Generators",
+        "gen_radial_rays",
+        QualityClass::L,
+        "G008",
+        TimeModel::Analytic,
         "Radial rays, concentric rings or a spiral with twist and animated stroke width.",
         [
             p_enum("kind", "Kind", "rays", &["rays", "rings", "spiral"]),
@@ -236,7 +286,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g009_moire() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.interference", "Interference", "Generators", "gen_interference", QualityClass::L, "G009", TimeModel::Analytic,
+        "gen.interference",
+        "Interference",
+        "Generators",
+        "gen_interference",
+        QualityClass::L,
+        "G009",
+        TimeModel::Analytic,
         "Two-field interference (stripes/rings/grid) with adjustable frequency delta and angle.",
         [
             p_float("frequency", "Frequency", 24.0, 1.0, 128.0, ""),
@@ -263,10 +319,21 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g010_pattern_fill() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.pattern_fill", "Halftone fill", "Generators", "gen_pattern_fill", QualityClass::L, "G010", TimeModel::Analytic,
+        "gen.pattern_fill",
+        "Halftone fill",
+        "Generators",
+        "gen_pattern_fill",
+        QualityClass::L,
+        "G010",
+        TimeModel::Analytic,
         "Halftone or hatching pattern driven by gradient, noise or a constant tone.",
         [
-            p_enum("driver", "Driver", "constant", &["constant", "gradient", "noise"]),
+            p_enum(
+                "driver",
+                "Driver",
+                "constant",
+                &["constant", "gradient", "noise"]
+            ),
             p_float("tone", "Tone", 0.5, 0.0, 1.0, ""),
             p_float("cellSize", "Cell size", 8.0, 2.0, 64.0, "output_px"),
             p_bool("hatch", "Hatch", false),
@@ -295,7 +362,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g011_topographic() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.topographic", "Topographic contours", "Generators", "gen_topographic", QualityClass::M, "G011", TimeModel::Analytic,
+        "gen.topographic",
+        "Topographic contours",
+        "Generators",
+        "gen_topographic",
+        QualityClass::M,
+        "G011",
+        TimeModel::Analytic,
         "Iso-contour lines from animated terrain noise.",
         [
             p_int("levels", "Levels", 12, 2, 64),
@@ -317,7 +390,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g012_clouds_nebula() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.aurora", "Aurora", "Generators", "gen_aurora", QualityClass::M, "G012", TimeModel::Analytic,
+        "gen.aurora",
+        "Aurora",
+        "Generators",
+        "gen_aurora",
+        QualityClass::M,
+        "G012",
+        TimeModel::Analytic,
         "Layered aurora ribbons in warped coordinate space.",
         [
             p_float("scale", "Scale", 3.0, 0.1, 16.0, ""),
@@ -345,7 +424,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g013_oscilloscope() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.oscilloscope", "Oscilloscope", "Generators", "gen_oscilloscope", QualityClass::M, "G013", TimeModel::Analytic,
+        "gen.oscilloscope",
+        "Oscilloscope",
+        "Generators",
+        "gen_oscilloscope",
+        QualityClass::M,
+        "G013",
+        TimeModel::Analytic,
         "Glowing waveform line; the spectrum/waveform input deforms its height.",
         [
             p_float("frequency", "Frequency", 2.0, 0.1, 32.0, ""),
@@ -370,7 +455,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g014_caustics() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.caustics", "Water caustics", "Generators", "gen_caustics", QualityClass::M, "G014", TimeModel::Analytic,
+        "gen.caustics",
+        "Water caustics",
+        "Generators",
+        "gen_caustics",
+        QualityClass::M,
+        "G014",
+        TimeModel::Analytic,
         "Water caustic illumination from summed waves with explicit ripple-impulse events.",
         [
             p_float("scale", "Scale", 5.0, 0.5, 32.0, ""),
@@ -434,10 +525,21 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g016_lissajous() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.lissajous", "Lissajous", "Generators", "gen_lissajous", QualityClass::L, "G016", TimeModel::Analytic,
+        "gen.lissajous",
+        "Lissajous",
+        "Generators",
+        "gen_lissajous",
+        QualityClass::L,
+        "G016",
+        TimeModel::Analytic,
         "Lissajous/rose/spirograph curves as a glowing PathSet image.",
         [
-            p_enum("kind", "Kind", "lissajous", &["lissajous", "rose", "spirograph"]),
+            p_enum(
+                "kind",
+                "Kind",
+                "lissajous",
+                &["lissajous", "rose", "spirograph"]
+            ),
             p_vec2("ratios", "Ratios", [3.0, 2.0], 1.0, 12.0, ""),
             p_float("phase", "Phase", 0.0, 0.0, 6.2831853, "rad"),
             p_float("lineWidth", "Line width", 1.5, 0.5, 8.0, "output_px"),
@@ -469,7 +571,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g017_superformula() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.superformula", "Superformula", "Generators", "gen_superformula", QualityClass::L, "G017", TimeModel::Analytic,
+        "gen.superformula",
+        "Superformula",
+        "Generators",
+        "gen_superformula",
+        QualityClass::L,
+        "G017",
+        TimeModel::Analytic,
         "Superformula/superellipse with singularity guards and bounded polygon sampling.",
         [
             p_float("m", "m", 6.0, 0.1, 32.0, ""),
@@ -499,7 +607,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g018_truchet() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.truchet", "Truchet", "Generators", "gen_truchet", QualityClass::L, "G018", TimeModel::Analytic,
+        "gen.truchet",
+        "Truchet",
+        "Generators",
+        "gen_truchet",
+        QualityClass::L,
+        "G018",
+        TimeModel::Analytic,
         "Seeded Truchet tiles with continuous borders.",
         [
             p_float("tile", "Tile size", 48.0, 8.0, 256.0, "output_px"),
@@ -528,10 +642,21 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g019_texture_fields() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.texture_field", "Texture field", "Generators", "gen_texture_field", QualityClass::M, "G019", TimeModel::Analytic,
+        "gen.texture_field",
+        "Texture field",
+        "Generators",
+        "gen_texture_field",
+        QualityClass::M,
+        "G019",
+        TimeModel::Analytic,
         "Wood, marble, paper, fabric, stucco and glitter texture fields from distinct recipes.",
         [
-            p_enum("material", "Material", "wood", &["wood", "marble", "paper", "fabric", "stucco", "glitter"]),
+            p_enum(
+                "material",
+                "Material",
+                "wood",
+                &["wood", "marble", "paper", "fabric", "stucco", "glitter"]
+            ),
             p_float("scale", "Scale", 6.0, 0.5, 64.0, ""),
         ],
         r#"
@@ -554,7 +679,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g020_starfield() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.starfield", "Starfield", "Generators", "gen_starfield", QualityClass::M, "G020", TimeModel::Analytic,
+        "gen.starfield",
+        "Starfield",
+        "Generators",
+        "gen_starfield",
+        QualityClass::M,
+        "G020",
+        TimeModel::Analytic,
         "Starfield/space tunnel with parallax layers, depth and finite near clipping.",
         [
             p_enum("kind", "Kind", "stars", &["stars", "tunnel", "galaxy"]),
@@ -591,10 +722,21 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g021_test_signal() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.test_signal", "Test signal", "Generators", "gen_test_signal", QualityClass::L, "G021", TimeModel::Analytic,
+        "gen.test_signal",
+        "Test signal",
+        "Generators",
+        "gen_test_signal",
+        QualityClass::L,
+        "G021",
+        TimeModel::Analytic,
         "Colour bars, ramps, frame counter band, checker and moving marker. Diagnostics source.",
         [
-            p_enum("kind", "Kind", "bars", &["bars", "ramp", "counter", "checker"]),
+            p_enum(
+                "kind",
+                "Kind",
+                "bars",
+                &["bars", "ramp", "counter", "checker"]
+            ),
             p_float("markerSpeed", "Marker speed", 0.2, 0.0, 2.0, ""),
         ],
         r#"
@@ -650,7 +792,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g023_lsystem() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.lsystem", "Fractal tree", "Generators", "gen_lsystem", QualityClass::M, "G023", TimeModel::Analytic,
+        "gen.lsystem",
+        "Fractal tree",
+        "Generators",
+        "gen_lsystem",
+        QualityClass::M,
+        "G023",
+        TimeModel::Analytic,
         "Bounded L-system tree (angle/depth) with segment limit.",
         [
             p_float("angle", "Angle", 25.0, 5.0, 90.0, "deg"),
@@ -706,7 +854,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g024_attractor() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.attractor", "Strange attractor", "Generators", "gen_attractor", QualityClass::M, "G024", TimeModel::FixedStep,
+        "gen.attractor",
+        "Strange attractor",
+        "Generators",
+        "gen_attractor",
+        QualityClass::M,
+        "G024",
+        TimeModel::FixedStep,
         "Fixed-step Lorenz/Rossler/Clifford attractor plot with burn-in and bounded point count.",
         [
             p_enum("kind", "Kind", "lorenz", &["lorenz", "rossler", "clifford"]),
@@ -745,7 +899,13 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g025_kaleidoscope() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.kaleidoscope", "Kaleidoscope", "Generators", "gen_kaleidoscope", QualityClass::M, "G025", TimeModel::Analytic,
+        "gen.kaleidoscope",
+        "Kaleidoscope",
+        "Generators",
+        "gen_kaleidoscope",
+        QualityClass::M,
+        "G025",
+        TimeModel::Analytic,
         "Seeded noise field under symmetry folding, spin and radial scale.",
         [
             p_int("symmetry", "Symmetry", 6, 2, 64),
@@ -771,10 +931,21 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 
 pub fn g026_recursive_tiling() -> (&'static str, Manifest, &'static str) {
     gen!(
-        "gen.recursive_tiling", "Recursive tiling", "Generators", "gen_recursive_tiling", QualityClass::M, "G026", TimeModel::Analytic,
+        "gen.recursive_tiling",
+        "Recursive tiling",
+        "Generators",
+        "gen_recursive_tiling",
+        QualityClass::M,
+        "G026",
+        TimeModel::Analytic,
         "Sierpinski triangle/carpet and Koch subdivision with bounded depth and tile count.",
         [
-            p_enum("kind", "Kind", "sierpinski", &["sierpinski", "carpet", "koch"]),
+            p_enum(
+                "kind",
+                "Kind",
+                "sierpinski",
+                &["sierpinski", "carpet", "koch"]
+            ),
             p_int("depth", "Depth", 4, 1, 8),
         ],
         r#"

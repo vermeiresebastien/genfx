@@ -57,7 +57,12 @@ impl ParamLayout {
 /// parameter descriptors. Returns (struct/accessor source, layout).
 pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayout) {
     let mut src = String::new();
-    let mut layout = ParamLayout { slots: vec![], vec4_count: 0, f_count: 0, u_count: 0 };
+    let mut layout = ParamLayout {
+        slots: vec![],
+        vec4_count: 0,
+        f_count: 0,
+        u_count: 0,
+    };
     let mut f32_components_used = 0usize;
     let mut u32_components_used = 0usize;
     let mut f32_vec4 = 0usize;
@@ -103,11 +108,25 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
         };
         let component = component;
         let is_bool = matches!(p.kind, Bool);
-        layout.slots.push(ParamSlot { id: p.id.clone(), kind: slot_kind, vec4_index, component, is_bool });
+        layout.slots.push(ParamSlot {
+            id: p.id.clone(),
+            kind: slot_kind,
+            vec4_index,
+            component,
+            is_bool,
+        });
     }
     // Uniform is padded: one array for floats, then one array for ints.
-    let f_count = if f32_components_used > 0 { f32_vec4 + 1 } else { f32_vec4 };
-    let u_count = if u32_components_used > 0 { u32_vec4 + 1 } else { u32_vec4 };
+    let f_count = if f32_components_used > 0 {
+        f32_vec4 + 1
+    } else {
+        f32_vec4
+    };
+    let u_count = if u32_components_used > 0 {
+        u32_vec4 + 1
+    } else {
+        u32_vec4
+    };
     layout.vec4_count = f_count + u_count;
     layout.f_count = f_count.max(1);
     layout.u_count = u_count.max(1);
@@ -130,10 +149,18 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
             }
             SlotKind::Vec2 => {
                 let (x, y) = (comp_name(slot.component), comp_name(slot.component + 1));
-                src.push_str(&format!("fn p_{id}() -> vec2<f32> {{ return np.f[{}].{x}{y}; }}\n", slot.vec4_index, id = slot.id));
+                src.push_str(&format!(
+                    "fn p_{id}() -> vec2<f32> {{ return np.f[{}].{x}{y}; }}\n",
+                    slot.vec4_index,
+                    id = slot.id
+                ));
             }
             SlotKind::Vec3 => {
-                let (x, y, z) = (comp_name(slot.component), comp_name(slot.component + 1), comp_name(slot.component + 2));
+                let (x, y, z) = (
+                    comp_name(slot.component),
+                    comp_name(slot.component + 1),
+                    comp_name(slot.component + 2),
+                );
                 src.push_str(&format!(
                     "fn p_{id}() -> vec3<f32> {{ return np.f[{}].{x}{y}{z}; }}\n",
                     slot.vec4_index,
@@ -141,7 +168,11 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
                 ));
             }
             SlotKind::Vec4 => {
-                src.push_str(&format!("fn p_{id}() -> vec4<f32> {{ return np.f[{}]; }}\n", slot.vec4_index, id = slot.id));
+                src.push_str(&format!(
+                    "fn p_{id}() -> vec4<f32> {{ return np.f[{}]; }}\n",
+                    slot.vec4_index,
+                    id = slot.id
+                ));
             }
             SlotKind::U32 => {
                 if slot.is_bool {

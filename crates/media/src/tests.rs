@@ -94,7 +94,9 @@ fn decode_frame_is_correct_size_and_not_blank() {
     make_video(&v, 10.0, "60");
     let worker = MediaWorker::new().unwrap();
     let cancel = Arc::new(AtomicBool::new(false));
-    let frame = worker.decode_rgba_frame(&v, RationalTime::ZERO, 64, 36, cancel).unwrap();
+    let frame = worker
+        .decode_rgba_frame(&v, RationalTime::ZERO, 64, 36, cancel)
+        .unwrap();
     assert_eq!(frame.width, 64);
     assert_eq!(frame.height, 36);
     assert_eq!(frame.rgba.len(), 64 * 36 * 4);
@@ -111,9 +113,14 @@ fn decode_audio_has_expected_samples_and_sine() {
     let worker = MediaWorker::new().unwrap();
     let track = worker.decode_audio_stereo(&a, 48_000).unwrap();
     assert_eq!(track.sample_rate, 48_000);
-    assert!((track.frames as i64 - 48_000).abs() <= 64, "frames={}", track.frames);
+    assert!(
+        (track.frames as i64 - 48_000).abs() <= 64,
+        "frames={}",
+        track.frames
+    );
     // energy present
-    let rms: f32 = (track.samples.iter().map(|s| s * s).sum::<f32>() / track.samples.len() as f32).sqrt();
+    let rms: f32 =
+        (track.samples.iter().map(|s| s * s).sum::<f32>() / track.samples.len() as f32).sqrt();
     assert!(rms > 0.4, "rms={rms}");
 }
 

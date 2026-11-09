@@ -19,7 +19,10 @@ pub struct Size {
 }
 
 impl Size {
-    pub const HD_1080: Size = Size { width: 1920, height: 1080 };
+    pub const HD_1080: Size = Size {
+        width: 1920,
+        height: 1080,
+    };
     pub fn pixel_count(&self) -> u64 {
         self.width as u64 * self.height as u64
     }
@@ -60,7 +63,10 @@ impl Default for ProjectSettings {
             size: Size::HD_1080,
             frame_rate: FrameRate::FPS_60,
             pixel_aspect: PixelAspect { num: 1, den: 1 },
-            audio: AudioSpec { sample_rate: 48_000, channels: 2 },
+            audio: AudioSpec {
+                sample_rate: 48_000,
+                channels: 2,
+            },
             working_color: WorkingColor::LinearRec709,
             seed: "0".into(),
             simulation_step: RationalTime::new(1, 120).unwrap(),
@@ -252,18 +258,31 @@ impl Graph {
         self.nodes.iter_mut().find(|n| n.id == id)
     }
     pub fn incoming(&self, node: &str, port: &str) -> Option<&GraphEdge> {
-        self.edges.iter().find(|e| e.to_node == node && e.to_port == port)
+        self.edges
+            .iter()
+            .find(|e| e.to_node == node && e.to_port == port)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ClipSource {
-    Asset { asset_id: String },
-    GeneratorScene { generator_id: String },
-    LiveSource { source_id: String },
-    FreezeFrame { asset_id: String, time: RationalTime },
-    RecordedTake { take_id: String },
+    Asset {
+        asset_id: String,
+    },
+    GeneratorScene {
+        generator_id: String,
+    },
+    LiveSource {
+        source_id: String,
+    },
+    FreezeFrame {
+        asset_id: String,
+        time: RationalTime,
+    },
+    RecordedTake {
+        take_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -445,7 +464,10 @@ impl Timeline {
 
     /// Tracks in bottom-to-top stored order.
     pub fn ordered_tracks(&self) -> Vec<&Track> {
-        self.track_order.iter().filter_map(|id| self.tracks.get(id)).collect()
+        self.track_order
+            .iter()
+            .filter_map(|id| self.tracks.get(id))
+            .collect()
     }
 }
 
@@ -484,9 +506,17 @@ pub enum FoldMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ModulationSource {
-    Feature { feature: FeatureId },
-    Constant { value: f64 },
-    Lfo { shape: LfoShape, frequency: f64, phase: f64 },
+    Feature {
+        feature: FeatureId,
+    },
+    Constant {
+        value: f64,
+    },
+    Lfo {
+        shape: LfoShape,
+        frequency: f64,
+        phase: f64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -556,7 +586,10 @@ impl Project {
             name: name.into(),
             created_utc: now.clone(),
             modified_utc: now,
-            settings: ProjectSettings { seed: seed.to_string(), ..Default::default() },
+            settings: ProjectSettings {
+                seed: seed.to_string(),
+                ..Default::default()
+            },
             assets: BTreeMap::new(),
             timeline: Timeline::default(),
             graphs: BTreeMap::new(),
@@ -581,7 +614,10 @@ pub fn now_utc_pub() -> String {
 
 fn now_utc() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     // RFC3339 UTC without pulling a date library: fixed-epoch fallback if absurd.
     let (y, mo, d, h, mi, s) = civil_from_unix(secs as i64);
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
@@ -639,8 +675,10 @@ mod tests {
                 },
             );
         }
-        a.extensions.insert("vendor".into(), serde_json::json!({"k": 1}));
-        b.extensions.insert("vendor".into(), serde_json::json!({"k": 1}));
+        a.extensions
+            .insert("vendor".into(), serde_json::json!({"k": 1}));
+        b.extensions
+            .insert("vendor".into(), serde_json::json!({"k": 1}));
         let ja = serde_json::to_string(&a).unwrap();
         let jb = serde_json::to_string(&b).unwrap();
         assert!(ja.contains(r#""assets":{"zzz""#));
@@ -650,7 +688,13 @@ mod tests {
     #[test]
     fn default_settings_match_contract() {
         let s = ProjectSettings::default();
-        assert_eq!(s.size, Size { width: 1920, height: 1080 });
+        assert_eq!(
+            s.size,
+            Size {
+                width: 1920,
+                height: 1080
+            }
+        );
         assert_eq!(s.frame_rate, FrameRate::FPS_60);
         assert_eq!(s.audio.sample_rate, 48_000);
         assert_eq!(s.simulation_step, RationalTime::new(1, 120).unwrap());

@@ -19,7 +19,13 @@ macro_rules! animator {
 }
 
 pub fn g050_ken_burns() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.ken_burns", "Ken Burns", "anim_ken_burns", QualityClass::L, "G050", TimeModel::Analytic,
+    animator!(
+        "gen.ken_burns",
+        "Ken Burns",
+        "anim_ken_burns",
+        QualityClass::L,
+        "G050",
+        TimeModel::Analytic,
         "Position/scale/rotation framing with start/end keys and automatic bounds fit.",
         [
             p_float("startZoom", "Start zoom", 1.0, 0.5, 4.0, ""),
@@ -27,7 +33,12 @@ pub fn g050_ken_burns() -> (&'static str, Manifest, &'static str) {
             p_vec2("startCenter", "Start center", [0.5, 0.5], 0.0, 1.0, ""),
             p_vec2("endCenter", "End center", [0.55, 0.5], 0.0, 1.0, ""),
             p_float("duration", "Duration", 8.0, 0.1, 120.0, "s"),
-            p_enum("ease", "Ease", "easeInOut", &["linear", "easeIn", "easeOut", "easeInOut"]),
+            p_enum(
+                "ease",
+                "Ease",
+                "easeInOut",
+                &["linear", "easeIn", "easeOut", "easeInOut"]
+            ),
         ],
         r#"
 fn ease01(t_in: f32) -> f32 {
@@ -45,11 +56,18 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) { return vec4<f32>(0.0); }
   return textureSampleLevel(src_tex, src_sampler, suv, 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g051_corner_pin() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.corner_pin", "Corner pin", "anim_corner_pin", QualityClass::L, "G051", TimeModel::Analytic,
+    animator!(
+        "gen.corner_pin",
+        "Corner pin",
+        "anim_corner_pin",
+        QualityClass::L,
+        "G051",
+        TimeModel::Analytic,
         "Four-corner perspective warp via inverse homography with singular-transform rejection.",
         [
             p_vec2("tl", "Top-left", [0.0, 0.0], -0.5, 1.5, ""),
@@ -88,11 +106,18 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   if (dist > 0.9) { return vec4<f32>(0.0); }
   return textureSampleLevel(src_tex, src_sampler, clamp(suv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g052_mesh_warp() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.mesh_warp", "Mesh warp", "anim_mesh_warp", QualityClass::M, "G052", TimeModel::Analytic,
+    animator!(
+        "gen.mesh_warp",
+        "Mesh warp",
+        "anim_mesh_warp",
+        QualityClass::M,
+        "G052",
+        TimeModel::Analytic,
         "Grid warp (8?8) with pin-based weighted deformation and animated peaks.",
         [
             p_int("grid", "Grid size", 8, 2, 32),
@@ -110,7 +135,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let suv = uv + vec2<f32>(sin(t) * 0.6, cos(t) * 0.4) * p_amplitude() * falloff;
   return textureSampleLevel(src_tex, src_sampler, clamp(suv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g053_liquify() -> (&'static str, Manifest, &'static str) {
@@ -211,9 +237,19 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 }
 
 pub fn g058_slices() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.image_slices", "Image slices", "anim_image_slices", QualityClass::M, "G058", TimeModel::Analytic,
+    animator!(
+        "gen.image_slices",
+        "Image slices",
+        "anim_image_slices",
+        QualityClass::M,
+        "G058",
+        TimeModel::Analytic,
         "Band slicing with per-band delay/rotation/offset; allocates no unbounded geometry.",
-        [p_int("bands", "Bands", 32, 2, 256), p_float("offset", "Offset", 0.05, 0.0, 0.5, ""), p_float("wave", "Wave speed", 0.3, 0.0, 4.0, "")],
+        [
+            p_int("bands", "Bands", 32, 2, 256),
+            p_float("offset", "Offset", 0.05, 0.0, 0.5, ""),
+            p_float("wave", "Wave speed", 0.3, 0.0, 4.0, "")
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let n = f32(max(p_bands(), 2));
@@ -223,7 +259,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let suv = vec2<f32>(uv.x + off, uv.y);
   return textureSampleLevel(src_tex, src_sampler, clamp(suv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g059_slit_scan() -> (&'static str, Manifest, &'static str) {
@@ -243,9 +280,18 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 }
 
 pub fn g060_polar_projection() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.polar_projection", "Polar projection", "anim_polar_projection", QualityClass::M, "G060", TimeModel::Analytic,
+    animator!(
+        "gen.polar_projection",
+        "Polar projection",
+        "anim_polar_projection",
+        QualityClass::M,
+        "G060",
+        TimeModel::Analytic,
         "Polar/sphere/cylinder UV transform with seam policy.",
-        [p_enum("kind", "Kind", "polar", &["polar", "sphere", "cylinder"]), p_float("spin", "Spin", 0.0, -4.0, 4.0, "")],
+        [
+            p_enum("kind", "Kind", "polar", &["polar", "sphere", "cylinder"]),
+            p_float("spin", "Spin", 0.0, -4.0, 4.0, "")
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let c = uv - vec2<f32>(0.5);
@@ -259,13 +305,24 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   }
   return textureSampleLevel(src_tex, src_sampler, vec2<f32>(uv.x, 0.5 + sin((uv.y - 0.5) * 3.14) * 0.5), 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g061_collage() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.collage", "Collage", "anim_collage", QualityClass::M, "G061", TimeModel::Analytic,
+    animator!(
+        "gen.collage",
+        "Collage",
+        "anim_collage",
+        QualityClass::M,
+        "G061",
+        TimeModel::Analytic,
         "Layered cutout collage with masks, layout and staggered z-order over the source layer.",
-        [p_int("tiles", "Tiles", 4, 2, 12), p_float("spread", "Spread", 0.05, 0.0, 0.3, ""), p_float("stagger", "Stagger", 0.1, 0.0, 1.0, "")],
+        [
+            p_int("tiles", "Tiles", 4, 2, 12),
+            p_float("spread", "Spread", 0.05, 0.0, 0.3, ""),
+            p_float("stagger", "Stagger", 0.1, 0.0, 1.0, "")
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let n = f32(max(p_tiles(), 2));
@@ -278,13 +335,30 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let suv = uv + drift;
   return textureSampleLevel(src_tex, src_sampler, clamp(suv, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g062_sprite() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.sprite", "Sprite sheet", "anim_sprite", QualityClass::L, "G062", TimeModel::Analytic,
+    animator!(
+        "gen.sprite",
+        "Sprite sheet",
+        "anim_sprite",
+        QualityClass::L,
+        "G062",
+        TimeModel::Analytic,
         "Sprite sheet playback with rows/columns, frame order, rate, hold, loop and pingpong.",
-        [p_int("columns", "Columns", 4, 1, 32), p_int("rows", "Rows", 1, 1, 32), p_float("fps", "FPS", 12.0, 0.1, 60.0, ""), p_enum("order", "Order", "forward", &["forward", "pingpong", "random"])],
+        [
+            p_int("columns", "Columns", 4, 1, 32),
+            p_int("rows", "Rows", 1, 1, 32),
+            p_float("fps", "FPS", 12.0, 0.1, 60.0, ""),
+            p_enum(
+                "order",
+                "Order",
+                "forward",
+                &["forward", "pingpong", "random"]
+            )
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let cols = f32(max(p_columns(), 1));
@@ -299,7 +373,8 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let suv = vec2<f32>((cx + uv.x) / cols, (cy + uv.y) / rows);
   return textureSampleLevel(src_tex, src_sampler, suv, 0.0);
 }
-"#)
+"#
+    )
 }
 
 pub fn g063_motion_brush() -> (&'static str, Manifest, &'static str) {
@@ -370,9 +445,19 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 }
 
 pub fn g067_droste() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.droste", "Infinite zoom", "anim_droste", QualityClass::M, "G067", TimeModel::Analytic,
+    animator!(
+        "gen.droste",
+        "Infinite zoom",
+        "anim_droste",
+        QualityClass::M,
+        "G067",
+        TimeModel::Analytic,
         "Nested transformed image with bounded repetitions and zoom period/phase.",
-        [p_int("repeats", "Repeats", 4, 1, 8), p_float("zoomPeriod", "Zoom period", 2.0, 1.1, 8.0, ""), p_float("speed", "Speed", 0.2, 0.0, 2.0, "")],
+        [
+            p_int("repeats", "Repeats", 4, 1, 8),
+            p_float("zoomPeriod", "Zoom period", 2.0, 1.1, 8.0, ""),
+            p_float("speed", "Speed", 0.2, 0.0, 2.0, "")
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let n = f32(p_repeats());
@@ -388,13 +473,24 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   }
   return acc / (n * 0.5);
 }
-"#)
+"#
+    )
 }
 
 pub fn g068_stop_motion() -> (&'static str, Manifest, &'static str) {
-    animator!("gen.stop_motion", "Stop motion", "anim_stop_motion", QualityClass::L, "G068", TimeModel::CanonicalFrame,
+    animator!(
+        "gen.stop_motion",
+        "Stop motion",
+        "anim_stop_motion",
+        QualityClass::L,
+        "G068",
+        TimeModel::CanonicalFrame,
         "Quantized-time hold with deterministic jitter and exposure variation.",
-        [p_float("fps", "Hold fps", 8.0, 1.0, 30.0, ""), p_float("jitter", "Jitter", 0.0, 0.0, 0.02, ""), p_float("exposure", "Exposure variation", 0.0, 0.0, 0.2, "")],
+        [
+            p_float("fps", "Hold fps", 8.0, 1.0, 30.0, ""),
+            p_float("jitter", "Jitter", 0.0, 0.0, 0.02, ""),
+            p_float("exposure", "Exposure variation", 0.0, 0.0, 0.2, "")
+        ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let q = floor(time_seconds() * p_fps());
@@ -403,5 +499,6 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let expo = 1.0 + (h - 0.5) * p_exposure();
   return textureSampleLevel(src_tex, src_sampler, clamp(uv + j, vec2<f32>(0.0), vec2<f32>(1.0)), 0.0) * expo;
 }
-"#)
+"#
+    )
 }

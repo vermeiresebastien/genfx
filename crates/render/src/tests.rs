@@ -28,7 +28,10 @@ fn every_catalog_shader_compiles_on_gpu() {
             failures.push(format!("{}: {}", entry.manifest.id, e.message));
         }
     }
-    assert!(failures.is_empty(), "shader compile failures: {failures:#?}");
+    assert!(
+        failures.is_empty(),
+        "shader compile failures: {failures:#?}"
+    );
 }
 
 #[test]
@@ -55,7 +58,10 @@ fn solid_generator_color_oracle() {
     compiler.ensure_pipeline(&g, entry).unwrap();
 
     let mut project = Project::new("t", 1);
-    project.settings.size = flux_domain::Size { width: 64, height: 64 };
+    project.settings.size = flux_domain::Size {
+        width: 64,
+        height: 64,
+    };
     // Generator-only chain: gen.solid -> output (generators have no source input).
     let mut graph = {
         use flux_domain::{Graph, GraphEdge, GraphNode};
@@ -67,7 +73,12 @@ fn solid_generator_color_oracle() {
             position: [0.0, 0.0],
             params: {
                 let mut m = BTreeMap::new();
-                m.insert("color".to_string(), flux_domain::ParamValue::Color { value: [1.0, 0.0, 0.0, 1.0] });
+                m.insert(
+                    "color".to_string(),
+                    flux_domain::ParamValue::Color {
+                        value: [1.0, 0.0, 0.0, 1.0],
+                    },
+                );
                 m
             },
             bypass: false,
@@ -102,7 +113,11 @@ fn solid_generator_color_oracle() {
     let mut rt = RuntimeGraph::activate(&g, &mut compiler, &catalog, &graph, 64, 64, 1).unwrap();
     let foo_tex = g.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("src"),
-        size: wgpu::Extent3d { width: 64, height: 64, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -111,10 +126,23 @@ fn solid_generator_color_oracle() {
         view_formats: &[],
     });
     g.queue.write_texture(
-        wgpu::TexelCopyTextureInfo { texture: &foo_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyTextureInfo {
+            texture: &foo_tex,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
         &vec![0u8; 64 * 64 * 4],
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(64 * 4), rows_per_image: Some(64) },
-        wgpu::Extent3d { width: 64, height: 64, depth_or_array_layers: 1 },
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(64 * 4),
+            rows_per_image: Some(64),
+        },
+        wgpu::Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        },
     );
     let src_view = foo_tex.create_view(&Default::default());
     // Prepared node param buffers from manifest defaults (wet=1), then override
@@ -131,12 +159,17 @@ fn solid_generator_color_oracle() {
         }
         resolved.insert(pass.node_id.clone(), buf);
     }
-    rt.execute(&g, &compiler, &catalog, &ctx, &src_view, &resolved, 1.0).unwrap();
+    rt.execute(&g, &compiler, &catalog, &ctx, &src_view, &resolved, 1.0)
+        .unwrap();
     let (w, h, px) = read_preview(&g, &rt.target_texture(), 64, 64).unwrap();
     assert_eq!((w, h), (64, 64));
     // centre pixel should be red-dominant
     let idx = ((32 * w + 32) * 4) as usize;
-    assert!(px[idx] > 200 && px[idx + 1] < 60, "pixel {:?}", &px[idx..idx + 4]);
+    assert!(
+        px[idx] > 200 && px[idx + 1] < 60,
+        "pixel {:?}",
+        &px[idx..idx + 4]
+    );
 }
 
 #[test]

@@ -26,7 +26,10 @@ pub use utility::build_catalog;
 /// Number of request-catalog rows tracked in requirements.json.
 pub fn catalog_row_count() -> usize {
     let entries = build_catalog().entries;
-    entries.iter().filter(|e| !e.manifest.requirement_ids.iter().any(|r| r == "R007")).count()
+    entries
+        .iter()
+        .filter(|e| !e.manifest.requirement_ids.iter().any(|r| r == "R007"))
+        .count()
 }
 
 #[cfg(test)]

@@ -112,7 +112,14 @@ pub fn p_color(id: &str, label: &str, rgba: [f64; 4]) -> ParamDecl {
     }
 }
 
-pub fn p_vec2(id: &str, label: &str, default: [f64; 2], min: f64, max: f64, unit: &str) -> ParamDecl {
+pub fn p_vec2(
+    id: &str,
+    label: &str,
+    default: [f64; 2],
+    min: f64,
+    max: f64,
+    unit: &str,
+) -> ParamDecl {
     ParamDecl {
         id: id.into(),
         kind: ParamKind::Vec2,
@@ -134,15 +141,27 @@ pub fn p_vec2(id: &str, label: &str, default: [f64; 2], min: f64, max: f64, unit
 }
 
 pub fn source_port() -> PortDecl {
-    PortDecl { id: "source".into(), port_type: PortType::Texture2D, required: true }
+    PortDecl {
+        id: "source".into(),
+        port_type: PortType::Texture2D,
+        required: true,
+    }
 }
 
 pub fn mask_port() -> PortDecl {
-    PortDecl { id: "mask".into(), port_type: PortType::Mask, required: false }
+    PortDecl {
+        id: "mask".into(),
+        port_type: PortType::Mask,
+        required: false,
+    }
 }
 
 pub fn color_output() -> PortDecl {
-    PortDecl { id: "color".into(), port_type: PortType::Texture2D, required: true }
+    PortDecl {
+        id: "color".into(),
+        port_type: PortType::Texture2D,
+        required: true,
+    }
 }
 
 /// The three extra ports every effect manifest gains for time, seed and
@@ -185,7 +204,11 @@ pub fn effect(
         requirement_ids: vec![requirement.into()],
         name: name.into(),
         category: category.into(),
-        implementation: Implementation { kind: "fragment".into(), path: format!("{shader}.wgsl"), entry: "fs_main".into() },
+        implementation: Implementation {
+            kind: "fragment".into(),
+            path: format!("{shader}.wgsl"),
+            entry: "fs_main".into(),
+        },
         inputs: vec![source_port(), mask_port()],
         outputs: vec![color_output()],
         parameters: p,

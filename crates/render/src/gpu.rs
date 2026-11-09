@@ -82,7 +82,11 @@ impl Gpu {
             }
         });
         let Some(adapter) = ranked.into_iter().next() else {
-            return Err(FluxError::new(ErrorCode::GpuDeviceLost, "render", "no GPU adapter found"));
+            return Err(FluxError::new(
+                ErrorCode::GpuDeviceLost,
+                "render",
+                "no GPU adapter found",
+            ));
         };
         let info = adapter.get_info();
         let limits = wgpu::Limits::default();
@@ -109,7 +113,12 @@ impl Gpu {
                 .contains(wgpu::TextureFormatFeatureFlags::FILTERABLE),
             max_uniform_binding_size: d.max_uniform_buffer_binding_size,
         };
-        Ok(Self { device, queue, info: gpu_info, adapter })
+        Ok(Self {
+            device,
+            queue,
+            info: gpu_info,
+            adapter,
+        })
     }
 
     /// Render to a headless RGBA8 target and read it back, applying a synchronous
@@ -123,7 +132,11 @@ impl Gpu {
         let (w, h) = (width.max(1), height.max(1));
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("offscreen-target"),
-            size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -140,9 +153,11 @@ impl Gpu {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("offscreen-encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("offscreen-encoder"),
+            });
         draw(&self.device, &self.queue, &texture, &mut encoder);
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -159,7 +174,11 @@ impl Gpu {
                     rows_per_image: Some(h),
                 },
             },
-            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
         );
         self.queue.submit(Some(encoder.finish()));
         let slice = buffer.slice(..);
@@ -167,9 +186,12 @@ impl Gpu {
         slice.map_async(wgpu::MapMode::Read, move |r| {
             let _ = tx.send(r);
         });
-        self.device.poll(wgpu::PollType::Wait { submission_index: None, timeout: None }).map_err(|e| {
-            FluxError::new(ErrorCode::GpuDeviceLost, "render", e.to_string())
-        })?;
+        self.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .map_err(|e| FluxError::new(ErrorCode::GpuDeviceLost, "render", e.to_string()))?;
         rx.recv()
             .map_err(|e| FluxError::new(ErrorCode::GpuDeviceLost, "render", e.to_string()))?
             .map_err(|e| FluxError::new(ErrorCode::GpuDeviceLost, "render", format!("{e:?}")))?;

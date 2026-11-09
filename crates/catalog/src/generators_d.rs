@@ -17,13 +17,30 @@ fn scene_gen(
     help: &str,
     params: Vec<ParamDecl>,
 ) -> Manifest {
-    let mut m = effect(id, name, category, "gen_scene", QualityClass::H, params, help, req);
+    let mut m = effect(
+        id,
+        name,
+        category,
+        "gen_scene",
+        QualityClass::H,
+        params,
+        help,
+        req,
+    );
     m.generator_id = id.to_string();
     m.time_model = time;
     m.outputs = vec![
         color_output(),
-        PortDecl { id: "depth".into(), port_type: PortType::Depth, required: false },
-        PortDecl { id: "normal".into(), port_type: PortType::Normal, required: false },
+        PortDecl {
+            id: "depth".into(),
+            port_type: PortType::Depth,
+            required: false,
+        },
+        PortDecl {
+            id: "normal".into(),
+            port_type: PortType::Normal,
+            required: false,
+        },
     ];
     m.inputs = vec![];
     m
@@ -61,15 +78,55 @@ pub fn sdf_rows() -> Vec<(&'static str, Manifest, &'static str)> {
     v.push(scene_row("g083", scene_gen("gen.sdf_domain", "SDF domain", "3D SDF", "G083", TimeModel::Analytic,
         "Translate/rotate/scale, repeat, mirror, twist, bend, taper, elongate and shell operators.",
         vec![p_enum("op", "Operator", "repeat", &["translate", "rotate", "scale", "repeat", "mirror", "twist", "bend", "taper", "elongate", "shell"]), p_float("amount", "Amount", 0.3, -2.0, 2.0, "")])));
-    v.push(scene_row("g084", scene_gen("gen.sdf_noise", "SDF noise displacement", "3D SDF", "G084", TimeModel::Analytic,
-        "Noise displacement with conservative step safety so marching never oversteps.",
-        vec![p_float("amplitude", "Amplitude", 0.1, 0.0, 1.0, "m"), p_float("frequency", "Frequency", 2.0, 0.1, 32.0, ""), p_int("octaves", "Octaves", 3, 1, 8), p_float("speed", "Speed", 0.2, 0.0, 4.0, "")])));
-    v.push(scene_row("g085", scene_gen("gen.sdf_gyroid", "Gyroid lattice", "3D SDF", "G085", TimeModel::Analytic,
-        "Gyroid with threshold/thickness/scale, bounding volume and animated phase.",
-        vec![p_float("scale", "Scale", 3.0, 0.5, 16.0, ""), p_float("thickness", "Thickness", 0.1, 0.01, 0.5, ""), p_float("phase", "Phase", 0.0, 0.0, 6.28, "")])));
-    v.push(scene_row("g086", scene_gen("gen.sdf_fractal", "Fractal bulb", "3D SDF", "G086", TimeModel::Analytic,
-        "Bounded Mandelbulb distance estimator with iteration cap and bailout.",
-        vec![p_int("iterations", "Iterations", 12, 1, 32), p_float("power", "Power", 8.0, 2.0, 16.0, ""), p_float("bailout", "Bailout", 4.0, 1.5, 16.0, "")])));
+    v.push(scene_row(
+        "g084",
+        scene_gen(
+            "gen.sdf_noise",
+            "SDF noise displacement",
+            "3D SDF",
+            "G084",
+            TimeModel::Analytic,
+            "Noise displacement with conservative step safety so marching never oversteps.",
+            vec![
+                p_float("amplitude", "Amplitude", 0.1, 0.0, 1.0, "m"),
+                p_float("frequency", "Frequency", 2.0, 0.1, 32.0, ""),
+                p_int("octaves", "Octaves", 3, 1, 8),
+                p_float("speed", "Speed", 0.2, 0.0, 4.0, ""),
+            ],
+        ),
+    ));
+    v.push(scene_row(
+        "g085",
+        scene_gen(
+            "gen.sdf_gyroid",
+            "Gyroid lattice",
+            "3D SDF",
+            "G085",
+            TimeModel::Analytic,
+            "Gyroid with threshold/thickness/scale, bounding volume and animated phase.",
+            vec![
+                p_float("scale", "Scale", 3.0, 0.5, 16.0, ""),
+                p_float("thickness", "Thickness", 0.1, 0.01, 0.5, ""),
+                p_float("phase", "Phase", 0.0, 0.0, 6.28, ""),
+            ],
+        ),
+    ));
+    v.push(scene_row(
+        "g086",
+        scene_gen(
+            "gen.sdf_fractal",
+            "Fractal bulb",
+            "3D SDF",
+            "G086",
+            TimeModel::Analytic,
+            "Bounded Mandelbulb distance estimator with iteration cap and bailout.",
+            vec![
+                p_int("iterations", "Iterations", 12, 1, 32),
+                p_float("power", "Power", 8.0, 2.0, 16.0, ""),
+                p_float("bailout", "Bailout", 4.0, 1.5, 16.0, ""),
+            ],
+        ),
+    ));
     v.push(scene_row("g087", scene_gen("gen.sdf_render", "SDF render", "3D SDF", "G087", TimeModel::Analytic,
         "Raymarched renderer with color/Depth/Normal/Mask outputs, step budget and pixel-footprint epsilon.",
         vec![p_int("steps", "Ray steps", 96, 16, 256), p_float("maxDistance", "Max distance", 100.0, 1.0, 500.0, "m"), p_float("cameraDistance", "Camera distance", 3.5, 0.5, 50.0, "m")])));
@@ -87,27 +144,105 @@ pub fn mesh_rows() -> Vec<(&'static str, Manifest, &'static str)> {
     v.push(scene_row("g090", scene_gen("gen.mesh_primitive", "Mesh primitive", "3D Mesh", "G090", TimeModel::Analytic,
         "Box, sphere/icosphere, plane, disk, cylinder, cone, torus and capsule with segment limits.",
         vec![p_enum("primitive", "Primitive", "sphere", &["box", "sphere", "plane", "disk", "cylinder", "cone", "torus", "capsule"]), p_int("segments", "Segments", 32, 3, 256)])));
-    v.push(scene_row("g091", scene_gen("gen.parametric", "Parametric surface", "3D Mesh", "G091", TimeModel::Analytic,
-        "Torus knot, helix tube, Mobius strip and superquadric sampled UV meshes.",
-        vec![p_enum("surface", "Surface", "torusKnot", &["torusKnot", "helix", "mobius", "superquadric"]), p_int("samples", "Samples", 128, 8, 512)])));
+    v.push(scene_row(
+        "g091",
+        scene_gen(
+            "gen.parametric",
+            "Parametric surface",
+            "3D Mesh",
+            "G091",
+            TimeModel::Analytic,
+            "Torus knot, helix tube, Mobius strip and superquadric sampled UV meshes.",
+            vec![
+                p_enum(
+                    "surface",
+                    "Surface",
+                    "torusKnot",
+                    &["torusKnot", "helix", "mobius", "superquadric"],
+                ),
+                p_int("samples", "Samples", 128, 8, 512),
+            ],
+        ),
+    ));
     v.push(scene_row("g092", scene_gen("gen.extrusion", "Path extrusion", "3D Mesh", "G092", TimeModel::Analytic,
         "Tube/ribbon along a path with parallel-transport frames, taper, twist and ribbon width.",
         vec![p_float("radius", "Radius", 0.2, 0.001, 2.0, "m"), p_float("twist", "Twist", 0.0, -6.28, 6.28, "rad"), p_float("taper", "Taper", 0.0, -1.0, 1.0, "")])));
-    v.push(scene_row("g093", scene_gen("gen.deformer", "Mesh deformer", "3D Mesh", "G093", TimeModel::Analytic,
-        "Bend, twist, taper, wave, noise, lattice and audio displacement with updated normals.",
-        vec![p_enum("kind", "Kind", "bend", &["bend", "twist", "taper", "wave", "noise", "lattice", "audio"]), p_float("amount", "Amount", 0.3, -2.0, 2.0, "")])));
-    v.push(scene_row("g094", scene_gen("gen.instancer", "Geometry instancer", "3D Mesh", "G094", TimeModel::Analytic,
-        "Grid/radial/path/surface/image placements with checked instance count (max 1M).",
-        vec![p_int("count", "Count", 256, 1, 1000000), p_enum("layout", "Layout", "grid", &["grid", "radial", "path", "surface", "image"])])));
-    v.push(scene_row("g095", scene_gen("gen.terrain", "Terrain", "3D Mesh", "G095", TimeModel::Analytic,
-        "Noise/image heightfield with grid 1282, displacement and height/slope coloring.",
-        vec![p_int("grid", "Grid", 128, 8, 512), p_float("amplitude", "Amplitude", 1.0, 0.0, 10.0, "m"), p_float("scale", "Noise scale", 3.0, 0.1, 32.0, "")])));
+    v.push(scene_row(
+        "g093",
+        scene_gen(
+            "gen.deformer",
+            "Mesh deformer",
+            "3D Mesh",
+            "G093",
+            TimeModel::Analytic,
+            "Bend, twist, taper, wave, noise, lattice and audio displacement with updated normals.",
+            vec![
+                p_enum(
+                    "kind",
+                    "Kind",
+                    "bend",
+                    &[
+                        "bend", "twist", "taper", "wave", "noise", "lattice", "audio",
+                    ],
+                ),
+                p_float("amount", "Amount", 0.3, -2.0, 2.0, ""),
+            ],
+        ),
+    ));
+    v.push(scene_row(
+        "g094",
+        scene_gen(
+            "gen.instancer",
+            "Geometry instancer",
+            "3D Mesh",
+            "G094",
+            TimeModel::Analytic,
+            "Grid/radial/path/surface/image placements with checked instance count (max 1M).",
+            vec![
+                p_int("count", "Count", 256, 1, 1000000),
+                p_enum(
+                    "layout",
+                    "Layout",
+                    "grid",
+                    &["grid", "radial", "path", "surface", "image"],
+                ),
+            ],
+        ),
+    ));
+    v.push(scene_row(
+        "g095",
+        scene_gen(
+            "gen.terrain",
+            "Terrain",
+            "3D Mesh",
+            "G095",
+            TimeModel::Analytic,
+            "Noise/image heightfield with grid 1282, displacement and height/slope coloring.",
+            vec![
+                p_int("grid", "Grid", 128, 8, 512),
+                p_float("amplitude", "Amplitude", 1.0, 0.0, 10.0, "m"),
+                p_float("scale", "Noise scale", 3.0, 0.1, 32.0, ""),
+            ],
+        ),
+    ));
     v.push(scene_row("g096", scene_gen("gen.voxel", "Voxel scene", "3D Mesh", "G096", TimeModel::Analytic,
         "Occupancy from noise/image/SDF as cubes or surface mesh with grid 64? default and memory cap.",
         vec![p_int("grid", "Grid", 64, 8, 128), p_float("threshold", "Threshold", 0.5, 0.0, 1.0, ""), p_enum("render", "Render", "cubes", &["cubes", "surface"])])));
-    v.push(scene_row("g097", scene_gen("gen.point_cloud", "Point cloud", "3D Mesh", "G097", TimeModel::Analytic,
-        "PLY positions/colors with point size, depth test and downsampling.",
-        vec![p_float("pointSize", "Point size", 2.0, 0.5, 16.0, "px"), p_float("downsample", "Downsample", 1.0, 0.05, 1.0, "")])));
+    v.push(scene_row(
+        "g097",
+        scene_gen(
+            "gen.point_cloud",
+            "Point cloud",
+            "3D Mesh",
+            "G097",
+            TimeModel::Analytic,
+            "PLY positions/colors with point size, depth test and downsampling.",
+            vec![
+                p_float("pointSize", "Point size", 2.0, 0.5, 16.0, "px"),
+                p_float("downsample", "Downsample", 1.0, 0.05, 1.0, ""),
+            ],
+        ),
+    ));
     v.push(scene_row("g098", scene_gen("gen.model", "Model scene", "3D Mesh", "G098", TimeModel::Analytic,
         "GLB/glTF import with PBR materials, animations, skin and morph targets. Unsupported extensions are listed.",
         vec![p_float("scale", "Scale", 1.0, 0.01, 100.0, ""), p_float("clip", "Animation clip", 0.0, 0.0, 64.0, "")])));
@@ -118,24 +253,76 @@ pub fn mesh_rows() -> Vec<(&'static str, Manifest, &'static str)> {
         "Perspective/orthographic/isometric with orbit, dolly, path, look-at, follow and deterministic shake.",
         vec![p_enum("kind", "Kind", "perspective", &["perspective", "orthographic", "isometric"]), p_float("fov", "FOV", 45.0, 5.0, 120.0, "deg"),
              p_float("orbit", "Orbit speed", 0.2, -4.0, 4.0, ""), p_float("shake", "Shake", 0.0, 0.0, 1.0, ""), p_float("near", "Near", 0.1, 0.01, 2.0, "m"), p_float("far", "Far", 100.0, 10.0, 1000.0, "m")])));
-    v.push(scene_row("g101", scene_gen("gen.lights", "Lights", "3D Mesh", "G101", TimeModel::Analytic,
-        "Directional, point, spot, hemisphere/ambient lights and environment lighting.",
-        vec![p_float("key", "Key intensity", 1.0, 0.0, 8.0, ""), p_float("fill", "Fill intensity", 0.3, 0.0, 8.0, ""), p_float("ambient", "Ambient", 0.1, 0.0, 2.0, "")])));
-    v.push(scene_row("g102", scene_gen("gen.material", "Material", "3D Mesh", "G102", TimeModel::Analytic,
-        "PBR base color/metal/rough/emission/normal/alpha with toon and wireframe styles.",
-        vec![p_color("color", "Base color", [0.8, 0.8, 0.85, 1.0]), p_float("metallic", "Metallic", 0.2, 0.0, 1.0, ""), p_float("roughness", "Roughness", 0.4, 0.0, 1.0, ""), p_enum("style", "Style", "pbr", &["pbr", "toon", "wireframe"])])));
+    v.push(scene_row(
+        "g101",
+        scene_gen(
+            "gen.lights",
+            "Lights",
+            "3D Mesh",
+            "G101",
+            TimeModel::Analytic,
+            "Directional, point, spot, hemisphere/ambient lights and environment lighting.",
+            vec![
+                p_float("key", "Key intensity", 1.0, 0.0, 8.0, ""),
+                p_float("fill", "Fill intensity", 0.3, 0.0, 8.0, ""),
+                p_float("ambient", "Ambient", 0.1, 0.0, 2.0, ""),
+            ],
+        ),
+    ));
+    v.push(scene_row(
+        "g102",
+        scene_gen(
+            "gen.material",
+            "Material",
+            "3D Mesh",
+            "G102",
+            TimeModel::Analytic,
+            "PBR base color/metal/rough/emission/normal/alpha with toon and wireframe styles.",
+            vec![
+                p_color("color", "Base color", [0.8, 0.8, 0.85, 1.0]),
+                p_float("metallic", "Metallic", 0.2, 0.0, 1.0, ""),
+                p_float("roughness", "Roughness", 0.4, 0.0, 1.0, ""),
+                p_enum("style", "Style", "pbr", &["pbr", "toon", "wireframe"]),
+            ],
+        ),
+    ));
     v.push(scene_row("g103", scene_gen("gen.scene_animation", "Scene animation", "3D Mesh", "G103", TimeModel::Analytic,
         "Keyframes, glTF clips, blend/crossfade, looping hierarchy transforms and camera paths.",
         vec![p_float("speed", "Speed", 1.0, 0.0, 4.0, "x"), p_float("blend", "Blend", 0.0, 0.0, 1.0, "")])));
-    v.push(scene_row("g104", scene_gen("gen.architecture", "Procedural city", "3D Mesh", "G104", TimeModel::Analytic,
-        "Repeatable building blocks, seeded skyline heights/windows, finite tiles.",
-        vec![p_int("blocks", "Blocks", 64, 1, 2048), p_float("height", "Height", 2.0, 0.2, 20.0, "m")])));
+    v.push(scene_row(
+        "g104",
+        scene_gen(
+            "gen.architecture",
+            "Procedural city",
+            "3D Mesh",
+            "G104",
+            TimeModel::Analytic,
+            "Repeatable building blocks, seeded skyline heights/windows, finite tiles.",
+            vec![
+                p_int("blocks", "Blocks", 64, 1, 2048),
+                p_float("height", "Height", 2.0, 0.2, 20.0, "m"),
+            ],
+        ),
+    ));
     v.push(scene_row("g105", scene_gen("gen.planet", "Planet", "3D Mesh", "G105", TimeModel::Analytic,
         "Displaced spheres, rings, orbit fields and instancing with bounded coordinate precision.",
         vec![p_float("displacement", "Displacement", 0.1, 0.0, 1.0, ""), p_float("rings", "Rings", 0.0, 0.0, 1.0, ""), p_float("orbit", "Orbit speed", 0.1, 0.0, 4.0, "")])));
-    v.push(scene_row("g106", scene_gen("gen.ocean", "Ocean", "3D Mesh", "G106", TimeModel::Analytic,
-        "Sum-of-sines/Gerstner waves with foam approximation and sky reflection.",
-        vec![p_float("amplitude", "Amplitude", 0.3, 0.0, 2.0, "m"), p_float("frequency", "Frequency", 1.0, 0.1, 8.0, ""), p_float("foam", "Foam", 0.2, 0.0, 1.0, "")])));
+    v.push(scene_row(
+        "g106",
+        scene_gen(
+            "gen.ocean",
+            "Ocean",
+            "3D Mesh",
+            "G106",
+            TimeModel::Analytic,
+            "Sum-of-sines/Gerstner waves with foam approximation and sky reflection.",
+            vec![
+                p_float("amplitude", "Amplitude", 0.3, 0.0, 2.0, "m"),
+                p_float("frequency", "Frequency", 1.0, 0.1, 8.0, ""),
+                p_float("foam", "Foam", 0.2, 0.0, 1.0, ""),
+            ],
+        ),
+    ));
     v.push(scene_row("g107", scene_gen("gen.volume", "Volumetric field", "3D Mesh", "G107", TimeModel::Analytic,
         "Bounded density grid/noise raymarched as smoke/cloud/fire with slice and cost controls.",
         vec![p_enum("look", "Look", "smoke", &["smoke", "cloud", "fire"]), p_float("density", "Density", 0.5, 0.0, 1.0, ""), p_int("steps", "Steps", 48, 8, 128)])));
@@ -145,10 +332,27 @@ pub fn mesh_rows() -> Vec<(&'static str, Manifest, &'static str)> {
 /// Particle / physics / simulation / control rows: these are hosted by the
 /// CPU fixed-step workers, not a fragment shader. Their manifests are complete
 /// and they render through the shared presentation path.
-fn cpu_node(id: &str, name: &str, category: &str, req: &str, time: TimeModel, help: &str, params: Vec<ParamDecl>) -> Manifest {
+fn cpu_node(
+    id: &str,
+    name: &str,
+    category: &str,
+    req: &str,
+    time: TimeModel,
+    help: &str,
+    params: Vec<ParamDecl>,
+) -> Manifest {
     let mut params2 = vec![p_float("wet", "Opacity", 1.0, 0.0, 1.0, "")];
     params2.extend(params);
-    let mut m = effect(id, name, category, "cpu_node", QualityClass::H, params2, help, req);
+    let mut m = effect(
+        id,
+        name,
+        category,
+        "cpu_node",
+        QualityClass::H,
+        params2,
+        help,
+        req,
+    );
     m.generator_id = id.to_string();
     m.time_model = time;
     m.inputs = vec![];
@@ -313,9 +517,21 @@ pub fn control_rows() -> Vec<(&'static str, Manifest, &'static str)> {
 }
 
 pub fn conditional_rows() -> Vec<(&'static str, Manifest, &'static str)> {
-    let cond = |id: &str, name: &str, req: &str, help: &str| -> (&'static str, Manifest, &'static str) {
-        let mut m = effect(id, name, "Conditional", "conditional", QualityClass::H,
-            vec![p_float("wet", "Opacity", 1.0, 0.0, 1.0, "")], help, req);
+    let cond = |id: &str,
+                name: &str,
+                req: &str,
+                help: &str|
+     -> (&'static str, Manifest, &'static str) {
+        let mut m = effect(
+            id,
+            name,
+            "Conditional",
+            "conditional",
+            QualityClass::H,
+            vec![p_float("wet", "Opacity", 1.0, 0.0, 1.0, "")],
+            help,
+            req,
+        );
         m.generator_id = id.to_string();
         m.time_model = TimeModel::External;
         m.inputs = vec![source_port()];

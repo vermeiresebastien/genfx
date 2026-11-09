@@ -9,55 +9,135 @@ pub fn utility_manifests() -> Vec<(Manifest, &'static str)> {
 
     // Source input: presents the graph's external ScopeInput texture.
     {
-        let mut m = effect("flux.source", "Source", "Input/Output", "node_source", QualityClass::L,
-            vec![], "Graph input: presents the source texture supplied by the clip/track/master scope.", "R007");
+        let mut m = effect(
+            "flux.source",
+            "Source",
+            "Input/Output",
+            "node_source",
+            QualityClass::L,
+            vec![],
+            "Graph input: presents the source texture supplied by the clip/track/master scope.",
+            "R007",
+        );
         m.inputs = vec![];
         v.push((m, SOURCE_BODY));
     }
     // Mask input
     {
-        let mut m = effect("flux.mask_input", "Mask", "Mask", "node_mask", QualityClass::L,
-            vec![], "Presents a connected mask (white default).", "R007");
+        let mut m = effect(
+            "flux.mask_input",
+            "Mask",
+            "Mask",
+            "node_mask",
+            QualityClass::L,
+            vec![],
+            "Presents a connected mask (white default).",
+            "R007",
+        );
         m.inputs = vec![];
-        m.outputs = vec![PortDecl { id: "mask".into(), port_type: PortType::Mask, required: true }];
+        m.outputs = vec![PortDecl {
+            id: "mask".into(),
+            port_type: PortType::Mask,
+            required: true,
+        }];
         v.push((m, MASK_BODY));
     }
     // Blend
     {
-        let mut m = effect("flux.blend", "Blend", "Blend", "node_blend", QualityClass::L,
-            vec![p_enum("mode", "Blend", "normal", &["normal", "add", "screen", "multiply", "overlay", "softLight", "hardLight", "difference", "exclusion"]),
-                 p_float("opacity", "Opacity", 1.0, 0.0, 1.0, "")],
-            "Composites two inputs with a defined premultiplied blend formula.", "R007");
+        let mut m = effect(
+            "flux.blend",
+            "Blend",
+            "Blend",
+            "node_blend",
+            QualityClass::L,
+            vec![
+                p_enum(
+                    "mode",
+                    "Blend",
+                    "normal",
+                    &[
+                        "normal",
+                        "add",
+                        "screen",
+                        "multiply",
+                        "overlay",
+                        "softLight",
+                        "hardLight",
+                        "difference",
+                        "exclusion",
+                    ],
+                ),
+                p_float("opacity", "Opacity", 1.0, 0.0, 1.0, ""),
+            ],
+            "Composites two inputs with a defined premultiplied blend formula.",
+            "R007",
+        );
         m.inputs = vec![
-            PortDecl { id: "a".into(), port_type: PortType::Texture2D, required: true },
-            PortDecl { id: "b".into(), port_type: PortType::Texture2D, required: false },
+            PortDecl {
+                id: "a".into(),
+                port_type: PortType::Texture2D,
+                required: true,
+            },
+            PortDecl {
+                id: "b".into(),
+                port_type: PortType::Texture2D,
+                required: false,
+            },
         ];
         m.outputs = vec![color_output()];
         v.push((m, BLEND_BODY));
     }
     // Noise (shared analytic feature node)
     {
-        let mut m = effect("flux.noise", "Noise", "Generators", "node_noise", QualityClass::M,
-            vec![p_float("scale", "Scale", 4.0, 0.1, 64.0, ""), p_int("octaves", "Octaves", 5, 1, 8),
-                 p_float("speed", "Speed", 0.1, -4.0, 4.0, "cycles/s"),
-                 p_color("low", "Low", [0.0, 0.0, 0.0, 1.0]), p_color("high", "High", [1.0, 1.0, 1.0, 1.0])],
-            "Animated fBm noise field, usable standalone as a displacement field or color source.", "R007");
+        let mut m = effect(
+            "flux.noise",
+            "Noise",
+            "Generators",
+            "node_noise",
+            QualityClass::M,
+            vec![
+                p_float("scale", "Scale", 4.0, 0.1, 64.0, ""),
+                p_int("octaves", "Octaves", 5, 1, 8),
+                p_float("speed", "Speed", 0.1, -4.0, 4.0, "cycles/s"),
+                p_color("low", "Low", [0.0, 0.0, 0.0, 1.0]),
+                p_color("high", "High", [1.0, 1.0, 1.0, 1.0]),
+            ],
+            "Animated fBm noise field, usable standalone as a displacement field or color source.",
+            "R007",
+        );
         m.inputs = vec![];
         v.push((m, NOISE_BODY));
     }
     // Color adjustment (always available)
     {
-        let m = effect("flux.color", "Color adjustment", "Color", "node_color", QualityClass::L,
-            vec![p_float("exposure", "Exposure", 0.0, -10.0, 10.0, "EV"),
-                 p_float("contrast", "Contrast", 1.0, 0.0, 4.0, ""),
-                 p_float("saturation", "Saturation", 1.0, 0.0, 3.0, "")],
-            "Exposure/contrast/saturation adjustment.", "R007");
+        let m = effect(
+            "flux.color",
+            "Color adjustment",
+            "Color",
+            "node_color",
+            QualityClass::L,
+            vec![
+                p_float("exposure", "Exposure", 0.0, -10.0, 10.0, "EV"),
+                p_float("contrast", "Contrast", 1.0, 0.0, 4.0, ""),
+                p_float("saturation", "Saturation", 1.0, 0.0, 3.0, ""),
+            ],
+            "Exposure/contrast/saturation adjustment.",
+            "R007",
+        );
         v.push((m, COLOR_BODY));
     }
     // Output sink
     {
-        let mut m = effect("flux.output", "Output", "Input/Output", "node_output", QualityClass::L,
-            vec![], "Graph output sink.", "R007");
+        let mut m = effect(
+            "flux.output",
+            "Output",
+            "Input/Output",
+            "node_output",
+            QualityClass::L,
+            vec![],
+            "Graph output sink.",
+            "R007",
+        );
         m.inputs = vec![source_port()];
         m.outputs = vec![];
         v.push((m, OUTPUT_BODY));
@@ -299,7 +379,11 @@ pub fn build_catalog() -> crate::Catalog {
     // Utility nodes
     for (m, b) in utility_manifests() {
         let path = m.implementation.path.clone();
-        entries.push(crate::CatalogEntry { manifest: m, source: b.to_string(), source_path: path });
+        entries.push(crate::CatalogEntry {
+            manifest: m,
+            source: b.to_string(),
+            source_path: path,
+        });
     }
 
     crate::Catalog { entries }

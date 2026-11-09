@@ -4,11 +4,11 @@
 //!   flux new-demo <gen> <dir>     write a demo project file
 //!   flux render <project> <dir>   export PNG+WAV+MP4 for a project file
 //!   flux demo-render <gen> <dir>  build a demo and export it in one step
-//!   flux gui [project]            launch the native editor (default)
+//!   flux demo-media <video> <dir> import a video and export it
+//!   flux contact-sheet <dir>      render an effects contact sheet
+//!   flux gui [project]            launch the native editor (not in this build)
 
-mod export;
-mod samples;
-
+use flux_app::{export, samples};
 use flux_catalog::build_catalog;
 use flux_domain::{Dispatcher, FluxError, FluxResult, Project};
 use std::path::PathBuf;
@@ -41,9 +41,13 @@ fn run(args: &[String]) -> FluxResult<()> {
             cmd_demo_render(&gen, &dir)
         }
         "demo-media" => {
-            let video = PathBuf::from(
-                args.get(1).cloned().ok_or_else(|| FluxError::new(flux_domain::ErrorCode::InvalidCommand, "cli", "demo-media needs a video path"))?,
-            );
+            let video = PathBuf::from(args.get(1).cloned().ok_or_else(|| {
+                FluxError::new(
+                    flux_domain::ErrorCode::InvalidCommand,
+                    "cli",
+                    "demo-media needs a video path",
+                )
+            })?);
             let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
             cmd_demo_media(&video, &dir)
         }
@@ -52,9 +56,13 @@ fn run(args: &[String]) -> FluxResult<()> {
             cmd_contact_sheet(&dir)
         }
         "render" => {
-            let project = PathBuf::from(
-                args.get(1).cloned().ok_or_else(|| FluxError::new(flux_domain::ErrorCode::InvalidCommand, "cli", "render needs a project path"))?,
-            );
+            let project = PathBuf::from(args.get(1).cloned().ok_or_else(|| {
+                FluxError::new(
+                    flux_domain::ErrorCode::InvalidCommand,
+                    "cli",
+                    "render needs a project path",
+                )
+            })?);
             let dir = PathBuf::from(args.get(2).cloned().unwrap_or_else(|| "out".into()));
             cmd_render(&project, &dir)
         }
@@ -77,7 +85,11 @@ fn cmd_list() -> FluxResult<()> {
     println!("Catalog ({} entries):", c.entries.len());
     for e in &c.entries {
         let m = &e.manifest;
-        let kind = if m.generator_id.is_empty() { "effect" } else { "gen" };
+        let kind = if m.generator_id.is_empty() {
+            "effect"
+        } else {
+            "gen"
+        };
         if kind == "gen" {
             generators += 1;
         } else {
@@ -95,7 +107,10 @@ fn cmd_doctor() -> FluxResult<()> {
     println!("rustc: {}", env!("CARGO_PKG_VERSION"));
     match Gpu::new(BackendPref::Auto) {
         Ok(g) => {
-            println!("GPU:   {} ({}, {})", g.info.name, g.info.backend, g.info.device_type);
+            println!(
+                "GPU:   {} ({}, {})",
+                g.info.name, g.info.backend, g.info.device_type
+            );
             println!("driver:{}", g.info.driver);
             println!("max 2D texture: {}", g.info.max_texture_2d);
             println!("rgba16f filterable: {}", g.info.supports_rgba16f_filter);
@@ -106,7 +121,10 @@ fn cmd_doctor() -> FluxResult<()> {
         Ok(w) => {
             let c = w.capabilities();
             println!("ffmpeg: {}", c.ffmpeg_path);
-            println!("encoders: h264={} hevc={} prores={} aac={} gif={} png={} wav={}", c.h264, c.hevc, c.prores, c.aac, c.gif, c.png, c.wav);
+            println!(
+                "encoders: h264={} hevc={} prores={} aac={} gif={} png={} wav={}",
+                c.h264, c.hevc, c.prores, c.aac, c.gif, c.png, c.wav
+            );
         }
         Err(e) => println!("ffmpeg: unavailable ({e:?})"),
     }
@@ -142,7 +160,12 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
             }
         })),
     )?;
-    println!("rendered {} frames, {} samples; frames in {}", result.frames, result.samples, result.frames_dir.display());
+    println!(
+        "rendered {} frames, {} samples; frames in {}",
+        result.frames,
+        result.samples,
+        result.frames_dir.display()
+    );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -178,7 +201,10 @@ fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<
             }
         })),
     )?;
-    println!("rendered {} frames, {} samples", result.frames, result.samples);
+    println!(
+        "rendered {} frames, {} samples",
+        result.frames, result.samples
+    );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -190,14 +216,23 @@ fn cmd_contact_sheet(dir: &std::path::Path) -> FluxResult<()> {
     let effects: Vec<String> = catalog
         .entries
         .iter()
-        .filter(|e| (e.manifest.id.starts_with("fx.") || e.manifest.id.starts_with("preset.")) && e.manifest.implementation.kind == "fragment")
+        .filter(|e| {
+            (e.manifest.id.starts_with("fx.") || e.manifest.id.starts_with("preset."))
+                && e.manifest.implementation.kind == "fragment"
+        })
         .map(|e| e.manifest.id.clone())
         .collect();
     std::fs::create_dir_all(dir)?;
     let (w, h, px) = export::contact_sheet(&effects, 160, 90, 8)?;
     let path = dir.join("effects_contact_sheet.png");
     flux_media::write_png_rgba(&path, w, h, &px)?;
-    println!("contact sheet ({} effects, {}x{}) -> {}", effects.len(), w, h, path.display());
+    println!(
+        "contact sheet ({} effects, {}x{}) -> {}",
+        effects.len(),
+        w,
+        h,
+        path.display()
+    );
     Ok(())
 }
 
@@ -220,7 +255,10 @@ fn cmd_render(project_path: &std::path::Path, dir: &std::path::Path) -> FluxResu
             }
         })),
     )?;
-    println!("rendered {} frames, {} samples", result.frames, result.samples);
+    println!(
+        "rendered {} frames, {} samples",
+        result.frames, result.samples
+    );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -248,13 +286,22 @@ pub fn save_project(project: &Project, path: &std::path::Path) -> FluxResult<()>
 
 pub fn load_project(path: &std::path::Path) -> FluxResult<Project> {
     let data = std::fs::read_to_string(path)?;
-    let project: Project = serde_json::from_str(&data)
-        .map_err(|e| FluxError::new(flux_domain::ErrorCode::ProjectCorrupt, "persist", e.to_string()))?;
+    let project: Project = serde_json::from_str(&data).map_err(|e| {
+        FluxError::new(
+            flux_domain::ErrorCode::ProjectCorrupt,
+            "persist",
+            e.to_string(),
+        )
+    })?;
     if project.schema_version > flux_domain::SCHEMA_VERSION {
         return Err(FluxError::new(
             flux_domain::ErrorCode::ProjectVersion,
             "persist",
-            format!("project schema {} is newer than supported {}", project.schema_version, flux_domain::SCHEMA_VERSION),
+            format!(
+                "project schema {} is newer than supported {}",
+                project.schema_version,
+                flux_domain::SCHEMA_VERSION
+            ),
         ));
     }
     Ok(project)
@@ -266,6 +313,12 @@ pub fn new_dispatcher(project: Project) -> Dispatcher {
 
 fn sanitize(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }

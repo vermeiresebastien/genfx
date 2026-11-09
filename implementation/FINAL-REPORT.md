@@ -52,9 +52,10 @@ most generators render + read back in **~2.5 ms p50** (well inside the 16.67 ms
 60 fps budget); a few heavier ones (clouds/concentric) show p95 up to ~20 ms because
 the benchmark includes a full preview readback per frame.
 
-Test totals: **93 tests pass** (`cargo test --workspace`), comprising domain (30),
+Test totals: **108 tests pass** (`cargo test --workspace`), comprising domain (30),
 catalog (8), engine (21), media (6), audio (14), render (8, incl. full-catalog GPU
-compile + solid color oracle) and integration (6).
+compile + solid color oracle), integration lib (6), producer contract (6), and golden
+export (3).
 
 ## 2. Launch and use
 
@@ -81,12 +82,23 @@ binary and records its path.
   families, 156 generators, 28 tasks, 85 acceptance).
 - FX001–FX028, FX100–FX123 and the required 2D/math generators have distinct WGSL
   kernels and pass analytic/metamorphic tests.
-- Generator rows that are animators/3D/particles/physics/fluid/vector/text have
-  complete manifests whose shaders compile and present; their dedicated producers
-  (CPU simulation/3D scene/vector raster) are **partially wired**: the shaders exist
-  and are generated from the same manifests, but export currently presents an
-  uploaded texture (transparent without a producer) for those rows. This is called
-  out honestly, not counted as finished.
+- **Generator producer contract** (`flux_app::producer`, DECISIONS D007): one
+  interface for rows that do not compute pixels in WGSL. The renderer accepts
+  per-node producer textures (`RuntimeGraph::execute_with_producers`), so the same
+  producer drives preview and export. Implemented reference producers with visible,
+  deterministic, animated output:
+  - typography G070–G079 (bundled block font: glyph layout, scale, alignment, reveal);
+  - vector G030–G045 (analytic shape rasterizer with animated petals/outline);
+  - SDF/mesh G080–G107 (CPU sphere-traced signed-distance field: metaballs, gyroid,
+    fractal bulb, terrain, voxel/planet — verified visually as raymarched geometry);
+  - particle/physics/field G110–G148 (deterministic point field, damped-oscillator
+    physics, analytic vector/height fields);
+  - control G150–G162 (live-value bar visualization).
+  Producer coverage is enforced by `crates/tests/tests/producer_tests.rs` (visible
+  non-transparent content, parameter/​time sensitivity, determinism) and the golden
+  export tests. SDF raymarching is CPU-bound and slower than the analytic WGSL
+  generators at high resolution; acceptable for correctness/export, noted as a
+  performance limitation.
 
 ## 4. Host verification
 
@@ -104,17 +116,19 @@ macOS paths: not run (no host) → unverified.
 
 ## 6. Explicit blockers / unverified
 
-- **Native GUI editor** not delivered: egui 0.37 requires wgpu 30 while the verified
-  renderer is pinned to wgpu 27; mixing both fails a windows-crate conflict in
-  wgpu-hal D3D12. The verified product path is the headless CLI. A GUI needs either a
-  wgpu-30 upgrade rework or the Tauri 2 + React shell from the spec.
+- **Native GUI editor**: architecture decided (Tauri 2 + React over the Rust command
+  surface, DECISIONS D001) but not yet built in this batch. The native egui attempt
+  was abandoned due to the egui-0.37/wgpu-30 vs wgpu-27 conflict. The durable,
+  tested part (typed commands, validation, project model) is complete; the React
+  shell is the remaining GUI work.
 - **NDI, Spout2, Syphon, Ableton Link, Max for Live `.amxd`, macOS builds, signing,
   vision models**: external prerequisites not present; `blocked_external`.
 - **OS capture** (camera/screen/loopback): platform scaffolding only; no device
   verification in this run.
 - **WebGPU harness**: not built.
 - **Golden-image tolerance suite**: metamorphic/analytic tests used instead; no
-  reference image baselines.
+  reference image baselines. Producer SDF/particle rows use CPU approximation, not
+  the full GPU simulation engine.
 
 ## 7. Honest overall status
 

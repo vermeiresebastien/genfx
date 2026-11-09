@@ -81,7 +81,11 @@ impl Smoother {
             self.init = true;
             return target;
         }
-        let ms = if target > self.value { attack_ms } else { release_ms };
+        let ms = if target > self.value {
+            attack_ms
+        } else {
+            release_ms
+        };
         if ms <= 0.0 {
             self.value = target;
             return target;
@@ -127,11 +131,19 @@ pub fn resolve_parameter(
         let raw = match &m.source {
             ModulationSource::Feature { feature } => snapshot.feature(*feature) as f64,
             ModulationSource::Constant { value } => *value,
-            ModulationSource::Lfo { shape, frequency, phase } => lfo(*shape, time_secs, *frequency, *phase),
+            ModulationSource::Lfo {
+                shape,
+                frequency,
+                phase,
+            } => lfo(*shape, time_secs, *frequency, *phase),
         };
         // normalize [in_min, in_max] -> [0,1]
         let span = m.in_max - m.in_min;
-        let mut n = if span.abs() < 1e-9 { 0.0 } else { (raw - m.in_min) / span };
+        let mut n = if span.abs() < 1e-9 {
+            0.0
+        } else {
+            (raw - m.in_min) / span
+        };
         n = n.clamp(0.0, 1.0);
         if m.invert {
             n = 1.0 - n;
@@ -198,7 +210,9 @@ pub fn eval_keyframes(keys: &[Keyframe], t: RationalTime) -> Option<ParamValue> 
     for w in sorted.windows(2) {
         let a = w[0];
         let b = w[1];
-        if t.cmp_exact(&a.time) != std::cmp::Ordering::Less && t.cmp_exact(&b.time) == std::cmp::Ordering::Less {
+        if t.cmp_exact(&a.time) != std::cmp::Ordering::Less
+            && t.cmp_exact(&b.time) == std::cmp::Ordering::Less
+        {
             let dt = b.time.sub(a.time).ok()?.as_f64();
             let local = t.sub(a.time).ok()?.as_f64();
             let frac = if dt.abs() < 1e-12 { 0.0 } else { local / dt };
@@ -213,20 +227,30 @@ fn interpolate(a: &ParamValue, b: &ParamValue, frac: f64, mode: Interpolation) -
         Interpolation::Step => a.clone(),
         Interpolation::Linear | Interpolation::Cubic => match numeric_vec(a, b) {
             Some((va, vb)) => {
-                let mut out: Vec<f64> = va.iter().zip(vb.iter()).map(|(x, y)| x + (y - x) * frac).collect();
+                let mut out: Vec<f64> = va
+                    .iter()
+                    .zip(vb.iter())
+                    .map(|(x, y)| x + (y - x) * frac)
+                    .collect();
                 match a {
                     ParamValue::Color { value } => {
                         if value.len() == 4 {
-                            ParamValue::Color { value: [out[0], out[1], out[2], out[3]] }
+                            ParamValue::Color {
+                                value: [out[0], out[1], out[2], out[3]],
+                            }
                         } else {
                             a.clone()
                         }
                     }
-                    ParamValue::Vec2 { .. } => ParamValue::Vec2 { value: [out.remove(0), out.remove(0)] },
-                    ParamValue::Vec3 { .. } => {
-                        ParamValue::Vec3 { value: [out[0], out[1], out[2]] }
-                    }
-                    ParamValue::Int { .. } => ParamValue::Int { value: out[0].round() as i32 },
+                    ParamValue::Vec2 { .. } => ParamValue::Vec2 {
+                        value: [out.remove(0), out.remove(0)],
+                    },
+                    ParamValue::Vec3 { .. } => ParamValue::Vec3 {
+                        value: [out[0], out[1], out[2]],
+                    },
+                    ParamValue::Int { .. } => ParamValue::Int {
+                        value: out[0].round() as i32,
+                    },
                     _ => ParamValue::Float { value: out[0] },
                 }
             }
@@ -310,14 +334,30 @@ mod tests {
     #[test]
     fn keyframes_linear_and_step() {
         let keys = vec![
-            Keyframe { time: rt(0, 1), value: ParamValue::Float { value: 0.0 }, interpolation: Interpolation::Linear },
-            Keyframe { time: rt(2, 1), value: ParamValue::Float { value: 1.0 }, interpolation: Interpolation::Linear },
+            Keyframe {
+                time: rt(0, 1),
+                value: ParamValue::Float { value: 0.0 },
+                interpolation: Interpolation::Linear,
+            },
+            Keyframe {
+                time: rt(2, 1),
+                value: ParamValue::Float { value: 1.0 },
+                interpolation: Interpolation::Linear,
+            },
         ];
         let v = eval_keyframes(&keys, rt(1, 1)).unwrap();
         assert!((v.as_f64().unwrap() - 0.5).abs() < 1e-9);
         let step = vec![
-            Keyframe { time: rt(0, 1), value: ParamValue::Float { value: 0.0 }, interpolation: Interpolation::Step },
-            Keyframe { time: rt(2, 1), value: ParamValue::Float { value: 1.0 }, interpolation: Interpolation::Step },
+            Keyframe {
+                time: rt(0, 1),
+                value: ParamValue::Float { value: 0.0 },
+                interpolation: Interpolation::Step,
+            },
+            Keyframe {
+                time: rt(2, 1),
+                value: ParamValue::Float { value: 1.0 },
+                interpolation: Interpolation::Step,
+            },
         ];
         let v2 = eval_keyframes(&step, rt(1, 1)).unwrap();
         assert_eq!(v2.as_f64().unwrap(), 0.0);
@@ -346,7 +386,16 @@ mod tests {
         let mut smoothers = std::collections::HashMap::new();
         let mut m = mapping("c", FeatureId::Bass, FoldMode::Add, 1.0, 0);
         m.source = ModulationSource::Constant { value: 1.0 };
-        let v = resolve_parameter(0.5, 0.0, 2.0, &[m], &FeatureSnapshot::default(), &mut smoothers, 0.0, 0.016);
+        let v = resolve_parameter(
+            0.5,
+            0.0,
+            2.0,
+            &[m],
+            &FeatureSnapshot::default(),
+            &mut smoothers,
+            0.0,
+            0.016,
+        );
         // normalized 1.0 -> mapped 2.0; add (2.0-0)*1.0 => 0.5 + 2.0 -> clamp 2.0
         assert!((v - 2.0).abs() < 1e-9);
     }

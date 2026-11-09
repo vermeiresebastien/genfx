@@ -261,6 +261,7 @@ dependencies = [
 name = "flux-tests"
 version = "0.1.0"
 dependencies = [
+ "flux-app",
  "flux-audio",
  "flux-catalog",
  "flux-domain",

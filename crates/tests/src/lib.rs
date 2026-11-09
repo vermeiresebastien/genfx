@@ -33,12 +33,22 @@ fn graph_of(gen_id: &str, effects: &[&str]) -> Graph {
     for (i, e) in effects.iter().enumerate() {
         let id = format!("e{i}");
         nodes.push(mk(&id, e, [x, 0.0], BTreeMap::new()));
-        edges.push(GraphEdge { from_node: prev.clone(), from_port: "color".into(), to_node: id.clone(), to_port: "source".into() });
+        edges.push(GraphEdge {
+            from_node: prev.clone(),
+            from_port: "color".into(),
+            to_node: id.clone(),
+            to_port: "source".into(),
+        });
         prev = id;
         x += 240.0;
     }
     nodes.push(mk("out", "flux.output", [x, 0.0], BTreeMap::new()));
-    edges.push(GraphEdge { from_node: prev, from_port: "color".into(), to_node: "out".into(), to_port: "source".into() });
+    edges.push(GraphEdge {
+        from_node: prev,
+        from_port: "color".into(),
+        to_node: "out".into(),
+        to_port: "source".into(),
+    });
     Graph {
         id: format!("g:{}:{}", gen_id, effects.join("_")),
         name: "test".into(),
@@ -50,12 +60,22 @@ fn graph_of(gen_id: &str, effects: &[&str]) -> Graph {
 }
 
 /// Render the graph at `w`x`h` and `time` seconds; returns RGBA.
-fn render(g: &Gpu, cat: &flux_catalog::Catalog, graph: &Graph, secs: f64, w: u32, h: u32) -> Vec<u8> {
+fn render(
+    g: &Gpu,
+    cat: &flux_catalog::Catalog,
+    graph: &Graph,
+    secs: f64,
+    w: u32,
+    h: u32,
+) -> Vec<u8> {
     let mut compiler = EffectCompiler::new(g);
     let mut rt = RuntimeGraph::activate(g, &mut compiler, cat, graph, w, h, 1).expect("activate");
     let project = {
         let mut p = Project::new("t", 7);
-        p.settings.size = flux_domain::Size { width: w, height: h };
+        p.settings.size = flux_domain::Size {
+            width: w,
+            height: h,
+        };
         p
     };
     let t = RationalTime::new((secs * 1_000_000.0) as i64, 1_000_000).unwrap();
@@ -63,12 +83,19 @@ fn render(g: &Gpu, cat: &flux_catalog::Catalog, graph: &Graph, secs: f64, w: u32
     let mut resolved = HashMap::new();
     for pass in &rt.compiled.passes {
         if let Some(e) = cat.get(&pass.type_id) {
-            resolved.insert(pass.node_id.clone(), NodeParamsBuffer::defaults(&e.manifest));
+            resolved.insert(
+                pass.node_id.clone(),
+                NodeParamsBuffer::defaults(&e.manifest),
+            );
         }
     }
     let src = g.device.create_texture(&wgpu::TextureDescriptor {
         label: None,
-        size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -77,7 +104,8 @@ fn render(g: &Gpu, cat: &flux_catalog::Catalog, graph: &Graph, secs: f64, w: u32
         view_formats: &[],
     });
     let sv = src.create_view(&Default::default());
-    rt.execute(g, &compiler, cat, &ctx, &sv, &resolved, 1.0).expect("execute");
+    rt.execute(g, &compiler, cat, &ctx, &sv, &resolved, 1.0)
+        .expect("execute");
     let (_, _, px) = read_full(g, &rt.target_texture(), w, h).expect("read");
     px
 }
@@ -116,8 +144,18 @@ fn animator_graph(gid: &str) -> Graph {
     nodes.push(mk("src", "gen.plasma", [0.0, 0.0]));
     nodes.push(mk("anim", gid, [240.0, 0.0]));
     nodes.push(mk("out", "flux.output", [480.0, 0.0]));
-    edges.push(GraphEdge { from_node: "src".into(), from_port: "color".into(), to_node: "anim".into(), to_port: "source".into() });
-    edges.push(GraphEdge { from_node: "anim".into(), from_port: "color".into(), to_node: "out".into(), to_port: "source".into() });
+    edges.push(GraphEdge {
+        from_node: "src".into(),
+        from_port: "color".into(),
+        to_node: "anim".into(),
+        to_port: "source".into(),
+    });
+    edges.push(GraphEdge {
+        from_node: "anim".into(),
+        from_port: "color".into(),
+        to_node: "out".into(),
+        to_port: "source".into(),
+    });
     Graph {
         id: format!("anim:{}", gid),
         name: gid.into(),
@@ -136,20 +174,37 @@ fn every_generator_row_renders_without_panic() {
         .entries
         .iter()
         .filter(|e| {
-            e.manifest.requirement_ids.iter().any(|r| r.starts_with('G'))
+            e.manifest
+                .requirement_ids
+                .iter()
+                .any(|r| r.starts_with('G'))
                 && e.manifest.implementation.kind == "fragment"
                 && !is_passthrough(&e.source)
         })
         .collect();
-    assert!(generators.len() >= 28, "expected >=28 analytic generators, got {}", generators.len());
+    assert!(
+        generators.len() >= 28,
+        "expected >=28 analytic generators, got {}",
+        generators.len()
+    );
 
     let mut failures = vec![];
     let mut checked = 0;
     for e in &generators {
         let gid = &e.manifest.id;
-        let needs_source = e.manifest.inputs.iter().any(|p| p.id == "source" && p.required);
-        let graph = if needs_source { animator_graph(gid) } else { graph_of(gid, &[]) };
-        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render(&g, &cat, &graph, 0.5, 128, 128)));
+        let needs_source = e
+            .manifest
+            .inputs
+            .iter()
+            .any(|p| p.id == "source" && p.required);
+        let graph = if needs_source {
+            animator_graph(gid)
+        } else {
+            graph_of(gid, &[])
+        };
+        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            render(&g, &cat, &graph, 0.5, 128, 128)
+        }));
         checked += 1;
         if res.is_err() {
             failures.push(format!("{gid}: panicked"));
@@ -165,9 +220,18 @@ fn dense_generators_produce_structure() {
     let g = gpu();
     let cat = build_catalog();
     let dense = [
-        "gen.plasma", "gen.voronoi", "gen.mandelbrot", "gen.fractal_noise", "gen.clouds",
-        "gen.nebula", "gen.concentric", "gen.moire", "gen.topographic", "gen.kaleidoscope",
-        "gen.texture_field", "gen.water_caustic",
+        "gen.plasma",
+        "gen.voronoi",
+        "gen.mandelbrot",
+        "gen.fractal_noise",
+        "gen.clouds",
+        "gen.nebula",
+        "gen.concentric",
+        "gen.moire",
+        "gen.topographic",
+        "gen.kaleidoscope",
+        "gen.texture_field",
+        "gen.water_caustic",
     ];
     let mut failures = vec![];
     let names: Vec<String> = cat.entries.iter().map(|e| e.manifest.id.clone()).collect();
@@ -182,7 +246,10 @@ fn dense_generators_produce_structure() {
             failures.push(format!("{gid}: empty (std {std:.5})"));
         }
     }
-    assert!(failures.is_empty(), "dense generator failures: {failures:#?}");
+    assert!(
+        failures.is_empty(),
+        "dense generator failures: {failures:#?}"
+    );
 }
 
 /// A passthrough presentation shader samples the external `src_tex` and returns
@@ -202,15 +269,37 @@ fn effects_render_over_plasma_and_change_output() {
     let base = render(&g, &cat, &graph_of("gen.plasma", &[]), 0.5, 96, 96);
     let (bm, bs, _) = stats(&base);
     let effects = [
-        "fx.bloom", "fx.pixelate", "fx.halftone", "fx.gradient_map", "fx.warp", "fx.outlines",
-        "fx.colored_edges", "fx.channel_mixer", "fx.color_adjustment", "fx.tone", "fx.blur",
-        "fx.glitch", "fx.vhs", "fx.crt", "fx.geometry", "fx.chromatic", "fx.noise", "fx.print",
-        "fx.technical", "fx.transforms", "fx.smear", "fx.glass", "fx.texture", "fx.keys",
+        "fx.bloom",
+        "fx.pixelate",
+        "fx.halftone",
+        "fx.gradient_map",
+        "fx.warp",
+        "fx.outlines",
+        "fx.colored_edges",
+        "fx.channel_mixer",
+        "fx.color_adjustment",
+        "fx.tone",
+        "fx.blur",
+        "fx.glitch",
+        "fx.vhs",
+        "fx.crt",
+        "fx.geometry",
+        "fx.chromatic",
+        "fx.noise",
+        "fx.print",
+        "fx.technical",
+        "fx.transforms",
+        "fx.smear",
+        "fx.glass",
+        "fx.texture",
+        "fx.keys",
     ];
     let mut failures = vec![];
     for e in effects {
         let graph = graph_of("gen.plasma", &[e]);
-        let px = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render(&g, &cat, &graph, 0.5, 96, 96)));
+        let px = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            render(&g, &cat, &graph, 0.5, 96, 96)
+        }));
         match px {
             Ok(px) => {
                 let (m, s, distinct) = stats(&px);
@@ -253,5 +342,8 @@ fn solid_pixels_have_expected_alpha_and_color() {
     let px = render(&g, &cat, &graph_of("gen.solid", &[]), 0.0, 32, 32);
     let center = (16 * 32 + 16) * 4;
     let p = &px[center..center + 4];
-    assert!(p[0] > 200 && p[1] > 200 && p[2] > 200 && p[3] > 200, "solid pixel {p:?}");
+    assert!(
+        p[0] > 200 && p[1] > 200 && p[2] > 200 && p[3] > 200,
+        "solid pixel {p:?}"
+    );
 }

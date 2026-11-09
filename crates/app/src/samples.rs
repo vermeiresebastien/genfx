@@ -32,7 +32,9 @@ pub fn demo_generator_project(generator_id: &str, effects: &[&str], seconds: i64
     let clip = Clip {
         id: uuid::Uuid::new_v4().to_string(),
         name: generator_id.into(),
-        source: ClipSource::GeneratorScene { generator_id: generator_id.into() },
+        source: ClipSource::GeneratorScene {
+            generator_id: generator_id.into(),
+        },
         range: TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(seconds.max(1))),
         source_range: TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(seconds.max(1))),
         rate: RationalTime::new(1, 1).unwrap(),
@@ -77,12 +79,22 @@ pub fn chain_graph(generator_id: &str, effects: &[&str]) -> Graph {
     let mut x = 240.0;
     for e in effects {
         let n = add(e, [x, 0.0]);
-        edges.push(GraphEdge { from_node: prev.clone(), from_port: "color".into(), to_node: n.clone(), to_port: "source".into() });
+        edges.push(GraphEdge {
+            from_node: prev.clone(),
+            from_port: "color".into(),
+            to_node: n.clone(),
+            to_port: "source".into(),
+        });
         prev = n;
         x += 240.0;
     }
     let out = add("flux.output", [x, 0.0]);
-    edges.push(GraphEdge { from_node: prev, from_port: "color".into(), to_node: out.clone(), to_port: "source".into() });
+    edges.push(GraphEdge {
+        from_node: prev,
+        from_port: "color".into(),
+        to_node: out.clone(),
+        to_port: "source".into(),
+    });
     let _ = index;
     index += 1;
     Graph {
@@ -146,7 +158,13 @@ pub fn insert_preset(preset: &Preset) -> Graph {
 pub fn demo_media_project(video_path: &std::path::Path, seconds: i64) -> Project {
     let worker = flux_media::MediaWorker::new().ok();
     let mut p = Project::new(
-        format!("Media {}", video_path.file_name().and_then(|s| s.to_str()).unwrap_or("clip")),
+        format!(
+            "Media {}",
+            video_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("clip")
+        ),
         777,
     );
     let dur = RationalTime::from_secs(seconds.max(1));

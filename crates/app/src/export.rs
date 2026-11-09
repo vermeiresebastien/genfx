@@ -16,7 +16,7 @@ use flux_render::graph_exec::RuntimeGraph;
 use flux_render::pipeline::{EffectCompiler, NodeParamsBuffer};
 use flux_render::preview::read_full;
 use flux_render::{BackendPref, Gpu};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -57,11 +57,16 @@ pub fn export_project(
     let fps = project.settings.frame_rate;
     let (start, duration) = match opts.range {
         Some((s, d)) => (s, d),
-        None => (project.timeline.range.start, project.timeline.range.duration),
+        None => (
+            project.timeline.range.start,
+            project.timeline.range.duration,
+        ),
     };
     let total = export_frame_count(duration, fps);
 
-    let frames_dir = opts.out_dir.join(format!("{}_frames", sanitize(&opts.project_name)));
+    let frames_dir = opts
+        .out_dir
+        .join(format!("{}_frames", sanitize(&opts.project_name)));
     std::fs::create_dir_all(&frames_dir)?;
 
     // Determine which graph to render: the master graph if present, else build a
@@ -75,7 +80,11 @@ pub fn export_project(
     let mut rendered = 0u64;
     for i in 0..total {
         if opts.cancel.load(Ordering::Relaxed) {
-            return Err(FluxError::new(flux_domain::ErrorCode::MediaDecode, "export", "cancelled"));
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::MediaDecode,
+                "export",
+                "cancelled",
+            ));
         }
         let t = start
             .add(frame_time(i, fps)?)
@@ -103,22 +112,46 @@ pub fn export_project(
 
     // Audio: deterministic stereo mix of the range.
     let samples = mix_audio(project, start, duration)?;
-    let wav_path = opts.out_dir.join(format!("{}.wav", sanitize(&opts.project_name)));
-    flux_media::write_wav_stereo(&wav_path, project.settings.audio.sample_rate, &samples.samples)?;
+    let wav_path = opts
+        .out_dir
+        .join(format!("{}.wav", sanitize(&opts.project_name)));
+    flux_media::write_wav_stereo(
+        &wav_path,
+        project.settings.audio.sample_rate,
+        &samples.samples,
+    )?;
 
     // Encode video if requested and supported.
     let mut video = None;
     if !matches!(opts.codec, EncodeCodec::None) {
         if let Ok(worker) = MediaWorker::new() {
             let fps_str = format!("{}/{}", fps.num, fps.den);
-            let out = opts.out_dir.join(format!("{}.mp4", sanitize(&opts.project_name)));
+            let out = opts
+                .out_dir
+                .join(format!("{}.mp4", sanitize(&opts.project_name)));
             let res = if matches!(opts.codec, EncodeCodec::Gif) {
-                worker.encode_video_from_frames(&frames_dir, &fps_str, None, &out.with_extension("gif"), EncodeCodec::Gif)
+                worker.encode_video_from_frames(
+                    &frames_dir,
+                    &fps_str,
+                    None,
+                    &out.with_extension("gif"),
+                    EncodeCodec::Gif,
+                )
             } else {
-                worker.encode_video_from_frames(&frames_dir, &fps_str, Some(&wav_path), &out, opts.codec)
+                worker.encode_video_from_frames(
+                    &frames_dir,
+                    &fps_str,
+                    Some(&wav_path),
+                    &out,
+                    opts.codec,
+                )
             };
             if res.is_ok() {
-                video = Some(if matches!(opts.codec, EncodeCodec::Gif) { out.with_extension("gif") } else { out });
+                video = Some(if matches!(opts.codec, EncodeCodec::Gif) {
+                    out.with_extension("gif")
+                } else {
+                    out
+                });
             }
         }
     }
@@ -198,15 +231,27 @@ fn render_single_frame(
         let entry = catalog.get(&pass.type_id);
         let mut buf = match entry {
             Some(e) => NodeParamsBuffer::defaults(&e.manifest),
-            None => NodeParamsBuffer { floats: vec![[0.0; 4]], uints: vec![[0u32; 4]] },
+            None => NodeParamsBuffer {
+                floats: vec![[0.0; 4]],
+                uints: vec![[0u32; 4]],
+            },
         };
         if let Some(e) = entry {
-            let values = router.resolve_node(&graph, &pass.node_id, ctx.project_time, &snapshot, ctx.sim_dt, project)?;
+            let values = router.resolve_node(
+                &graph,
+                &pass.node_id,
+                ctx.project_time,
+                &snapshot,
+                ctx.sim_dt,
+                project,
+            )?;
             let (_, layout) = flux_catalog::pack::params_wgsl(&e.manifest.parameters);
             for slot in &layout.slots {
                 if let Some(v) = values.get(&slot.id) {
                     match slot.kind {
-                        flux_catalog::pack::SlotKind::F32 => buf.floats[slot.vec4_index][slot.component] = *v as f32,
+                        flux_catalog::pack::SlotKind::F32 => {
+                            buf.floats[slot.vec4_index][slot.component] = *v as f32
+                        }
                         flux_catalog::pack::SlotKind::U32 => {
                             buf.uints[slot.vec4_index][slot.component] = (*v).max(0.0) as u32
                         }
@@ -224,7 +269,11 @@ fn render_single_frame(
     if let Some(worker) = worker {
         for it in &items {
             if let RenderItem::Clip { clip, .. } = it {
-                if let flux_engine::timeline::ResolvedSource::Asset { asset_id, source_time } = &clip.source {
+                if let flux_engine::timeline::ResolvedSource::Asset {
+                    asset_id,
+                    source_time,
+                } = &clip.source
+                {
                     if let Some(asset) = project.assets.get(asset_id) {
                         let cancel = Arc::new(AtomicBool::new(false));
                         if let Ok(frame) = worker.decode_rgba_frame(
@@ -245,7 +294,11 @@ fn render_single_frame(
     let src_pixels = source_pixels.unwrap_or_else(|| vec![0u8; (width * height * 4) as usize]);
     let src_tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("export-src"),
-        size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -254,17 +307,153 @@ fn render_single_frame(
         view_formats: &[],
     });
     gpu.queue.write_texture(
-        wgpu::TexelCopyTextureInfo { texture: &src_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyTextureInfo {
+            texture: &src_tex,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
         &src_pixels,
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) },
-        wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(width * 4),
+            rows_per_image: Some(height),
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
     );
     let src_view = src_tex.create_view(&Default::default());
-    rt.execute(gpu, compiler, catalog, ctx, &src_view, &resolved, 1.0)?;
+
+    // Produce content for producer-backed nodes (vector/text/etc.) using the
+    // same contract the GUI uses. Textures are kept alive for the execute call.
+    let mut producer_textures: Vec<(wgpu::Texture, wgpu::TextureView)> = Vec::new();
+    let mut producer_views: HashMap<String, wgpu::TextureView> = HashMap::new();
+    for pass in &rt.compiled.passes {
+        if let Some(e) = catalog.get(&pass.type_id) {
+            let values = router.resolve_node(
+                &graph,
+                &pass.node_id,
+                ctx.project_time,
+                &snapshot,
+                ctx.sim_dt,
+                project,
+            )?;
+            // Start from manifest defaults + the node's stored params so colours,
+            // enums and vectors keep their true values; float params use the
+            // resolved (keyframed/modulated) value.
+            let mut params_map: BTreeMap<String, flux_domain::ParamValue> = BTreeMap::new();
+            let node = graph.node(&pass.node_id);
+            for p in &e.manifest.parameters {
+                let mut pv = param_value_from_json(&p.default);
+                if let Some(n) = node.and_then(|n| n.params.get(&p.id)) {
+                    pv = n.clone();
+                }
+                if let Some(v) = values.get(&p.id) {
+                    if matches!(p.kind, flux_catalog::ParamKind::Float) {
+                        pv = flux_domain::ParamValue::Float { value: *v };
+                    }
+                }
+                params_map.insert(p.id.clone(), pv);
+            }
+            let t = ctx.project_time.as_f64();
+            if let Some(rgba) = crate::producer::produce_node(
+                &pass.type_id,
+                &params_map,
+                width,
+                height,
+                t,
+                ctx.project_seed,
+            )? {
+                let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("producer"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                });
+                gpu.queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &tex,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &rgba,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(width * 4),
+                        rows_per_image: Some(height),
+                    },
+                    wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+                let view = tex.create_view(&Default::default());
+                producer_views.insert(pass.node_id.clone(), view.clone());
+                producer_textures.push((tex, view));
+            }
+        }
+    }
+
+    rt.execute_with_producers(
+        gpu,
+        compiler,
+        catalog,
+        ctx,
+        &src_view,
+        &resolved,
+        1.0,
+        &producer_views,
+    )?;
 
     // Read at full resolution.
     let (_w, _h, px) = read_full(gpu, &rt.target_texture(), width, height)?;
+    let _ = producer_textures;
     Ok(px)
+}
+
+/// Convert a manifest default JSON value into a `ParamValue`.
+fn param_value_from_json(v: &serde_json::Value) -> flux_domain::ParamValue {
+    use flux_domain::ParamValue;
+    if let Some(f) = v.as_f64() {
+        return ParamValue::Float { value: f };
+    }
+    if let Some(b) = v.as_bool() {
+        return ParamValue::Bool { value: b };
+    }
+    if let Some(s) = v.as_str() {
+        return ParamValue::Enum {
+            value: s.to_string(),
+        };
+    }
+    if let Some(a) = v.as_array() {
+        let nums: Vec<f64> = a.iter().filter_map(|x| x.as_f64()).collect();
+        return match nums.len() {
+            4 => ParamValue::Color {
+                value: [nums[0], nums[1], nums[2], nums[3]],
+            },
+            3 => ParamValue::Vec3 {
+                value: [nums[0], nums[1], nums[2]],
+            },
+            2 => ParamValue::Vec2 {
+                value: [nums[0], nums[1]],
+            },
+            _ => ParamValue::Float { value: 0.0 },
+        };
+    }
+    ParamValue::Float { value: 0.0 }
 }
 
 fn clip_graph_for(project: &Project, clip: &flux_engine::VisibleClip) -> Option<String> {
@@ -274,7 +463,9 @@ fn clip_graph_for(project: &Project, clip: &flux_engine::VisibleClip) -> Option<
             return Some(gid.clone());
         }
         match &c.source {
-            ClipSource::GeneratorScene { generator_id } => return Some(format!("generator:{}", generator_id)),
+            ClipSource::GeneratorScene { generator_id } => {
+                return Some(format!("generator:{}", generator_id))
+            }
             ClipSource::Asset { .. } => return Some("asset".into()),
             _ => {}
         }
@@ -290,10 +481,31 @@ pub fn asset_passthrough_graph() -> flux_domain::Graph {
         id: "export.asset".into(),
         name: "asset".into(),
         nodes: vec![
-            GraphNode { id: "src".into(), type_id: "flux.source".into(), type_version: 1, position: [0.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
-            GraphNode { id: "out".into(), type_id: "flux.output".into(), type_version: 1, position: [240.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
+            GraphNode {
+                id: "src".into(),
+                type_id: "flux.source".into(),
+                type_version: 1,
+                position: [0.0, 0.0],
+                params: BTreeMap::new(),
+                bypass: false,
+                missing_type: false,
+            },
+            GraphNode {
+                id: "out".into(),
+                type_id: "flux.output".into(),
+                type_version: 1,
+                position: [240.0, 0.0],
+                params: BTreeMap::new(),
+                bypass: false,
+                missing_type: false,
+            },
         ],
-        edges: vec![GraphEdge { from_node: "src".into(), from_port: "color".into(), to_node: "out".into(), to_port: "source".into() }],
+        edges: vec![GraphEdge {
+            from_node: "src".into(),
+            from_port: "color".into(),
+            to_node: "out".into(),
+            to_port: "source".into(),
+        }],
         output_node: "out".into(),
         keyframes: BTreeMap::new(),
     }
@@ -304,7 +516,12 @@ pub fn solid_fallback() -> flux_domain::Graph {
     use flux_domain::{Graph, GraphEdge, GraphNode};
     use std::collections::BTreeMap;
     let mut params = BTreeMap::new();
-    params.insert("color".to_string(), flux_domain::ParamValue::Color { value: [0.0, 0.0, 0.0, 0.0] });
+    params.insert(
+        "color".to_string(),
+        flux_domain::ParamValue::Color {
+            value: [0.0, 0.0, 0.0, 0.0],
+        },
+    );
     Graph {
         id: "export.solid".into(),
         name: "solid".into(),
@@ -379,7 +596,11 @@ pub fn generator_graph(generator_id: &str) -> flux_domain::Graph {
 
 /// Deterministic stereo mix of a project range. Audio clips are decoded from
 /// their asset and placed at their timeline positions with gain/pan/fades.
-fn mix_audio(project: &Project, start: RationalTime, duration: RationalTime) -> FluxResult<MixedAudio> {
+fn mix_audio(
+    project: &Project,
+    start: RationalTime,
+    duration: RationalTime,
+) -> FluxResult<MixedAudio> {
     let sr = project.settings.audio.sample_rate;
     let one_sample = RationalTime::new(1, sr).unwrap();
     let total_samples = duration.div_round(one_sample).max(0) as usize;
@@ -392,13 +613,18 @@ fn mix_audio(project: &Project, start: RationalTime, duration: RationalTime) -> 
             continue;
         }
         for clip in project.timeline.track_clips(&track.id) {
-            let ClipSource::Asset { asset_id } = &clip.source else { continue };
-            let Some(asset) = project.assets.get(asset_id) else { continue };
-            let Some(worker) = &worker else { continue };
-            let track_audio = match worker.decode_audio_stereo(std::path::Path::new(&asset.original_path), sr) {
-                Ok(a) => a,
-                Err(_) => continue,
+            let ClipSource::Asset { asset_id } = &clip.source else {
+                continue;
             };
+            let Some(asset) = project.assets.get(asset_id) else {
+                continue;
+            };
+            let Some(worker) = &worker else { continue };
+            let track_audio =
+                match worker.decode_audio_stereo(std::path::Path::new(&asset.original_path), sr) {
+                    Ok(a) => a,
+                    Err(_) => continue,
+                };
             let clip_start_off = clip.range.start.sub(start).unwrap_or(RationalTime::ZERO);
             let offset_samples = if clip_start_off.is_negative() {
                 0
@@ -406,7 +632,8 @@ fn mix_audio(project: &Project, start: RationalTime, duration: RationalTime) -> 
                 clip_start_off.div_round(one_sample) as usize
             };
             let src_off = clip.source_range.start.div_round(one_sample) as usize * 2;
-            let n = ((clip.range.duration.div_round(one_sample)) as usize * 2).min(track_audio.samples.len());
+            let n = ((clip.range.duration.div_round(one_sample)) as usize * 2)
+                .min(track_audio.samples.len());
             let mut seg = vec![0.0f32; n];
             for i in 0..n {
                 if src_off + i < track_audio.samples.len() {
@@ -419,7 +646,13 @@ fn mix_audio(project: &Project, start: RationalTime, duration: RationalTime) -> 
                 mixer.apply_fade(&mut seg, fi, fo);
             }
             let target = &mut out[offset_samples * 2..];
-            mixer.mix_stereo(target, &seg, 2, clip.audio.gain_db + track.gain_db, clip.audio.pan);
+            mixer.mix_stereo(
+                target,
+                &seg,
+                2,
+                clip.audio.gain_db + track.gain_db,
+                clip.audio.pan,
+            );
         }
     }
     Ok(MixedAudio { samples: out })
@@ -431,7 +664,13 @@ pub struct MixedAudio {
 
 fn sanitize(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -441,7 +680,11 @@ trait FluxErrorInternal {
 
 impl FluxErrorInternal for FluxError {
     fn new_internal(e: flux_domain::time::RationalError) -> FluxError {
-        FluxError::new(flux_domain::ErrorCode::InvalidCommand, "time", e.to_string())
+        FluxError::new(
+            flux_domain::ErrorCode::InvalidCommand,
+            "time",
+            e.to_string(),
+        )
     }
 }
 
@@ -469,7 +712,8 @@ pub fn contact_sheet(
         let graph = crate::samples::chain_graph("gen.plasma", &[eff.as_str()]);
         let key = graph.id.clone();
         if !cache.contains_key(&key) {
-            let rt = RuntimeGraph::activate(&gpu, &mut compiler, &catalog, &graph, cell_w, cell_h, 1)?;
+            let rt =
+                RuntimeGraph::activate(&gpu, &mut compiler, &catalog, &graph, cell_w, cell_h, 1)?;
             cache.insert(key.clone(), rt);
         }
         let rt = cache.get_mut(&key).unwrap();
@@ -478,13 +722,24 @@ pub fn contact_sheet(
         for pass in &rt.compiled.passes {
             if let Some(e) = catalog.get(&pass.type_id) {
                 let mut buf = NodeParamsBuffer::defaults(&e.manifest);
-                let vals = router.resolve_node(&graph, &pass.node_id, ctx.project_time, &snap, ctx.sim_dt, &project)?;
+                let vals = router.resolve_node(
+                    &graph,
+                    &pass.node_id,
+                    ctx.project_time,
+                    &snap,
+                    ctx.sim_dt,
+                    &project,
+                )?;
                 let (_, layout) = flux_catalog::pack::params_wgsl(&e.manifest.parameters);
                 for slot in &layout.slots {
                     if let Some(v) = vals.get(&slot.id) {
                         match slot.kind {
-                            flux_catalog::pack::SlotKind::F32 => buf.floats[slot.vec4_index][slot.component] = *v as f32,
-                            flux_catalog::pack::SlotKind::U32 => buf.uints[slot.vec4_index][slot.component] = (*v).max(0.0) as u32,
+                            flux_catalog::pack::SlotKind::F32 => {
+                                buf.floats[slot.vec4_index][slot.component] = *v as f32
+                            }
+                            flux_catalog::pack::SlotKind::U32 => {
+                                buf.uints[slot.vec4_index][slot.component] = (*v).max(0.0) as u32
+                            }
                             _ => {}
                         }
                     }
@@ -494,8 +749,14 @@ pub fn contact_sheet(
         }
         let src = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
-            size: wgpu::Extent3d { width: cell_w, height: cell_h, depth_or_array_layers: 1 },
-            mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2,
+            size: wgpu::Extent3d {
+                width: cell_w,
+                height: cell_h,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
@@ -509,7 +770,8 @@ pub fn contact_sheet(
         for y in 0..cell_h {
             let dst = (((cy + y) * out_w + cx) * 4) as usize;
             let s = ((y * cell_w) * 4) as usize;
-            sheet[dst..dst + (cell_w * 4) as usize].copy_from_slice(&px[s..s + (cell_w * 4) as usize]);
+            sheet[dst..dst + (cell_w * 4) as usize]
+                .copy_from_slice(&px[s..s + (cell_w * 4) as usize]);
         }
     }
     Ok((out_w, out_h, sheet))

@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the verified host in this run. macOS matrix entries are
+        # declared so when macOS runners exist they run the same steps; they are
+        # not claimed as verified until a real run exists.
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy (no deny)
+        run: cargo clippy --workspace --all-targets -- -A warnings
+      - name: Workspace tests
+        run: cargo test --workspace
+      - name: Catalog validation
+        run: cargo run -q -p xtask -- catalog
+      - name: Doctor (capabilities)
+        run: cargo run -q -p xtask -- doctor
+      - name: GPU catalog shader compile
+        run: cargo run -q -p xtask -- test-gpu --profile baseline
+      - name: Media fixtures
+        run: cargo run -q -p xtask -- fixtures
+      - name: Release build
+        run: cargo build --release -p flux-app
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-${{ matrix.os }}
+          path: implementation/evidence/**

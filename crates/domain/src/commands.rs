@@ -118,7 +118,13 @@ pub struct Dispatcher {
 
 impl Dispatcher {
     pub fn new(project: Project) -> Self {
-        Self { project, revision: 0, undo: vec![], redo: vec![], max_undo: 200 }
+        Self {
+            project,
+            revision: 0,
+            undo: vec![],
+            redo: vec![],
+            max_undo: 200,
+        }
     }
 
     pub fn can_undo(&self) -> bool {
@@ -176,7 +182,9 @@ impl Dispatcher {
     }
 
     pub fn undo(&mut self) -> FluxResult<Option<u64>> {
-        let Some(tx) = self.undo.pop() else { return Ok(None) };
+        let Some(tx) = self.undo.pop() else {
+            return Ok(None);
+        };
         let Some(inv) = tx.inverse.clone() else {
             return Ok(None);
         };
@@ -196,7 +204,9 @@ impl Dispatcher {
     }
 
     pub fn redo(&mut self) -> FluxResult<Option<u64>> {
-        let Some(tx) = self.redo.pop() else { return Ok(None) };
+        let Some(tx) = self.redo.pop() else {
+            return Ok(None);
+        };
         let Some(redo_cmd) = tx.inverse.clone() else {
             return Ok(None);
         };
@@ -225,7 +235,9 @@ impl Dispatcher {
                 p.timeline.tracks.insert(track.id.clone(), track.clone());
                 p.timeline.track_order.push(track.id.clone());
                 applied.set("add track", vec![track.id.clone()]);
-                Ok(Some(Command::RemoveTrack { track_id: track.id.clone() }))
+                Ok(Some(Command::RemoveTrack {
+                    track_id: track.id.clone(),
+                }))
             }
             Command::RemoveTrack { track_id } => {
                 let track = p
@@ -254,7 +266,9 @@ impl Dispatcher {
                 track.clip_order.push(clip.id.clone());
                 p.timeline.clips.insert(clip.id.clone(), clip.clone());
                 applied.set("add clip", vec![clip.id.clone()]);
-                Ok(Some(Command::RemoveClip { clip_id: clip.id.clone() }))
+                Ok(Some(Command::RemoveClip {
+                    clip_id: clip.id.clone(),
+                }))
             }
             Command::RemoveClip { clip_id } => {
                 let clip = p
@@ -262,7 +276,8 @@ impl Dispatcher {
                     .clips
                     .remove(clip_id)
                     .ok_or_else(|| cmd_err("clip not found"))?;
-                let track_id = find_track_of_clip(&p.timeline, clip_id).ok_or_else(|| cmd_err("track not found"))?;
+                let track_id = find_track_of_clip(&p.timeline, clip_id)
+                    .ok_or_else(|| cmd_err("track not found"))?;
                 if let Some(t) = p.timeline.tracks.get_mut(&track_id) {
                     t.clip_order.retain(|id| id != clip_id);
                 }
@@ -271,7 +286,11 @@ impl Dispatcher {
             }
             Command::MoveClip { clip_id, new_start } => {
                 let old_start = {
-                    let clip = p.timeline.clips.get(clip_id).ok_or_else(|| cmd_err("clip not found"))?;
+                    let clip = p
+                        .timeline
+                        .clips
+                        .get(clip_id)
+                        .ok_or_else(|| cmd_err("clip not found"))?;
                     clip.range.start
                 };
                 if new_start.is_negative() {
@@ -280,27 +299,49 @@ impl Dispatcher {
                 let clip = p.timeline.clips.get_mut(clip_id).unwrap();
                 clip.range.start = *new_start;
                 applied.set("move clip", vec![clip_id.clone()]);
-                Ok(Some(Command::MoveClip { clip_id: clip_id.clone(), new_start: old_start }))
+                Ok(Some(Command::MoveClip {
+                    clip_id: clip_id.clone(),
+                    new_start: old_start,
+                }))
             }
             Command::TrimStart { clip_id, delta } => {
                 trim_start(p, clip_id, *delta)?;
                 applied.set("trim", vec![clip_id.clone()]);
-                Ok(Some(Command::TrimStart { clip_id: clip_id.clone(), delta: delta.neg() }))
+                Ok(Some(Command::TrimStart {
+                    clip_id: clip_id.clone(),
+                    delta: delta.neg(),
+                }))
             }
             Command::TrimEnd { clip_id, delta } => {
                 trim_end(p, clip_id, *delta)?;
                 applied.set("trim", vec![clip_id.clone()]);
-                Ok(Some(Command::TrimEnd { clip_id: clip_id.clone(), delta: delta.neg() }))
+                Ok(Some(Command::TrimEnd {
+                    clip_id: clip_id.clone(),
+                    delta: delta.neg(),
+                }))
             }
             Command::SplitClip { clip_id, at } => {
                 let (second, _range_before) = split_clip(p, clip_id, *at)?;
                 applied.set("split clip", vec![clip_id.clone(), second.id.clone()]);
-                Ok(Some(Command::SplitClip { clip_id: second.id.clone(), at: *at }))
+                Ok(Some(Command::SplitClip {
+                    clip_id: second.id.clone(),
+                    at: *at,
+                }))
             }
-            Command::SetParameter { graph_id, node_id, param_id, value } => {
+            Command::SetParameter {
+                graph_id,
+                node_id,
+                param_id,
+                value,
+            } => {
                 ensure_finite(value)?;
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
-                let node = graph.node_mut(node_id).ok_or_else(|| cmd_err("node not found"))?;
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
+                let node = graph
+                    .node_mut(node_id)
+                    .ok_or_else(|| cmd_err("node not found"))?;
                 let old = node.params.get(param_id).cloned();
                 node.params.insert(param_id.clone(), value.clone());
                 applied.set("set parameter", vec![node_id.clone()]);
@@ -313,7 +354,10 @@ impl Dispatcher {
                 Ok(Some(inverse))
             }
             Command::AddNode { graph_id, node } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
                 if graph.nodes.iter().any(|n| n.id == node.id) {
                     return Err(cmd_err("node already exists"));
                 }
@@ -325,7 +369,10 @@ impl Dispatcher {
                 }))
             }
             Command::RemoveNodes { graph_id, node_ids } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
                 if node_ids.iter().any(|id| id == &graph.output_node) {
                     return Err(cmd_err("cannot remove the output node"));
                 }
@@ -341,10 +388,16 @@ impl Dispatcher {
                     .retain(|e| !node_ids.contains(&e.from_node) && !node_ids.contains(&e.to_node));
                 applied.set("remove nodes", node_ids.clone());
                 // Restoring multiple nodes: add them back individually in order.
-                Ok(Some(Command::AddNodesBatch { graph_id: graph_id.clone(), nodes: removed }))
+                Ok(Some(Command::AddNodesBatch {
+                    graph_id: graph_id.clone(),
+                    nodes: removed,
+                }))
             }
             Command::AddNodesBatch { graph_id, nodes } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
                 for n in nodes {
                     graph.nodes.push(n.clone());
                 }
@@ -353,8 +406,17 @@ impl Dispatcher {
                     node_ids: nodes.iter().map(|n| n.id.clone()).collect(),
                 }))
             }
-            Command::Connect { graph_id, from_node, from_port, to_node, to_port } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
+            Command::Connect {
+                graph_id,
+                from_node,
+                from_port,
+                to_node,
+                to_port,
+            } => {
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
                 if graph.node(from_node).is_none() || graph.node(to_node).is_none() {
                     return Err(cmd_err("edge endpoint missing"));
                 }
@@ -365,10 +427,19 @@ impl Dispatcher {
                     to_port: to_port.clone(),
                 });
                 applied.set("connect", vec![to_node.clone()]);
-                Ok(Some(Command::Disconnect { graph_id: graph_id.clone(), edge_index: usize::MAX }))
+                Ok(Some(Command::Disconnect {
+                    graph_id: graph_id.clone(),
+                    edge_index: usize::MAX,
+                }))
             }
-            Command::Disconnect { graph_id, edge_index } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
+            Command::Disconnect {
+                graph_id,
+                edge_index,
+            } => {
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
                 let idx = if *edge_index == usize::MAX {
                     graph.edges.len().saturating_sub(1)
                 } else {
@@ -387,12 +458,25 @@ impl Dispatcher {
                     to_port: edge.to_port,
                 }))
             }
-            Command::SetBypass { graph_id, node_id, bypass } => {
-                let graph = p.graphs.get_mut(graph_id).ok_or_else(|| cmd_err("graph not found"))?;
-                let node = graph.node_mut(node_id).ok_or_else(|| cmd_err("node not found"))?;
+            Command::SetBypass {
+                graph_id,
+                node_id,
+                bypass,
+            } => {
+                let graph = p
+                    .graphs
+                    .get_mut(graph_id)
+                    .ok_or_else(|| cmd_err("graph not found"))?;
+                let node = graph
+                    .node_mut(node_id)
+                    .ok_or_else(|| cmd_err("node not found"))?;
                 let old = node.bypass;
                 node.bypass = *bypass;
-                Ok(Some(Command::SetBypass { graph_id: graph_id.clone(), node_id: node_id.clone(), bypass: old }))
+                Ok(Some(Command::SetBypass {
+                    graph_id: graph_id.clone(),
+                    node_id: node_id.clone(),
+                    bypass: old,
+                }))
             }
             Command::AddAsset { asset } => {
                 if p.assets.contains_key(&asset.id) {
@@ -400,16 +484,23 @@ impl Dispatcher {
                 }
                 p.assets.insert(asset.id.clone(), asset.clone());
                 applied.set("import asset", vec![asset.id.clone()]);
-                Ok(Some(Command::RemoveAsset { asset_id: asset.id.clone() }))
+                Ok(Some(Command::RemoveAsset {
+                    asset_id: asset.id.clone(),
+                }))
             }
             Command::RemoveAsset { asset_id } => {
-                let a = p.assets.remove(asset_id).ok_or_else(|| cmd_err("asset not found"))?;
+                let a = p
+                    .assets
+                    .remove(asset_id)
+                    .ok_or_else(|| cmd_err("asset not found"))?;
                 Ok(Some(Command::AddAsset { asset: a }))
             }
             Command::AddMarker { marker } => {
                 p.markers.push(marker.clone());
                 applied.set("add marker", vec![marker.id.clone()]);
-                Ok(Some(Command::RemoveMarker { marker_id: marker.id.clone() }))
+                Ok(Some(Command::RemoveMarker {
+                    marker_id: marker.id.clone(),
+                }))
             }
             Command::RemoveMarker { marker_id } => {
                 let idx = p
@@ -452,7 +543,11 @@ fn ensure_finite(v: &ParamValue) -> FluxResult<()> {
         if x.is_finite() {
             Ok(())
         } else {
-            Err(FluxError::new(ErrorCode::ParamNonfinite, "domain", "non-finite parameter"))
+            Err(FluxError::new(
+                ErrorCode::ParamNonfinite,
+                "domain",
+                "non-finite parameter",
+            ))
         }
     };
     match v {
@@ -471,7 +566,10 @@ fn validate_range(r: &TimeRange) -> FluxResult<()> {
     if r.duration.is_negative() || r.duration.is_zero() {
         return Err(cmd_err("range duration must be positive"));
     }
-    if r.duration.cmp_exact(&RationalTime::from_secs(MAX_PROJECT_SECONDS)) == std::cmp::Ordering::Greater {
+    if r.duration
+        .cmp_exact(&RationalTime::from_secs(MAX_PROJECT_SECONDS))
+        == std::cmp::Ordering::Greater
+    {
         return Err(cmd_err("range exceeds maximum project duration"));
     }
     Ok(())
@@ -503,7 +601,11 @@ fn find_track_of_clip(timeline: &Timeline, clip_id: &str) -> Option<String> {
 /// Trim start by `delta` seconds. Positive delta moves the in-point later.
 /// Retained content keeps its prior source mapping.
 fn trim_start(p: &mut Project, clip_id: &str, delta: RationalTime) -> FluxResult<()> {
-    let clip = p.timeline.clips.get(clip_id).ok_or_else(|| cmd_err("clip not found"))?;
+    let clip = p
+        .timeline
+        .clips
+        .get(clip_id)
+        .ok_or_else(|| cmd_err("clip not found"))?;
     let new_start = clip.range.start.add(delta)?;
     let new_duration = clip.range.duration.sub(delta)?;
     let new_source_start = clip.source_range.start.add(delta)?;
@@ -515,7 +617,8 @@ fn trim_start(p: &mut Project, clip_id: &str, delta: RationalTime) -> FluxResult
     if new_duration.is_negative() {
         return Err(cmd_err("clip would become negative"));
     }
-    if loop_policy == LoopPolicy::None && new_source_start.cmp_exact(&source_end_for_start) == std::cmp::Ordering::Greater
+    if loop_policy == LoopPolicy::None
+        && new_source_start.cmp_exact(&source_end_for_start) == std::cmp::Ordering::Greater
     {
         return Err(cmd_err("trim exceeds source in point"));
     }
@@ -528,7 +631,11 @@ fn trim_start(p: &mut Project, clip_id: &str, delta: RationalTime) -> FluxResult
 }
 
 fn trim_end(p: &mut Project, clip_id: &str, delta: RationalTime) -> FluxResult<()> {
-    let clip = p.timeline.clips.get_mut(clip_id).ok_or_else(|| cmd_err("clip not found"))?;
+    let clip = p
+        .timeline
+        .clips
+        .get_mut(clip_id)
+        .ok_or_else(|| cmd_err("clip not found"))?;
     let new_src_dur = clip.source_range.duration.add(delta)?;
     let new_duration = clip.range.duration.add(delta)?;
     if new_src_dur.is_negative() || new_duration.is_negative() {
@@ -542,7 +649,12 @@ fn trim_end(p: &mut Project, clip_id: &str, delta: RationalTime) -> FluxResult<(
 /// Split a clip at project time `at`. Returns the right half and the original
 /// range for inverse reconstruction.
 fn split_clip(p: &mut Project, clip_id: &str, at: RationalTime) -> FluxResult<(Clip, TimeRange)> {
-    let clip = p.timeline.clips.get(clip_id).cloned().ok_or_else(|| cmd_err("clip not found"))?;
+    let clip = p
+        .timeline
+        .clips
+        .get(clip_id)
+        .cloned()
+        .ok_or_else(|| cmd_err("clip not found"))?;
     let end = clip.range.end()?;
     if at.cmp_exact(&clip.range.start) != std::cmp::Ordering::Greater
         || at.cmp_exact(&end) != std::cmp::Ordering::Less
@@ -564,7 +676,8 @@ fn split_clip(p: &mut Project, clip_id: &str, at: RationalTime) -> FluxResult<(C
         source_range: TimeRange::new(right_src_start, right_dur),
         ..clip
     };
-    let track_id = find_track_of_clip(&p.timeline, clip_id).ok_or_else(|| cmd_err("track missing"))?;
+    let track_id =
+        find_track_of_clip(&p.timeline, clip_id).ok_or_else(|| cmd_err("track missing"))?;
     if let Some(t) = p.timeline.tracks.get_mut(&track_id) {
         if let Some(pos) = t.clip_order.iter().position(|c| c == clip_id) {
             t.clip_order.insert(pos + 1, right.id.clone());
@@ -579,7 +692,12 @@ fn split_clip(p: &mut Project, clip_id: &str, at: RationalTime) -> FluxResult<(C
 pub fn clip_local_to_source(clip: &Clip, local: RationalTime) -> FluxResult<RationalTime> {
     let scaled = local
         .mul_int(clip.rate.numerator())
-        .map(|r| RationalTime::new(r.numerator(), r.denominator().saturating_mul(clip.rate.denominator())))
+        .map(|r| {
+            RationalTime::new(
+                r.numerator(),
+                r.denominator().saturating_mul(clip.rate.denominator()),
+            )
+        })
         .map_err(FluxError::from)??;
     Ok(clip.source_range.start.add(scaled)?)
 }
@@ -624,7 +742,9 @@ mod tests {
         Clip {
             id: "clip1".into(),
             name: "C".into(),
-            source: ClipSource::GeneratorScene { generator_id: "gen.test".into() },
+            source: ClipSource::GeneratorScene {
+                generator_id: "gen.test".into(),
+            },
             range: TimeRange::new(rt(start, 1), rt(dur, 1)),
             source_range: TimeRange::new(RationalTime::ZERO, rt(dur, 1)),
             rate: rt(1, 1),
@@ -640,7 +760,15 @@ mod tests {
     #[test]
     fn stale_revision_is_rejected_without_state_change() {
         let (mut d, _) = project_with_track();
-        let err = d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(0, 4) }, Some(0)).unwrap_err();
+        let err = d
+            .apply(
+                Command::AddClip {
+                    track_id: "trk1".into(),
+                    clip: clip_at(0, 4),
+                },
+                Some(0),
+            )
+            .unwrap_err();
         assert_eq!(err.code, ErrorCode::RevisionConflict);
         assert!(d.project.timeline.clips.is_empty());
     }
@@ -648,7 +776,14 @@ mod tests {
     #[test]
     fn add_undo_redo_restores_exact_structure() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(0, 4) }, Some(1)).unwrap();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(0, 4),
+            },
+            Some(1),
+        )
+        .unwrap();
         let after_add = serde_json::to_string(&d.project).unwrap();
         d.undo().unwrap();
         assert!(d.project.timeline.clips.is_empty());
@@ -659,8 +794,22 @@ mod tests {
     #[test]
     fn split_preserves_contiguous_source_mapping() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(2, 8) }, Some(1)).unwrap();
-        d.apply(Command::SplitClip { clip_id: "clip1".into(), at: rt(6, 1) }, None).unwrap();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(2, 8),
+            },
+            Some(1),
+        )
+        .unwrap();
+        d.apply(
+            Command::SplitClip {
+                clip_id: "clip1".into(),
+                at: rt(6, 1),
+            },
+            None,
+        )
+        .unwrap();
         let left = d.project.timeline.clips.get("clip1").unwrap();
         assert_eq!(left.range.start, rt(2, 1));
         assert_eq!(left.range.duration, rt(4, 1));
@@ -674,26 +823,73 @@ mod tests {
         assert_eq!(right.range.start, rt(6, 1));
         assert_eq!(right.range.duration, rt(4, 1));
         // Source windows are contiguous across the original clip.
-        assert_eq!(left.source_range.start.add(left.source_range.duration).unwrap(), right.source_range.start);
-        assert_eq!(left.source_range.start.add(left.source_range.duration).unwrap(), right.source_range.start);
+        assert_eq!(
+            left.source_range
+                .start
+                .add(left.source_range.duration)
+                .unwrap(),
+            right.source_range.start
+        );
+        assert_eq!(
+            left.source_range
+                .start
+                .add(left.source_range.duration)
+                .unwrap(),
+            right.source_range.start
+        );
     }
 
     #[test]
     fn split_outside_clip_is_rejected() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(2, 8) }, Some(1)).unwrap();
-        let err = d.apply(Command::SplitClip { clip_id: "clip1".into(), at: rt(10, 1) }, None).unwrap_err();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(2, 8),
+            },
+            Some(1),
+        )
+        .unwrap();
+        let err = d
+            .apply(
+                Command::SplitClip {
+                    clip_id: "clip1".into(),
+                    at: rt(10, 1),
+                },
+                None,
+            )
+            .unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidCommand);
         // half-open: end is exclusive
-        let err2 = d.apply(Command::SplitClip { clip_id: "clip1".into(), at: rt(10, 1) }, None);
+        let err2 = d.apply(
+            Command::SplitClip {
+                clip_id: "clip1".into(),
+                at: rt(10, 1),
+            },
+            None,
+        );
         assert!(err2.is_err());
     }
 
     #[test]
     fn trim_start_moves_source_and_keeps_duration_consistent() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(2, 8) }, Some(1)).unwrap();
-        d.apply(Command::TrimStart { clip_id: "clip1".into(), delta: rt(2, 1) }, None).unwrap();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(2, 8),
+            },
+            Some(1),
+        )
+        .unwrap();
+        d.apply(
+            Command::TrimStart {
+                clip_id: "clip1".into(),
+                delta: rt(2, 1),
+            },
+            None,
+        )
+        .unwrap();
         let c = d.project.timeline.clips.get("clip1").unwrap();
         assert_eq!(c.range.start, rt(4, 1));
         assert_eq!(c.range.duration, rt(6, 1));
@@ -703,19 +899,51 @@ mod tests {
     #[test]
     fn trim_beyond_source_is_rejected() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(0, 8) }, Some(1)).unwrap();
-        let err = d.apply(Command::TrimStart { clip_id: "clip1".into(), delta: rt(9, 1) }, None).unwrap_err();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(0, 8),
+            },
+            Some(1),
+        )
+        .unwrap();
+        let err = d
+            .apply(
+                Command::TrimStart {
+                    clip_id: "clip1".into(),
+                    delta: rt(9, 1),
+                },
+                None,
+            )
+            .unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidCommand);
         // source unchanged from failed command
-        assert_eq!(d.project.timeline.clips.get("clip1").unwrap().range.start, rt(0, 1));
+        assert_eq!(
+            d.project.timeline.clips.get("clip1").unwrap().range.start,
+            rt(0, 1)
+        );
     }
 
     #[test]
     fn undo_restores_trim_exactly() {
         let (mut d, _) = project_with_track();
-        d.apply(Command::AddClip { track_id: "trk1".into(), clip: clip_at(2, 6) }, Some(1)).unwrap();
+        d.apply(
+            Command::AddClip {
+                track_id: "trk1".into(),
+                clip: clip_at(2, 6),
+            },
+            Some(1),
+        )
+        .unwrap();
         let before = serde_json::to_string(&d.project.timeline).unwrap();
-        d.apply(Command::TrimEnd { clip_id: "clip1".into(), delta: rt(-2, 1) }, None).unwrap();
+        d.apply(
+            Command::TrimEnd {
+                clip_id: "clip1".into(),
+                delta: rt(-2, 1),
+            },
+            None,
+        )
+        .unwrap();
         d.undo().unwrap();
         assert_eq!(serde_json::to_string(&d.project.timeline).unwrap(), before);
     }

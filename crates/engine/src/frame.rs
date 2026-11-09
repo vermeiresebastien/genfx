@@ -61,7 +61,11 @@ pub struct AudioSnapshot {
 
 impl Default for AudioSnapshot {
     fn default() -> Self {
-        Self { bands: [0.0; 4], extra: [0.0; 4], params: [0.0; 4] }
+        Self {
+            bands: [0.0; 4],
+            extra: [0.0; 4],
+            params: [0.0; 4],
+        }
     }
 }
 
@@ -75,7 +79,12 @@ pub struct MusicState {
 
 impl Default for MusicState {
     fn default() -> Self {
-        Self { beat_phase: 0.0, bar_phase: 0.0, tempo: 120.0, beat_confidence: 0.0 }
+        Self {
+            beat_phase: 0.0,
+            bar_phase: 0.0,
+            tempo: 120.0,
+            beat_confidence: 0.0,
+        }
     }
 }
 
@@ -136,7 +145,12 @@ impl FrameContext {
         let frame_lo = (self.frame_index & 0xFFFF_FFFF) as u32;
         let frame_hi = (self.frame_index >> 32) as u32;
         FrameUniform {
-            dims: [self.output_width, self.output_height, self.source_width, self.source_height],
+            dims: [
+                self.output_width,
+                self.output_height,
+                self.source_width,
+                self.source_height,
+            ],
             sampling: [
                 1.0 / self.output_width.max(1) as f32,
                 1.0 / self.output_height.max(1) as f32,
@@ -145,7 +159,12 @@ impl FrameContext {
             ],
             clock: [low, high, self.sim_dt, self.sim_interpolation],
             counters: [frame_lo, frame_hi, self.node_seed, self.transport_epoch],
-            music: [self.music.beat_phase, self.music.bar_phase, self.music.tempo, self.music.beat_confidence],
+            music: [
+                self.music.beat_phase,
+                self.music.bar_phase,
+                self.music.tempo,
+                self.music.beat_confidence,
+            ],
             controls: [wet, self.quality_scale, self.sim_dt, 0.0],
         }
     }
@@ -160,7 +179,8 @@ pub fn export_frame_count(range: RationalTime, rate: FrameRate) -> u64 {
 
 /// Frame start time for frame index.
 pub fn frame_time(index: u64, rate: FrameRate) -> FluxErrorResult<RationalTime> {
-    RationalTime::from_frames(index as i64, rate).map_err(|e| FluxError::new(ErrorCode::InvalidCommand, "time", e.to_string()))
+    RationalTime::from_frames(index as i64, rate)
+        .map_err(|e| FluxError::new(ErrorCode::InvalidCommand, "time", e.to_string()))
 }
 
 pub type FluxErrorResult<T> = Result<T, FluxError>;

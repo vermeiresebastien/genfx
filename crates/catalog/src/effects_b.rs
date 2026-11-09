@@ -483,11 +483,21 @@ pub fn fx016_pixel_stretch() -> (&'static str, Manifest, &'static str) {
         "fx_pixel_stretch",
         QualityClass::L,
         vec![
-            p_enum("axis", "Axis", "horizontal", &["horizontal", "vertical", "radial"]),
+            p_enum(
+                "axis",
+                "Axis",
+                "horizontal",
+                &["horizontal", "vertical", "radial"],
+            ),
             p_float("origin", "Origin", 0.5, 0.0, 1.0, ""),
             p_float("sourceBand", "Source band", 1.0, 1.0, 256.0, "output_px"),
             p_float("extent", "Extent", 0.3, 0.0, 1.0, ""),
-            p_enum("direction", "Direction", "positive", &["positive", "negative", "both"]),
+            p_enum(
+                "direction",
+                "Direction",
+                "positive",
+                &["positive", "negative", "both"],
+            ),
         ],
         "Stretches a sampled strip along an axis. Extent=0 is identity.",
         "FX016",

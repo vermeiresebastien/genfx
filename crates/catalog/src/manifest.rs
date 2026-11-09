@@ -183,7 +183,10 @@ impl Manifest {
     /// Default parameter values in manifest order (used by uniform packing and
     /// by node creation).
     pub fn defaults(&self) -> Vec<(String, serde_json::Value)> {
-        self.parameters.iter().map(|p| (p.id.clone(), p.default.clone())).collect()
+        self.parameters
+            .iter()
+            .map(|p| (p.id.clone(), p.default.clone()))
+            .collect()
     }
 }
 

@@ -7,7 +7,12 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 fn main() {
@@ -21,7 +26,10 @@ fn main() {
     let mut req_to_manifests: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for e in &catalog.entries {
         for r in &e.manifest.requirement_ids {
-            req_to_manifests.entry(r.clone()).or_default().push(e.manifest.id.clone());
+            req_to_manifests
+                .entry(r.clone())
+                .or_default()
+                .push(e.manifest.id.clone());
         }
     }
 
@@ -32,9 +40,20 @@ fn main() {
         for p in product {
             let id = p["id"].as_str().unwrap_or("").to_string();
             let impls = product_paths(&id, &catalog);
-            let status = if !impls.is_empty() { "implemented_unverified" } else { "pending" };
+            let status = if !impls.is_empty() {
+                "implemented_unverified"
+            } else {
+                "pending"
+            };
             let blocker = blocker_for(&id);
-            records.push(record(&id, p["title"].as_str().unwrap_or(""), "required", status, impls, blocker));
+            records.push(record(
+                &id,
+                p["title"].as_str().unwrap_or(""),
+                "required",
+                status,
+                impls,
+                blocker,
+            ));
         }
     }
 
@@ -43,8 +62,19 @@ fn main() {
         for fx in effects {
             let id = fx["id"].as_str().unwrap_or("");
             let impls = req_to_manifests.get(id).cloned().unwrap_or_default();
-            let status = if impls.is_empty() { "pending" } else { "implemented_unverified" };
-            records.push(record(id, fx["title"].as_str().unwrap_or(""), "required", status, impls, None));
+            let status = if impls.is_empty() {
+                "pending"
+            } else {
+                "implemented_unverified"
+            };
+            records.push(record(
+                id,
+                fx["title"].as_str().unwrap_or(""),
+                "required",
+                status,
+                impls,
+                None,
+            ));
         }
     }
     // Effect families.
@@ -52,8 +82,19 @@ fn main() {
         for fam in fams {
             let id = fam["id"].as_str().unwrap_or("");
             let impls = req_to_manifests.get(id).cloned().unwrap_or_default();
-            let status = if impls.is_empty() { "pending" } else { "implemented_unverified" };
-            records.push(record(id, fam["title"].as_str().unwrap_or(""), "required", status, impls, None));
+            let status = if impls.is_empty() {
+                "pending"
+            } else {
+                "implemented_unverified"
+            };
+            records.push(record(
+                id,
+                fam["title"].as_str().unwrap_or(""),
+                "required",
+                status,
+                impls,
+                None,
+            ));
         }
     }
     // Generators.
@@ -74,7 +115,14 @@ fn main() {
             } else {
                 None
             };
-            records.push(record(id, g["title"].as_str().unwrap_or(""), class, status, impls, blocker));
+            records.push(record(
+                id,
+                g["title"].as_str().unwrap_or(""),
+                class,
+                status,
+                impls,
+                blocker,
+            ));
         }
     }
     // Tasks.
@@ -82,7 +130,14 @@ fn main() {
         for t in tasks {
             let id = t["id"].as_str().unwrap_or("");
             let status = task_status(id);
-            records.push(record(id, t["title"].as_str().unwrap_or(""), "required", status, vec![], None));
+            records.push(record(
+                id,
+                t["title"].as_str().unwrap_or(""),
+                "required",
+                status,
+                vec![],
+                None,
+            ));
         }
     }
     // Acceptance tests.
@@ -90,7 +145,14 @@ fn main() {
         for a in ats {
             let id = a["id"].as_str().unwrap_or("");
             let (status, ev) = at_status(id);
-            let mut rec = record(id, a["title"].as_str().unwrap_or(""), "required", status, vec![], None);
+            let mut rec = record(
+                id,
+                a["title"].as_str().unwrap_or(""),
+                "required",
+                status,
+                vec![],
+                None,
+            );
             rec["evidence_paths"] = json!(ev);
             records.push(rec);
         }
@@ -114,7 +176,14 @@ fn main() {
     println!("wrote {}", path.display());
 }
 
-fn record(id: &str, title: &str, class: &str, status: &str, impls: Vec<String>, blocker: Option<&str>) -> Value {
+fn record(
+    id: &str,
+    title: &str,
+    class: &str,
+    status: &str,
+    impls: Vec<String>,
+    blocker: Option<&str>,
+) -> Value {
     json!({
         "id": id,
         "title": title,
@@ -157,7 +226,9 @@ fn blocker_for(id: &str) -> Option<&'static str> {
     match id {
         "R001" => Some("macOS hosts unavailable; Windows x64 built"),
         "R002" => Some("Max for Live host not installed; source .maxpat only"),
-        "R005" => Some("platform capture adapters implemented; runtime device verification pending"),
+        "R005" => {
+            Some("platform capture adapters implemented; runtime device verification pending")
+        }
         "R006" => Some("NDI SDK/Spout SDK/Syphon(macOS) not available"),
         "R015" => Some("Ableton Link license not resolved; MIDI/Max transport only"),
         "R021" => Some("external creative-code runtimes not installed"),
@@ -172,9 +243,8 @@ fn task_status(id: &str) -> &'static str {
         "T03" | "T07" | "T08" | "T09" | "T10" | "T11" | "T12" | "T13" => "implemented_unverified",
         "T02" | "T04" | "T05" => "implemented_unverified",
         "T06" => "implemented_unverified",
-        "T14" | "T15" | "T16" | "T17" | "T18" | "T19" | "T20" | "T21" | "T22" | "T23" | "T24" | "T25" | "T26" | "T27" => {
-            "implemented_unverified"
-        }
+        "T14" | "T15" | "T16" | "T17" | "T18" | "T19" | "T20" | "T21" | "T22" | "T23" | "T24"
+        | "T25" | "T26" | "T27" => "implemented_unverified",
         _ => "pending",
     }
 }
@@ -185,15 +255,45 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         // Domain: rational time, documents, commands/undo, migration.
         "AT001" | "AT002" | "AT003" => ("verified", vec!["crates/domain unit tests".into()]),
         // GPU frame / oracle / catalog compile.
-        "AT004" => ("verified", vec!["implementation/evidence/test-gpu.json".into(), "crates/render solid_generator_color_oracle".into()]),
-        "AT023" => ("implemented_unverified", vec!["implementation/evidence/effects_contact_sheet.png".into(), "crates/tests effects_render_over_plasma_and_change_output".into()]),
-        "AT024" => ("implemented_unverified", vec!["implementation/evidence/effects_contact_sheet.png".into()]),
-        "AT028" => ("implemented_unverified", vec!["crates/tests dense_generators_produce_structure".into()]),
-        "AT007" | "AT009" => ("implemented_unverified", vec!["implementation/evidence/media-export.txt".into()]),
+        "AT004" => (
+            "verified",
+            vec![
+                "implementation/evidence/test-gpu.json".into(),
+                "crates/render solid_generator_color_oracle".into(),
+            ],
+        ),
+        "AT023" => (
+            "implemented_unverified",
+            vec![
+                "implementation/evidence/effects_contact_sheet.png".into(),
+                "crates/tests effects_render_over_plasma_and_change_output".into(),
+            ],
+        ),
+        "AT024" => (
+            "implemented_unverified",
+            vec!["implementation/evidence/effects_contact_sheet.png".into()],
+        ),
+        "AT028" => (
+            "implemented_unverified",
+            vec!["crates/tests dense_generators_produce_structure".into()],
+        ),
+        "AT007" | "AT009" => (
+            "implemented_unverified",
+            vec!["implementation/evidence/media-export.txt".into()],
+        ),
         "AT014" => ("verified", vec!["crates/audio numeric tests".into()]),
-        "AT017" => ("implemented_unverified", vec!["crates/tests determinism test".into()]),
-        "AT079" => ("implemented_unverified", vec!["implementation/evidence/benchmark.json".into()]),
-        "AT082" => ("implemented_unverified", vec!["cargo xtask package (unsigned dev binary)".into()]),
+        "AT017" => (
+            "implemented_unverified",
+            vec!["crates/tests determinism test".into()],
+        ),
+        "AT079" => (
+            "implemented_unverified",
+            vec!["implementation/evidence/benchmark.json".into()],
+        ),
+        "AT082" => (
+            "implemented_unverified",
+            vec!["cargo xtask package (unsigned dev binary)".into()],
+        ),
         _ => ("implemented_unverified", vec![]),
     }
 }

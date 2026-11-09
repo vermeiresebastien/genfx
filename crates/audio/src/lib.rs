@@ -5,8 +5,8 @@
 //! agree. No allocations or locks happen in an audio callback; callbacks push
 //! into a lock-free ring, and a separate worker consumes windows.
 
-use flux_engine::frame::AudioSnapshot;
 use flux_domain::params::FeatureSnapshot;
+use flux_engine::frame::AudioSnapshot;
 use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -113,8 +113,18 @@ impl WindowFeatures {
     pub fn to_snapshot_audio(&self) -> AudioSnapshot {
         AudioSnapshot {
             bands: [self.bands[0], self.bands[2], self.bands[4], self.bands[1]],
-            extra: [self.rms, if self.onset { 1.0 } else { 0.0 }, self.peak, self.flux],
-            params: [self.tempo_bpm, self.beat_phase, self.centroid_hz, self.tempo_confidence],
+            extra: [
+                self.rms,
+                if self.onset { 1.0 } else { 0.0 },
+                self.peak,
+                self.flux,
+            ],
+            params: [
+                self.tempo_bpm,
+                self.beat_phase,
+                self.centroid_hz,
+                self.tempo_confidence,
+            ],
         }
     }
 }
@@ -314,7 +324,10 @@ impl Analyzer {
         }
 
         // tempo estimate from flux autocorrelation (60..200 BPM)
-        let (tempo_bpm, tempo_confidence) = estimate_tempo(&self.flux_history, self.cfg.hop as f32 / self.cfg.sample_rate as f32);
+        let (tempo_bpm, tempo_confidence) = estimate_tempo(
+            &self.flux_history,
+            self.cfg.hop as f32 / self.cfg.sample_rate as f32,
+        );
         let beat_phase = if tempo_bpm > 0.0 {
             let beat_period = 60.0 / tempo_bpm as f64;
             (time_secs / beat_period).rem_euclid(1.0) as f32
@@ -523,14 +536,7 @@ impl Mixer {
     }
 
     /// Mix a stereo track segment. `gain_db` is applied, pan in [-1,1].
-    pub fn mix_stereo(
-        &self,
-        dst: &mut [f32],
-        src: &[f32],
-        channels: u16,
-        gain_db: f64,
-        pan: f64,
-    ) {
+    pub fn mix_stereo(&self, dst: &mut [f32], src: &[f32], channels: u16, gain_db: f64, pan: f64) {
         let g = 10f64.powf(gain_db / 20.0);
         let (lg, rg) = pan_gains(pan);
         let ch = channels.max(1) as usize;

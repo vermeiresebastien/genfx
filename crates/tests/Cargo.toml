@@ -12,6 +12,7 @@ flux-catalog = { path = "../catalog" }
 flux-render = { path = "../render" }
 flux-media = { path = "../media" }
 flux-audio = { path = "../audio" }
+flux-app = { path = "../app" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 wgpu = { workspace = true }

@@ -143,16 +143,31 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
         let (Some(from), Some(to)) = (from, to) else {
             issues.push(GraphIssue {
                 code: ErrorCode::GraphTypeMismatch,
-                message: format!("edge {} -> {} references a missing node", e.from_node, e.to_node),
+                message: format!(
+                    "edge {} -> {} references a missing node",
+                    e.from_node, e.to_node
+                ),
                 node_id: Some(e.to_node.clone()),
                 port_id: None,
             });
             continue;
         };
-        let Some(fm) = reg.manifest(&from.type_id) else { continue };
-        let Some(tm) = reg.manifest(&to.type_id) else { continue };
-        let out_ty = fm.outputs.iter().find(|p| p.id == e.from_port).map(|p| p.port_type);
-        let in_ty = tm.inputs.iter().find(|p| p.id == e.to_port).map(|p| p.port_type);
+        let Some(fm) = reg.manifest(&from.type_id) else {
+            continue;
+        };
+        let Some(tm) = reg.manifest(&to.type_id) else {
+            continue;
+        };
+        let out_ty = fm
+            .outputs
+            .iter()
+            .find(|p| p.id == e.from_port)
+            .map(|p| p.port_type);
+        let in_ty = tm
+            .inputs
+            .iter()
+            .find(|p| p.id == e.to_port)
+            .map(|p| p.port_type);
         match (out_ty, in_ty) {
             (Some(a), Some(b)) if a == b => {}
             (Some(_), Some(_)) => issues.push(GraphIssue {
@@ -174,7 +189,10 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
                 port_id: Some(e.to_port.clone()),
             }),
         }
-        if incoming.insert((e.to_node.as_str(), e.to_port.as_str()), e).is_some() {
+        if incoming
+            .insert((e.to_node.as_str(), e.to_port.as_str()), e)
+            .is_some()
+        {
             issues.push(GraphIssue {
                 code: ErrorCode::InvalidCommand,
                 message: format!("multiple edges into {}:{}", e.to_node, e.to_port),
@@ -186,7 +204,9 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
 
     // Required inputs.
     for n in &g.nodes {
-        let Some(m) = reg.manifest(&n.type_id) else { continue };
+        let Some(m) = reg.manifest(&n.type_id) else {
+            continue;
+        };
         for p in &m.inputs {
             if p.required && !incoming.contains_key(&(n.id.as_str(), p.id.as_str())) {
                 issues.push(GraphIssue {
@@ -221,7 +241,9 @@ fn find_cycle(g: &Graph, reg: &Registry) -> Option<Vec<String>> {
         if is_feedback_boundary(reg, &e.to_node) {
             continue;
         }
-        adj.entry(e.from_node.as_str()).or_default().push(e.to_node.as_str());
+        adj.entry(e.from_node.as_str())
+            .or_default()
+            .push(e.to_node.as_str());
     }
     let mut visiting = BTreeSet::new();
     let mut visited = BTreeSet::new();
@@ -318,7 +340,10 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
     let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
     for e in &g.edges {
         let to = e.to_node.as_str();
-        let is_read = g.node(to).map(|n| is_feedback_read(reg, &n.type_id)).unwrap_or(false);
+        let is_read = g
+            .node(to)
+            .map(|n| is_feedback_read(reg, &n.type_id))
+            .unwrap_or(false);
         if is_read {
             continue;
         }
@@ -350,7 +375,11 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
         }
     }
     if order.len() != g.nodes.len() {
-        return Err(FluxError::new(ErrorCode::GraphCycle, "graph", "cycle detected during compile"));
+        return Err(FluxError::new(
+            ErrorCode::GraphCycle,
+            "graph",
+            "cycle detected during compile",
+        ));
     }
 
     let mut passes = Vec::new();
@@ -385,7 +414,12 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
         });
     }
 
-    Ok(CompiledGraph { passes, output_node: g.output_node.clone(), temporal_pairs: vec![], graph_version })
+    Ok(CompiledGraph {
+        passes,
+        output_node: g.output_node.clone(),
+        temporal_pairs: vec![],
+        graph_version,
+    })
 }
 
 /// Build a minimal graph containing Source -> effect -> Output.
@@ -475,7 +509,9 @@ mod tests {
         g.edges[0].to_port = "source".into();
         g.edges[0].from_port = "mask".into();
         let issues = validate(&g, &reg);
-        assert!(issues.iter().any(|i| i.code == ErrorCode::GraphTypeMismatch));
+        assert!(issues
+            .iter()
+            .any(|i| i.code == ErrorCode::GraphTypeMismatch));
     }
 
     #[test]
@@ -484,7 +520,8 @@ mod tests {
         let reg = Registry::new(&cat);
         let mut g = simple_chain("fx.bloom", "flux.source");
         // add back edge output -> bloom source (replacing the source input)
-        g.edges.retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
+        g.edges
+            .retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
         g.edges.push(GraphEdge {
             from_node: g.nodes[2].id.clone(),
             from_port: "color".into(),
@@ -492,7 +529,10 @@ mod tests {
             to_port: "source".into(),
         });
         let issues = validate(&g, &reg);
-        assert!(issues.iter().any(|i| i.code == ErrorCode::GraphCycle), "{issues:?}");
+        assert!(
+            issues.iter().any(|i| i.code == ErrorCode::GraphCycle),
+            "{issues:?}"
+        );
     }
 
     #[test]
@@ -500,9 +540,12 @@ mod tests {
         let cat = reg_catalog();
         let reg = Registry::new(&cat);
         let mut g = simple_chain("fx.bloom", "flux.source");
-        g.edges.retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
+        g.edges
+            .retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
         let issues = validate(&g, &reg);
-        assert!(issues.iter().any(|i| i.code == ErrorCode::GraphRequiredInput));
+        assert!(issues
+            .iter()
+            .any(|i| i.code == ErrorCode::GraphRequiredInput));
     }
 
     #[test]
@@ -512,7 +555,9 @@ mod tests {
         let mut g = simple_chain("fx.nonexistent", "flux.source");
         g.nodes[1].missing_type = true;
         let issues = validate(&g, &reg);
-        assert!(issues.iter().any(|i| i.node_id.as_deref() == Some(g.nodes[1].id.as_str())));
+        assert!(issues
+            .iter()
+            .any(|i| i.node_id.as_deref() == Some(g.nodes[1].id.as_str())));
     }
 
     #[test]
@@ -521,7 +566,8 @@ mod tests {
         let reg = Registry::new(&cat);
         // source -> write -> read -> blend back; the read breaks the cycle.
         let mut g = simple_chain("fx.bloom", "flux.source");
-        g.edges.retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
+        g.edges
+            .retain(|e| !(e.to_node == g.nodes[1].id && e.to_port == "source"));
         let write = GraphNode {
             id: "w".into(),
             type_id: "flux.feedback_write".into(),
@@ -542,10 +588,28 @@ mod tests {
         };
         g.nodes.push(write);
         g.nodes.push(read);
-        g.edges.push(GraphEdge { from_node: g.nodes[0].id.clone(), from_port: "color".into(), to_node: "w".into(), to_port: "source".into() });
-        g.edges.push(GraphEdge { from_node: "r".into(), from_port: "color".into(), to_node: g.nodes[1].id.clone(), to_port: "source".into() });
-        g.edges.push(GraphEdge { from_node: "w".into(), from_port: "color".into(), to_node: "r".into(), to_port: "source".into() });
+        g.edges.push(GraphEdge {
+            from_node: g.nodes[0].id.clone(),
+            from_port: "color".into(),
+            to_node: "w".into(),
+            to_port: "source".into(),
+        });
+        g.edges.push(GraphEdge {
+            from_node: "r".into(),
+            from_port: "color".into(),
+            to_node: g.nodes[1].id.clone(),
+            to_port: "source".into(),
+        });
+        g.edges.push(GraphEdge {
+            from_node: "w".into(),
+            from_port: "color".into(),
+            to_node: "r".into(),
+            to_port: "source".into(),
+        });
         let issues = validate(&g, &reg);
-        assert!(!issues.iter().any(|i| i.code == ErrorCode::GraphCycle), "{issues:?}");
+        assert!(
+            !issues.iter().any(|i| i.code == ErrorCode::GraphCycle),
+            "{issues:?}"
+        );
     }
 }

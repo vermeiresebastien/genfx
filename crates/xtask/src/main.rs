@@ -7,7 +7,12 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 fn evidence_dir() -> PathBuf {
@@ -50,8 +55,12 @@ fn cmd_doctor() -> i32 {
         .ok()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
-    let gpu = flux_render::gpu::Gpu::new(flux_render::BackendPref::Auto).ok().map(|g| g.info);
-    let media = flux_media::MediaWorker::new().ok().map(|w| w.capabilities());
+    let gpu = flux_render::gpu::Gpu::new(flux_render::BackendPref::Auto)
+        .ok()
+        .map(|g| g.info);
+    let media = flux_media::MediaWorker::new()
+        .ok()
+        .map(|w| w.capabilities());
     let catalog_n = flux_catalog::build_catalog().entries.len();
     let data = json!({
         "os": std::env::consts::OS,
@@ -69,8 +78,19 @@ fn cmd_doctor() -> i32 {
         println!("GPU: {} ({}, {})", g.name, g.backend, g.device_type);
     }
     println!("catalog entries: {catalog_n}");
-    println!("doctor: {}", if ok { "PASS" } else { "FAIL (gpu or ffmpeg missing)" });
-    if ok { 0 } else { 1 }
+    println!(
+        "doctor: {}",
+        if ok {
+            "PASS"
+        } else {
+            "FAIL (gpu or ffmpeg missing)"
+        }
+    );
+    if ok {
+        0
+    } else {
+        1
+    }
 }
 
 fn cmd_fixtures() -> i32 {
@@ -82,9 +102,43 @@ fn cmd_fixtures() -> i32 {
     };
     let mut made = vec![];
     let targets: [(&str, &[&str]); 3] = [
-        ("test_10s_60fps.mp4", &["-f", "lavfi", "-i", "testsrc2=size=320x180:rate=60:duration=10", "-c:v", "libx264", "-pix_fmt", "yuv420p"]),
-        ("test_2997.mp4", &["-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30000/1001:duration=5", "-c:v", "libx264", "-pix_fmt", "yuv420p"]),
-        ("sine_1k_48k.wav", &["-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=48000:duration=2", "-ac", "2"]),
+        (
+            "test_10s_60fps.mp4",
+            &[
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=320x180:rate=60:duration=10",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+        ),
+        (
+            "test_2997.mp4",
+            &[
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=320x180:rate=30000/1001:duration=5",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+            ],
+        ),
+        (
+            "sine_1k_48k.wav",
+            &[
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=1000:sample_rate=48000:duration=2",
+                "-ac",
+                "2",
+            ],
+        ),
     ];
     for (name, extra) in targets {
         let p = dir.join(name);
@@ -99,7 +153,10 @@ fn cmd_fixtures() -> i32 {
         }
         made.push(name);
     }
-    write_evidence("fixtures", &json!({"ok": true, "dir": dir.display().to_string(), "files": made}));
+    write_evidence(
+        "fixtures",
+        &json!({"ok": true, "dir": dir.display().to_string(), "files": made}),
+    );
     0
 }
 
@@ -127,8 +184,18 @@ fn cmd_catalog(_args: &[String]) -> i32 {
         "catalog",
         &json!({"ok": ok, "entries": c.entries.len(), "effectsAndUtilities": fx, "generators": gens, "duplicates": dupes, "missingImplementation": missing_impl}),
     );
-    println!("catalog: {} entries ({} fx/util, {} generators), duplicates={}", c.entries.len(), fx, gens, dupes.len());
-    if ok { 0 } else { 1 }
+    println!(
+        "catalog: {} entries ({} fx/util, {} generators), duplicates={}",
+        c.entries.len(),
+        fx,
+        gens,
+        dupes.len()
+    );
+    if ok {
+        0
+    } else {
+        1
+    }
 }
 
 fn cmd_check(args: &[String]) -> i32 {
@@ -144,7 +211,14 @@ fn cmd_check(args: &[String]) -> i32 {
         "render" => vec!["flux-render"],
         "audio" => vec!["flux-audio"],
         "catalog" => vec!["flux-catalog"],
-        _ => vec!["flux-domain", "flux-catalog", "flux-engine", "flux-media", "flux-audio", "flux-render"],
+        _ => vec![
+            "flux-domain",
+            "flux-catalog",
+            "flux-engine",
+            "flux-media",
+            "flux-audio",
+            "flux-render",
+        ],
     };
     let mut ok = true;
     for pkg in packages {
@@ -158,7 +232,11 @@ fn cmd_check(args: &[String]) -> i32 {
         ok &= status;
     }
     write_evidence("check", &json!({"ok": ok, "scope": scope}));
-    if ok { 0 } else { 1 }
+    if ok {
+        0
+    } else {
+        1
+    }
 }
 
 fn cmd_test_gpu(args: &[String]) -> i32 {
@@ -171,7 +249,10 @@ fn cmd_test_gpu(args: &[String]) -> i32 {
     let gpu = match flux_render::gpu::Gpu::new(flux_render::BackendPref::Auto) {
         Ok(g) => g,
         Err(e) => {
-            write_evidence("test-gpu", &json!({"ok": false, "reason": format!("{e:?}")}));
+            write_evidence(
+                "test-gpu",
+                &json!({"ok": false, "reason": format!("{e:?}")}),
+            );
             println!("test-gpu: UNAVAILABLE (no GPU)");
             return 1;
         }
@@ -194,13 +275,23 @@ fn cmd_test_gpu(args: &[String]) -> i32 {
         "test-gpu",
         &json!({"ok": ok, "profile": profile, "compiled": compiled, "failures": fails, "gpu": gpu.info.to_json()}),
     );
-    println!("test-gpu: compiled {compiled} shaders, {} failures", fails.len());
-    if ok { 0 } else { 1 }
+    println!(
+        "test-gpu: compiled {compiled} shaders, {} failures",
+        fails.len()
+    );
+    if ok {
+        0
+    } else {
+        1
+    }
 }
 
 fn cmd_scenario(args: &[String]) -> i32 {
     let id = args.first().cloned().unwrap_or_else(|| "AT000".into());
-    write_evidence(&format!("scenario-{id}"), &json!({"id": id, "note": "see tests and evidence/"}));
+    write_evidence(
+        &format!("scenario-{id}"),
+        &json!({"id": id, "note": "see tests and evidence/"}),
+    );
     println!("scenario {id}: recorded");
     0
 }
@@ -224,26 +315,47 @@ fn cmd_benchmark(args: &[String]) -> i32 {
     let generators: Vec<String> = catalog
         .entries
         .iter()
-        .filter(|e| e.manifest.id.starts_with("gen.") && e.manifest.implementation.kind == "fragment")
+        .filter(|e| {
+            e.manifest.id.starts_with("gen.") && e.manifest.implementation.kind == "fragment"
+        })
         .map(|e| e.manifest.id.clone())
         .collect();
     let mut results = vec![];
     for gid in generators.iter().take(30) {
         let graph = bench_graph(gid);
-        let Ok(mut rt) = flux_render::graph_exec::RuntimeGraph::activate(&gpu, &mut compiler, &catalog, &graph, 1920, 1080, 1) else {
+        let Ok(mut rt) = flux_render::graph_exec::RuntimeGraph::activate(
+            &gpu,
+            &mut compiler,
+            &catalog,
+            &graph,
+            1920,
+            1080,
+            1,
+        ) else {
             continue;
         };
         let project = flux_domain::Project::new("bench", 1);
-        let ctx = flux_engine::frame::FrameContext::for_project(&project, flux_domain::RationalTime::ZERO, 0);
+        let ctx = flux_engine::frame::FrameContext::for_project(
+            &project,
+            flux_domain::RationalTime::ZERO,
+            0,
+        );
         let mut resolved = std::collections::HashMap::new();
         for pass in &rt.compiled.passes {
             if let Some(e) = catalog.get(&pass.type_id) {
-                resolved.insert(pass.node_id.clone(), flux_render::pipeline::NodeParamsBuffer::defaults(&e.manifest));
+                resolved.insert(
+                    pass.node_id.clone(),
+                    flux_render::pipeline::NodeParamsBuffer::defaults(&e.manifest),
+                );
             }
         }
         let src = gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: None,
-            size: wgpu::Extent3d { width: 1920, height: 1080, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: 1920,
+                height: 1080,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -262,7 +374,10 @@ fn cmd_benchmark(args: &[String]) -> i32 {
         times.sort_by(|a, b| a.partial_cmp(b).unwrap());
         results.push(json!({"id": gid, "p50ms": times[times.len() / 2], "p95ms": times[times.len() * 95 / 100]}));
     }
-    write_evidence("benchmark", &json!({"ok": !results.is_empty(), "profile": profile, "results": results}));
+    write_evidence(
+        "benchmark",
+        &json!({"ok": !results.is_empty(), "profile": profile, "results": results}),
+    );
     println!("benchmark: {} generators timed at 1920x1080", results.len());
     if results.is_empty() {
         1
@@ -278,10 +393,31 @@ fn bench_graph(gen_id: &str) -> flux_domain::Graph {
         id: format!("bench:{}", gen_id),
         name: gen_id.into(),
         nodes: vec![
-            GraphNode { id: "g".into(), type_id: gen_id.into(), type_version: 1, position: [0.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
-            GraphNode { id: "o".into(), type_id: "flux.output".into(), type_version: 1, position: [240.0, 0.0], params: BTreeMap::new(), bypass: false, missing_type: false },
+            GraphNode {
+                id: "g".into(),
+                type_id: gen_id.into(),
+                type_version: 1,
+                position: [0.0, 0.0],
+                params: BTreeMap::new(),
+                bypass: false,
+                missing_type: false,
+            },
+            GraphNode {
+                id: "o".into(),
+                type_id: "flux.output".into(),
+                type_version: 1,
+                position: [240.0, 0.0],
+                params: BTreeMap::new(),
+                bypass: false,
+                missing_type: false,
+            },
         ],
-        edges: vec![GraphEdge { from_node: "g".into(), from_port: "color".into(), to_node: "o".into(), to_port: "source".into() }],
+        edges: vec![GraphEdge {
+            from_node: "g".into(),
+            from_port: "color".into(),
+            to_node: "o".into(),
+            to_port: "source".into(),
+        }],
         output_node: "o".into(),
         keyframes: BTreeMap::new(),
     }
@@ -300,12 +436,32 @@ fn cmd_report() -> i32 {
 fn cmd_package(_args: &[String]) -> i32 {
     println!("package: building release binary...");
     let status = Command::new("cargo")
-        .args(["build", "--release", "-p", "flux-app", "--no-default-features"])
+        .args([
+            "build",
+            "--release",
+            "-p",
+            "flux-app",
+            "--no-default-features",
+        ])
         .current_dir(root())
         .status();
     let ok = status.map(|s| s.success()).unwrap_or(false);
     let exe = root().join("target/release/flux.exe");
-    write_evidence("package", &json!({"ok": ok, "exe": exe.display().to_string(), "exists": exe.exists()}));
-    println!("package: {}", if ok { "built target/release/flux.exe" } else { "FAILED" });
-    if ok { 0 } else { 1 }
+    write_evidence(
+        "package",
+        &json!({"ok": ok, "exe": exe.display().to_string(), "exists": exe.exists()}),
+    );
+    println!(
+        "package: {}",
+        if ok {
+            "built target/release/flux.exe"
+        } else {
+            "FAILED"
+        }
+    );
+    if ok {
+        0
+    } else {
+        1
+    }
 }

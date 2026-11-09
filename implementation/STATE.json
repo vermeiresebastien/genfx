@@ -15,7 +15,7 @@
     "wgpu": "27.0.1", "naga": "27", "serde": "1", "serde_json": "1", "uuid": "1",
     "thiserror": "2", "bytemuck": "1", "pollster": "0.4", "rustfft": "6"
   },
-  "current_task": "T27 reconcile and deliver",
+  "current_task": "T27 reconcile and deliver; producer families wired",
   "verified_core": [
     "domain: rational time/document/commands/undo/modulation (30 tests pass)",
     "catalog: 216 entries (28 requested FX + 24 families + all 142 required + 14 conditional G rows + utilities); 8 tests",
@@ -23,9 +23,10 @@
     "media: FFmpeg probe/decode RGBA/audio/encode + PNG/WAV round-trips (6 tests)",
     "audio: FFT bands/RMS/onset/tempo/chroma/mixer/ring (14 tests)",
     "render: wgpu device, all 216 shaders compile into pipelines on GPU, solid color oracle, preview/full readback (8 tests)",
-    "integration: 123 generators render without panic, 24 effects over plasma produce varied output, determinism, time variation, solid oracle (6 tests)",
-    "export: real H.264+AAC MP4 (generator 1280x720/240f/384000 samples; media 640x360/180f), ffprobe verified; contact sheet of 43 effects",
-    "xtask: doctor/fixtures/catalog/check/test-gpu/scenario/benchmark/report/package",
+    "integration: 123 analytic generators render without panic, 24 effects over plasma produce varied output, determinism, time variation, solid oracle (6 tests)",
+    "producers: one contract (flux_app::producer) for vector/text/SDF/mesh/particle/physics/field/control rows; renderer execute_with_producers; 6 producer tests + 3 golden export tests; SDF blob raymarched metaballs verified visually",
+    "export: real H.264+AAC MP4 (generator 1280x720/240f/384000 samples; media 640x360/180f; golden 320x180/180f), ffprobe verified; contact sheet of 43 effects",
+    "xtask: doctor/fixtures/catalog/check/test-gpu/scenario/benchmark/report/package; CI workflow; verify.ps1 clean-checkout script",
     "requirements.json generated (345 records)"
   ],
   "gates_passed": [

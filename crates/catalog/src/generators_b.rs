@@ -64,7 +64,13 @@ pub fn g031_path_editor() -> (&'static str, Manifest, &'static str) {
 
 pub fn g032_trim_paths() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.trim_paths", "Trim paths", "Vector", "gen_vector", QualityClass::M, "G032", TimeModel::Analytic,
+        "gen.trim_paths",
+        "Trim paths",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G032",
+        TimeModel::Analytic,
         "Draw-on trim start/end/offset with length-correct arc-length sampling.",
         vec![],
         [
@@ -78,10 +84,20 @@ pub fn g032_trim_paths() -> (&'static str, Manifest, &'static str) {
 
 pub fn g033_follow_path() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.follow_path", "Follow path", "Vector", "gen_vector", QualityClass::M, "G033", TimeModel::Analytic,
+        "gen.follow_path",
+        "Follow path",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G033",
+        TimeModel::Analytic,
         "Moves a shape along a PathSet by arc length with tangent orientation.",
         vec![],
-        [p_float("position", "Position", 0.0, 0.0, 1.0, ""), p_bool("tangent", "Orient to tangent", true), p_float("speed", "Speed", 0.0, -4.0, 4.0, "cycles/s")]
+        [
+            p_float("position", "Position", 0.0, 0.0, 1.0, ""),
+            p_bool("tangent", "Orient to tangent", true),
+            p_float("speed", "Speed", 0.0, -4.0, 4.0, "cycles/s")
+        ]
     )
 }
 
@@ -105,51 +121,117 @@ pub fn g035_shape_morph() -> (&'static str, Manifest, &'static str) {
 
 pub fn g036_repeater() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.repeater", "Repeater", "Vector", "gen_vector", QualityClass::M, "G036", TimeModel::Analytic,
+        "gen.repeater",
+        "Repeater",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G036",
+        TimeModel::Analytic,
         "Line/radial/grid placement of a shape with stagger and per-instance transform/color.",
         vec![],
-        [p_enum("layout", "Layout", "line", &["line", "radial", "grid"]), p_int("count", "Count", 16, 1, 10000), p_float("stagger", "Stagger", 0.0, 0.0, 1.0, ""), p_float("spacing", "Spacing", 0.08, 0.0, 1.0, "")]
+        [
+            p_enum("layout", "Layout", "line", &["line", "radial", "grid"]),
+            p_int("count", "Count", 16, 1, 10000),
+            p_float("stagger", "Stagger", 0.0, 0.0, 1.0, ""),
+            p_float("spacing", "Spacing", 0.08, 0.0, 1.0, "")
+        ]
     )
 }
 
 pub fn g037_vector_deform() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.vector_deform", "Vector deform", "Vector", "gen_vector", QualityClass::M, "G037", TimeModel::Analytic,
+        "gen.vector_deform",
+        "Vector deform",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G037",
+        TimeModel::Analytic,
         "Sine/noise/bend/twist deformation of sampled outlines.",
-        vec![], [p_enum("kind", "Kind", "sine", &["sine", "noise", "bend", "twist"]), p_float("amount", "Amount", 0.1, 0.0, 0.5, ""), p_float("speed", "Speed", 0.2, 0.0, 4.0, "")]
+        vec![],
+        [
+            p_enum("kind", "Kind", "sine", &["sine", "noise", "bend", "twist"]),
+            p_float("amount", "Amount", 0.1, 0.0, 0.5, ""),
+            p_float("speed", "Speed", 0.2, 0.0, 4.0, "")
+        ]
     )
 }
 
 pub fn g038_stroke_fx() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.stroke_fx", "Stroke effects", "Vector", "gen_vector", QualityClass::M, "G038", TimeModel::Analytic,
+        "gen.stroke_fx",
+        "Stroke effects",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G038",
+        TimeModel::Analytic,
         "Animated width, dashes and a traveling highlight along the stroke.",
-        vec![], [p_float("width", "Width", 3.0, 0.0, 32.0, "output_px"), p_float("dash", "Dash", 0.0, 0.0, 1.0, ""), p_float("highlight", "Traveling highlight", 0.5, 0.0, 1.0, "")]
+        vec![],
+        [
+            p_float("width", "Width", 3.0, 0.0, 32.0, "output_px"),
+            p_float("dash", "Dash", 0.0, 0.0, 1.0, ""),
+            p_float("highlight", "Traveling highlight", 0.5, 0.0, 1.0, "")
+        ]
     )
 }
 
 pub fn g039_gradient_animator() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.gradient_animator", "Gradient animator", "Vector", "gen_vector", QualityClass::M, "G039", TimeModel::Analytic,
+        "gen.gradient_animator",
+        "Gradient animator",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G039",
+        TimeModel::Analytic,
         "Animates gradient stops, hue and coordinates while keeping gradients as gradients.",
-        vec![], [p_float("hueShift", "Hue shift", 0.0, -1.0, 1.0, ""), p_float("speed", "Speed", 0.1, -4.0, 4.0, "")]
+        vec![],
+        [
+            p_float("hueShift", "Hue shift", 0.0, -1.0, 1.0, ""),
+            p_float("speed", "Speed", 0.1, -4.0, 4.0, "")
+        ]
     )
 }
 
 pub fn g040_vector_mask() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.vector_mask", "Vector mask", "Vector", "gen_vector", QualityClass::M, "G040", TimeModel::Analytic,
+        "gen.vector_mask",
+        "Vector mask",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G040",
+        TimeModel::Analytic,
         "Animated path exposed as a Mask usable by any image or generator.",
-        vec![PortDecl { id: "source".into(), port_type: PortType::Texture2D, required: false }],
-        [p_float("feather", "Feather", 2.0, 0.0, 32.0, "output_px"), p_bool("invert", "Invert", false)]
+        vec![PortDecl {
+            id: "source".into(),
+            port_type: PortType::Texture2D,
+            required: false
+        }],
+        [
+            p_float("feather", "Feather", 2.0, 0.0, 32.0, "output_px"),
+            p_bool("invert", "Invert", false)
+        ]
     )
 }
 
 pub fn g041_vector_particles() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.vector_particles", "Vector to particles", "Vector", "gen_vector", QualityClass::M, "G041", TimeModel::FixedStep,
+        "gen.vector_particles",
+        "Vector to particles",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G041",
+        TimeModel::FixedStep,
         "Samples along outline/interior into particle positions/normals/colors.",
-        vec![], [p_int("count", "Count", 5000, 100, 200000), p_float("spacing", "Spacing", 0.01, 0.001, 0.1, "")]
+        vec![],
+        [
+            p_int("count", "Count", 5000, 100, 200000),
+            p_float("spacing", "Spacing", 0.01, 0.001, 0.1, "")
+        ]
     )
 }
 
@@ -172,17 +254,42 @@ pub fn g043_lottie() -> (&'static str, Manifest, &'static str) {
 
 pub fn g044_icon_scene() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.icon_scene", "Animated logo", "Vector", "gen_vector", QualityClass::M, "G044", TimeModel::Analytic,
+        "gen.icon_scene",
+        "Animated logo",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G044",
+        TimeModel::Analytic,
         "Grouped vector layers with stagger and elastic/easing intro templates.",
-        vec![], [p_float("stagger", "Stagger", 0.1, 0.0, 1.0, ""), p_enum("ease", "Easing", "easeOut", &["linear", "easeIn", "easeOut", "elastic"])]
+        vec![],
+        [
+            p_float("stagger", "Stagger", 0.1, 0.0, 1.0, ""),
+            p_enum(
+                "ease",
+                "Easing",
+                "easeOut",
+                &["linear", "easeIn", "easeOut", "elastic"]
+            )
+        ]
     )
 }
 
 pub fn g045_handdrawn() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.handdrawn", "Hand-drawn loop", "Vector", "gen_vector", QualityClass::M, "G045", TimeModel::CanonicalFrame,
+        "gen.handdrawn",
+        "Hand-drawn loop",
+        "Vector",
+        "gen_vector",
+        QualityClass::M,
+        "G045",
+        TimeModel::CanonicalFrame,
         "Deterministic periodic wobble/jitter held at a chosen fps.",
-        vec![], [p_float("amplitude", "Amplitude", 1.5, 0.0, 8.0, "output_px"), p_float("fps", "Hold fps", 12.0, 1.0, 60.0, "")]
+        vec![],
+        [
+            p_float("amplitude", "Amplitude", 1.5, 0.0, 8.0, "output_px"),
+            p_float("fps", "Hold fps", 12.0, 1.0, 60.0, "")
+        ]
     )
 }
 
@@ -209,25 +316,62 @@ pub fn g070_text_plate() -> (&'static str, Manifest, &'static str) {
 
 pub fn g071_kinetic() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.kinetic", "Kinetic type", "Typography", "gen_text", QualityClass::M, "G071", TimeModel::Analytic,
+        "gen.kinetic",
+        "Kinetic type",
+        "Typography",
+        "gen_text",
+        QualityClass::M,
+        "G071",
+        TimeModel::Analytic,
         "Per-glyph position/rotation/scale/opacity with wave and stagger intro/hold/outro.",
-        vec![], [p_float("stagger", "Stagger", 0.06, 0.0, 0.5, "s"), p_float("waveAmp", "Wave amplitude", 0.1, 0.0, 0.5, ""), p_enum("ease", "Easing", "easeOut", &["linear", "easeIn", "easeOut", "elastic"])]
+        vec![],
+        [
+            p_float("stagger", "Stagger", 0.06, 0.0, 0.5, "s"),
+            p_float("waveAmp", "Wave amplitude", 0.1, 0.0, 0.5, ""),
+            p_enum(
+                "ease",
+                "Easing",
+                "easeOut",
+                &["linear", "easeIn", "easeOut", "elastic"]
+            )
+        ]
     )
 }
 
 pub fn g072_typewriter() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.typewriter", "Typewriter", "Typography", "gen_text", QualityClass::M, "G072", TimeModel::Analytic,
+        "gen.typewriter",
+        "Typewriter",
+        "Typography",
+        "gen_text",
+        QualityClass::M,
+        "G072",
+        TimeModel::Analytic,
         "Reveals shaped clusters with a cursor and deterministic random substitution.",
-        vec![], [p_float("speed", "Chars per second", 12.0, 1.0, 60.0, ""), p_bool("cursor", "Cursor", true), p_float("scramble", "Scramble", 0.0, 0.0, 1.0, "")]
+        vec![],
+        [
+            p_float("speed", "Chars per second", 12.0, 1.0, 60.0, ""),
+            p_bool("cursor", "Cursor", true),
+            p_float("scramble", "Scramble", 0.0, 0.0, 1.0, "")
+        ]
     )
 }
 
 pub fn g073_text_path() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.text_path", "Text on path", "Typography", "gen_text", QualityClass::M, "G073", TimeModel::Analytic,
+        "gen.text_path",
+        "Text on path",
+        "Typography",
+        "gen_text",
+        QualityClass::M,
+        "G073",
+        TimeModel::Analytic,
         "Arc-length placement of glyphs along a PathSet with tangent rotation and scrolling.",
-        vec![], [p_float("offset", "Path offset", 0.0, 0.0, 1.0, ""), p_float("scroll", "Scroll speed", 0.0, -4.0, 4.0, "")]
+        vec![],
+        [
+            p_float("offset", "Path offset", 0.0, 0.0, 1.0, ""),
+            p_float("scroll", "Scroll speed", 0.0, -4.0, 4.0, "")
+        ]
     )
 }
 
@@ -241,9 +385,19 @@ pub fn g074_text_3d() -> (&'static str, Manifest, &'static str) {
 
 pub fn g075_text_particles() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.text_particles", "Text particles", "Typography", "gen_vector", QualityClass::M, "G075", TimeModel::FixedStep,
+        "gen.text_particles",
+        "Text particles",
+        "Typography",
+        "gen_vector",
+        QualityClass::M,
+        "G075",
+        TimeModel::FixedStep,
         "Outline/interior sampled glyph emission with attract-to-text and release events.",
-        vec![], [p_int("count", "Count", 8000, 100, 200000), p_float("blend", "Attract blend", 0.5, 0.0, 1.0, "")]
+        vec![],
+        [
+            p_int("count", "Count", 8000, 100, 200000),
+            p_float("blend", "Attract blend", 0.5, 0.0, 1.0, "")
+        ]
     )
 }
 
@@ -257,25 +411,62 @@ pub fn g076_physics_type() -> (&'static str, Manifest, &'static str) {
 
 pub fn g077_counters() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.counter", "Counter / clock", "Typography", "gen_text", QualityClass::L, "G077", TimeModel::Analytic,
+        "gen.counter",
+        "Counter / clock",
+        "Typography",
+        "gen_text",
+        QualityClass::L,
+        "G077",
+        TimeModel::Analytic,
         "Numeric display with format, deterministic timecode or counter source at a fixed fps.",
-        vec![], [p_enum("kind", "Kind", "timecode", &["timecode", "frame", "number"]), p_int("decimals", "Decimals", 2, 0, 6), p_float("start", "Start", 0.0, -1e6, 1e6, "")]
+        vec![],
+        [
+            p_enum("kind", "Kind", "timecode", &["timecode", "frame", "number"]),
+            p_int("decimals", "Decimals", 2, 0, 6),
+            p_float("start", "Start", 0.0, -1e6, 1e6, "")
+        ]
     )
 }
 
 pub fn g078_charts() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.chart", "Chart", "Typography", "gen_vector", QualityClass::M, "G078", TimeModel::Analytic,
+        "gen.chart",
+        "Chart",
+        "Typography",
+        "gen_vector",
+        QualityClass::M,
+        "G078",
+        TimeModel::Analytic,
         "Bars, lines and radial charts driven by a data source with bounds and labels.",
-        vec![PortDecl { id: "data".into(), port_type: PortType::VectorField, required: false }],
-        [p_enum("kind", "Kind", "bars", &["bars", "line", "radial", "radar"]), p_int("bars", "Bars", 12, 2, 64), p_color("colorA", "Color A", [0.2, 0.8, 1.0, 1.0]), p_color("colorB", "Color B", [1.0, 0.4, 0.2, 1.0])]
+        vec![PortDecl {
+            id: "data".into(),
+            port_type: PortType::VectorField,
+            required: false
+        }],
+        [
+            p_enum("kind", "Kind", "bars", &["bars", "line", "radial", "radar"]),
+            p_int("bars", "Bars", 12, 2, 64),
+            p_color("colorA", "Color A", [0.2, 0.8, 1.0, 1.0]),
+            p_color("colorB", "Color B", [1.0, 0.4, 0.2, 1.0])
+        ]
     )
 }
 
 pub fn g079_overlays() -> (&'static str, Manifest, &'static str) {
     vgen!(
-        "gen.overlays", "Technical overlay", "Typography", "gen_vector", QualityClass::L, "G079", TimeModel::Analytic,
+        "gen.overlays",
+        "Technical overlay",
+        "Typography",
+        "gen_vector",
+        QualityClass::L,
+        "G079",
+        TimeModel::Analytic,
         "Grids, rulers, dimensions, labels, scan cursors and callout HUD templates.",
-        vec![], [p_float("grid", "Grid spacing", 0.1, 0.01, 0.5, ""), p_float("scan", "Scan cursor", 0.3, 0.0, 1.0, ""), p_color("color", "Color", [0.3, 1.0, 0.7, 1.0])]
+        vec![],
+        [
+            p_float("grid", "Grid spacing", 0.1, 0.01, 0.5, ""),
+            p_float("scan", "Scan cursor", 0.3, 0.0, 1.0, ""),
+            p_color("color", "Color", [0.3, 1.0, 0.7, 1.0])
+        ]
     )
 }

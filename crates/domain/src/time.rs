@@ -22,7 +22,10 @@ pub enum RationalError {
 }
 
 impl RationalTime {
-    pub const ZERO: RationalTime = RationalTime { numerator: 0, denominator: 1 };
+    pub const ZERO: RationalTime = RationalTime {
+        numerator: 0,
+        denominator: 1,
+    };
 
     pub fn new(numerator: i64, denominator: u32) -> Result<Self, RationalError> {
         if denominator == 0 {
@@ -32,7 +35,10 @@ impl RationalTime {
     }
 
     pub fn from_secs(secs: i64) -> Self {
-        RationalTime { numerator: secs, denominator: 1 }
+        RationalTime {
+            numerator: secs,
+            denominator: 1,
+        }
     }
 
     /// Exact conversion from an integer frame index and exact rate.
@@ -115,7 +121,10 @@ impl RationalTime {
         if rn > i64::MAX as i128 || rn < i64::MIN as i128 || rd > u32::MAX as i128 {
             return Err(RationalError::Overflow);
         }
-        Ok(RationalTime { numerator: rn as i64, denominator: rd as u32 })
+        Ok(RationalTime {
+            numerator: rn as i64,
+            denominator: rd as u32,
+        })
     }
 
     /// Compare against another rational exactly.
@@ -184,7 +193,10 @@ impl FrameRate {
             return Err(RationalError::ZeroDenominator);
         }
         let g = cat_gcd(num as i64, den as i64) as u32;
-        Ok(FrameRate { num: num / g, den: den / g })
+        Ok(FrameRate {
+            num: num / g,
+            den: den / g,
+        })
     }
 
     pub fn as_f64(&self) -> f64 {
@@ -233,8 +245,11 @@ impl<'de> Deserialize<'de> for FrameRate {
 
 impl Serialize for RationalTime {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        RationalWire { numerator: self.numerator.to_string(), denominator: self.denominator }
-            .serialize(s)
+        RationalWire {
+            numerator: self.numerator.to_string(),
+            denominator: self.denominator,
+        }
+        .serialize(s)
     }
 }
 
@@ -358,7 +373,7 @@ mod tests {
     fn half_open_ranges() {
         let r = TimeRange::new(rt(1, 1), rt(2, 1));
         assert!(r.contains(rt(1, 1)));
-        assert!(r.contains(rt(3, 1) .sub(rt(1, 1000)).unwrap()));
+        assert!(r.contains(rt(3, 1).sub(rt(1, 1000)).unwrap()));
         assert!(!r.contains(rt(3, 1)));
     }
 }

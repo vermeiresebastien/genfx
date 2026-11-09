@@ -1,15 +1,17 @@
 # Decisions (short records)
 
-## D001 — Host-native editor instead of Tauri/WebView for the non-ui-free shell
-The spec's binding stack names Tauri 2 + React + React Flow. This environment has no
-`~/.cargo`-pinned Tauri scaffolding and the product's binding architecture (Rust owns
-document, evaluation, time, GPU) is independent of which UI toolkit renders React.
-Decision: the **Rust engine, domain, render, media and catalog crates follow the spec
-exactly**. The desktop shell is implemented as a **native egui/wgpu editor** that talks
-to the same engine API the spec attributes to React. Consequence recorded in
-BLOCKERS: no web-based React Flow canvas; the node canvas is a native egui canvas with
-the same commands/validation. UI code is not the product contract; engine/deterministic
-behavior is. All R ids that mention React Flow are implemented as native equivalents.
+## D001 — GUI architecture: Tauri 2 + React over the Rust command surface
+Revised decision (supersedes the initial native-egui attempt). The native egui editor
+was abandoned because egui 0.37 pins `wgpu 30` while the verified renderer is pinned to
+`wgpu 27`; mixing both aborts on a windows-crate conflict in wgpu-hal D3D12, and
+upgrading the renderer to wgpu 30 is a large rework that would invalidate all GPU
+evidence. **Decision: adopt the spec's Tauri 2 + React shell**, keeping Rust as the
+single authority for project state, validation, rendering, media, export and file I/O.
+The durable, testable part is the typed command/event surface (engine `Dispatcher`,
+`Command`, `Project`), which is already implemented and covered by tests; the GUI is a
+thin consumer of it. GUI implementation is staged after the producer contract and CI
+are stable (Workstream C). Rationale: avoids a divergent second rendering engine and
+the wgpu version conflict, and matches the product contract.
 
 ## D002 — Single wgpu renderer, one authoritative texture
 One wgpu device/queue; graph evaluated once per frame; the resulting texture is copied
@@ -40,3 +42,16 @@ hook is kept for future imports.
 Particles/physics/fluid/CA/reaction-diffusion run on deterministic CPU workers with
 fixed dt from project `simulation_step`, then upload state textures. This is the same
 evaluator path for preview and export (no second GPU engine).
+
+## D007 — Generator producer contract
+Generator rows that do not compute pixels directly in WGSL are *producers*: they compute
+RGBA on the CPU (or a worker) and upload a texture that the presentation pass shows.
+One interface (`flux_app::producer::Producer`) defines inputs (manifest id, resolved
+native params, width×height px, local time seconds, seed), output (tightly packed RGBA8,
+premultiplied, top-left origin, exactly w*h*4 bytes), determinism (identical inputs →
+identical bytes, no wall clock), and ownership (caller owns the buffer; bounded to the
+target size). The renderer accepts per-node `producer` textures via
+`RuntimeGraph::execute_with_producers`, so the same producer implementation drives
+preview and export with only resolution/quality differing. Reference producers:
+typography (G070–G079, bundled block font) and vector (G030–G045, analytic rasterizer).
+

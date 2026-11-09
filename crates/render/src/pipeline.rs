@@ -55,14 +55,16 @@ impl NodeParamsBuffer {
                 (flux_catalog::pack::SlotKind::Vec2, v) => {
                     if let Some(a) = v.as_array() {
                         for (i, x) in a.iter().enumerate() {
-                            floats[slot.vec4_index][slot.component + i] = x.as_f64().unwrap_or(0.0) as f32;
+                            floats[slot.vec4_index][slot.component + i] =
+                                x.as_f64().unwrap_or(0.0) as f32;
                         }
                     }
                 }
                 (flux_catalog::pack::SlotKind::Vec3, v) => {
                     if let Some(a) = v.as_array() {
                         for (i, x) in a.iter().enumerate() {
-                            floats[slot.vec4_index][slot.component + i] = x.as_f64().unwrap_or(0.0) as f32;
+                            floats[slot.vec4_index][slot.component + i] =
+                                x.as_f64().unwrap_or(0.0) as f32;
                         }
                     }
                 }
@@ -92,7 +94,8 @@ impl NodeParamsBuffer {
         Self { floats, uints }
     }
 
-    pub fn bytes(&self) -> Vec<u8> {        let mut out = Vec::with_capacity((self.floats.len() + self.uints.len()) * 16);
+    pub fn bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity((self.floats.len() + self.uints.len()) * 16);
         for f in &self.floats {
             out.extend_from_slice(bytemuck::cast_slice(f));
         }
@@ -144,7 +147,14 @@ impl EffectCompiler {
             solid_view_rgba(gpu, wgpu::TextureFormat::Rgba8Unorm, &[0, 0, 0, 0]),
             solid_view_rgba(gpu, wgpu::TextureFormat::Rgba8Unorm, &[0, 0, 0, 0]),
         );
-        Self { modules: HashMap::new(), pipelines: HashMap::new(), sampler, white_mask, black_tex, dummy_tex }
+        Self {
+            modules: HashMap::new(),
+            pipelines: HashMap::new(),
+            sampler,
+            white_mask,
+            black_tex,
+            dummy_tex,
+        }
     }
 
     /// The shared sampler.
@@ -153,7 +163,11 @@ impl EffectCompiler {
     }
 
     /// Compile (or reuse) the pipeline for a manifest.
-    pub fn ensure_pipeline(&mut self, gpu: &Gpu, entry: &flux_catalog::CatalogEntry) -> FluxResult<()> {
+    pub fn ensure_pipeline(
+        &mut self,
+        gpu: &Gpu,
+        entry: &flux_catalog::CatalogEntry,
+    ) -> FluxResult<()> {
         let id = &entry.manifest.id;
         if self.pipelines.contains_key(id) {
             return Ok(());
@@ -163,28 +177,46 @@ impl EffectCompiler {
             return self.compile_manifest(gpu, entry, ShaderVariant::Present);
         }
         // CPU/scene rows present already-rendered textures.
-        let is_present = entry.source.contains("textureSampleLevel(src_tex, src_sampler, uv, 0.0)\n  return")
+        let is_present = entry
+            .source
+            .contains("textureSampleLevel(src_tex, src_sampler, uv, 0.0)\n  return")
             && entry.source.matches("fn process").count() == 1
-            && entry.manifest.inputs.iter().all(|p| p.id != "source" || entry.manifest.generator_id.is_empty() == false);
-        let variant = if is_present { ShaderVariant::Present } else { ShaderVariant::Process };
+            && entry
+                .manifest
+                .inputs
+                .iter()
+                .all(|p| p.id != "source" || entry.manifest.generator_id.is_empty() == false);
+        let variant = if is_present {
+            ShaderVariant::Present
+        } else {
+            ShaderVariant::Process
+        };
         self.compile_manifest(gpu, entry, variant)
     }
 
-    fn compile_manifest(&mut self, gpu: &Gpu, entry: &flux_catalog::CatalogEntry, variant: ShaderVariant) -> FluxResult<()> {
+    fn compile_manifest(
+        &mut self,
+        gpu: &Gpu,
+        entry: &flux_catalog::CatalogEntry,
+        variant: ShaderVariant,
+    ) -> FluxResult<()> {
         let manifest = &entry.manifest;
         let generated = match variant {
             ShaderVariant::Process => shader_gen::generate_with(
                 entry,
-                if manifest.inputs.iter().any(|p| p.id == "source" && p.required) {
+                if manifest
+                    .inputs
+                    .iter()
+                    .any(|p| p.id == "source" && p.required)
+                {
                     shader_gen::ShaderSpec::effect()
                 } else {
                     shader_gen::ShaderSpec::generator()
                 },
             ),
-            ShaderVariant::Present => shader_gen::generate_with(
-                entry,
-                shader_gen::ShaderSpec::generator(),
-            ),
+            ShaderVariant::Present => {
+                shader_gen::generate_with(entry, shader_gen::ShaderSpec::generator())
+            }
         };
         let source = if matches!(variant, ShaderVariant::Present) {
             // Ensure the present body exists (CPU/scene rows already carry it).
@@ -195,110 +227,120 @@ impl EffectCompiler {
         // Validate the WGSL with Naga first: `create_shader_module` aborts the
         // process on a parse error, so we must catch it before it reaches wgpu.
         validate_wgsl(&manifest.id, &source)?;
-        let module = gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(&format!("effect-{}", manifest.id)),
-            source: wgpu::ShaderSource::Wgsl(source.clone().into()),
-        });
+        let module = gpu
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(&format!("effect-{}", manifest.id)),
+                source: wgpu::ShaderSource::Wgsl(source.clone().into()),
+            });
         gpu.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let bgl = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("effect-bgl"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(96),
+        let bgl = gpu
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("effect-bgl"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(96),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(48),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(48),
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        let input_layout = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("effect-input-bgl"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                ],
+            });
+        let input_layout = gpu
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("effect-input-bgl"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
                     },
-                    count: None,
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+        let layout = gpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("effect-layout"),
+                bind_group_layouts: &[&bgl, &input_layout],
+                push_constant_ranges: &[],
+            });
+        let pipeline = gpu
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(&format!("effect-pipeline-{}", manifest.id)),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("vs_main"),
+                    buffers: &[],
+                    compilation_options: Default::default(),
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    ..Default::default()
                 },
-            ],
-        });
-        let layout = gpu.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("effect-layout"),
-            bind_group_layouts: &[&bgl, &input_layout],
-            push_constant_ranges: &[],
-        });
-        let pipeline = gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(&format!("effect-pipeline-{}", manifest.id)),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8Unorm,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
         let uniform_size = {
             let (_, layout) = flux_catalog::pack::params_wgsl(&manifest.parameters);
             layout.byte_size().max(16)
@@ -314,10 +356,12 @@ impl EffectCompiler {
             manifest.id.clone(),
             EffectPipeline {
                 type_id: manifest.id.clone(),
-                bind_group_layout: gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("effect-bgl-stored"),
-                    entries: &[],
-                }),
+                bind_group_layout: gpu.device.create_bind_group_layout(
+                    &wgpu::BindGroupLayoutDescriptor {
+                        label: Some("effect-bgl-stored"),
+                        entries: &[],
+                    },
+                ),
                 pipeline,
                 uniform_size,
                 has_extra_inputs: manifest.inputs.len() > 2,
@@ -351,16 +395,24 @@ pub fn validate_wgsl(label: &str, src: &str) -> FluxResult<()> {
         naga::valid::ValidationFlags::all(),
         naga::valid::Capabilities::all(),
     );
-    validator
-        .validate(&module)
-        .map_err(|e| FluxError::new(ErrorCode::ShaderCompile, "render", format!("{label}: {e:?}")))?;
+    validator.validate(&module).map_err(|e| {
+        FluxError::new(
+            ErrorCode::ShaderCompile,
+            "render",
+            format!("{label}: {e:?}"),
+        )
+    })?;
     Ok(())
 }
 
 fn solid_view(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu::TextureView {
     let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("solid"),
-        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -376,8 +428,16 @@ fn solid_view(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu::Tex
             aspect: wgpu::TextureAspect::All,
         },
         value,
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(value.len() as u32), rows_per_image: Some(1) },
-        wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(value.len() as u32),
+            rows_per_image: Some(1),
+        },
+        wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
     );
     tex.create_view(&Default::default())
 }
@@ -385,7 +445,11 @@ fn solid_view(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu::Tex
 fn solid_view_rgba(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu::TextureView {
     let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("solid-rgba"),
-        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -401,8 +465,16 @@ fn solid_view_rgba(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu
             aspect: wgpu::TextureAspect::All,
         },
         value,
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(value.len() as u32), rows_per_image: Some(1) },
-        wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(value.len() as u32),
+            rows_per_image: Some(1),
+        },
+        wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
     );
     tex.create_view(&Default::default())
 }
@@ -411,7 +483,11 @@ fn solid_view_rgba(gpu: &Gpu, format: wgpu::TextureFormat, value: &[u8]) -> wgpu
 pub fn render_target(gpu: &Gpu, width: u32, height: u32) -> (wgpu::Texture, wgpu::TextureView) {
     let tex = gpu.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("effect-target"),
-        size: wgpu::Extent3d { width: width.max(1), height: height.max(1), depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,

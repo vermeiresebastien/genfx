@@ -16,7 +16,9 @@ pub struct Router {
 
 impl Default for Router {
     fn default() -> Self {
-        Self { smoothers: HashMap::new() }
+        Self {
+            smoothers: HashMap::new(),
+        }
     }
 }
 
@@ -75,7 +77,16 @@ impl Router {
                             mm
                         })
                         .collect();
-                    resolve_parameter(base_final, min, max, &keyed, snapshot, &mut self.smoothers, time_secs, dt)
+                    resolve_parameter(
+                        base_final,
+                        min,
+                        max,
+                        &keyed,
+                        snapshot,
+                        &mut self.smoothers,
+                        time_secs,
+                        dt,
+                    )
                 };
                 if value.is_finite() {
                     out.insert(p.id.clone(), value);
@@ -184,7 +195,14 @@ mod tests {
         let node_id = g.nodes[1].id.clone();
         let mut router = Router::default();
         let vals = router
-            .resolve_node(&g, &node_id, RationalTime::ZERO, &FeatureSnapshot::default(), 0.016, &p)
+            .resolve_node(
+                &g,
+                &node_id,
+                RationalTime::ZERO,
+                &FeatureSnapshot::default(),
+                0.016,
+                &p,
+            )
             .unwrap();
         // exposure default 0
         assert!((vals.get("exposure").copied().unwrap_or(f64::NAN) - 0.0).abs() < 1e-9);
@@ -197,15 +215,30 @@ mod tests {
         g.keyframes.insert(
             format!("{}:exposure", node_id),
             vec![
-                Keyframe { time: rt(0, 1), value: ParamValue::Float { value: 2.0 }, interpolation: Interpolation::Linear },
-                Keyframe { time: rt(2, 1), value: ParamValue::Float { value: 4.0 }, interpolation: Interpolation::Linear },
+                Keyframe {
+                    time: rt(0, 1),
+                    value: ParamValue::Float { value: 2.0 },
+                    interpolation: Interpolation::Linear,
+                },
+                Keyframe {
+                    time: rt(2, 1),
+                    value: ParamValue::Float { value: 4.0 },
+                    interpolation: Interpolation::Linear,
+                },
             ],
         );
         let mut p = Project::new("x", 1);
         p.graphs.insert(g.id.clone(), g.clone());
         let mut router = Router::default();
         let vals = router
-            .resolve_node(&g, &node_id, rt(1, 1), &FeatureSnapshot::default(), 0.016, &p)
+            .resolve_node(
+                &g,
+                &node_id,
+                rt(1, 1),
+                &FeatureSnapshot::default(),
+                0.016,
+                &p,
+            )
             .unwrap();
         assert!((vals["exposure"] - 3.0).abs() < 1e-6);
     }
@@ -224,7 +257,9 @@ mod tests {
                 id: "m1".into(),
                 node_id: node_id.clone(),
                 param_id: "exposure".into(),
-                source: ModulationSource::Feature { feature: FeatureId::Bass },
+                source: ModulationSource::Feature {
+                    feature: FeatureId::Bass,
+                },
                 in_min: 0.0,
                 in_max: 1.0,
                 amount: 1.0,

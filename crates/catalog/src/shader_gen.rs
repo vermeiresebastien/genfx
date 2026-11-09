@@ -22,10 +22,18 @@ pub struct ShaderSpec {
 
 impl ShaderSpec {
     pub fn effect() -> Self {
-        Self { has_mask: true, extra_textures: vec![], generator: false }
+        Self {
+            has_mask: true,
+            extra_textures: vec![],
+            generator: false,
+        }
     }
     pub fn generator() -> Self {
-        Self { has_mask: true, extra_textures: vec![], generator: true }
+        Self {
+            has_mask: true,
+            extra_textures: vec![],
+            generator: true,
+        }
     }
     pub fn with_extra(mut self, names: &[&str]) -> Self {
         self.extra_textures = names.iter().map(|s| s.to_string()).collect();
@@ -51,7 +59,8 @@ pub fn generate_with(entry: &crate::CatalogEntry, spec: ShaderSpec) -> String {
     let mut s = String::new();
     s.push_str("// Generated from manifest. Do not edit by hand.\n// Shader ABI version 1.\n\n");
     s.push_str(&params_src);
-    s.push_str(r#"
+    s.push_str(
+        r#"
 struct FrameUniform {
   dims: vec4<u32>,
   sampling: vec4<f32>,
@@ -71,21 +80,26 @@ struct AudioFeatures {
 @group(0) @binding(1) var<uniform> np: NodeParams;
 @group(0) @binding(2) var<uniform> audio: AudioFeatures;
 
-"#);
+"#,
+    );
     s.push_str("\n");
 
     if spec.generator {
-        s.push_str(r#"
+        s.push_str(
+            r#"
 @group(1) @binding(0) var src_tex: texture_2d<f32>;
 @group(1) @binding(1) var mask_tex: texture_2d<f32>;
 @group(1) @binding(2) var src_sampler: sampler;
-"#);
+"#,
+        );
     } else {
-        s.push_str(r#"
+        s.push_str(
+            r#"
 @group(1) @binding(0) var src_tex: texture_2d<f32>;
 @group(1) @binding(1) var mask_tex: texture_2d<f32>;
 @group(1) @binding(2) var src_sampler: sampler;
-"#);
+"#,
+        );
     }
     for (i, name) in spec.extra_textures.iter().enumerate() {
         s.push_str(&format!(
@@ -101,7 +115,8 @@ struct AudioFeatures {
     s.push_str(wgsl_common::SAMPLE);
 
     // Frame-context helpers shared by all effects.
-    s.push_str(r#"
+    s.push_str(
+        r#"
 fn out_size() -> vec2<f32> {
   return vec2<f32>(f32(frame.dims.x), f32(frame.dims.y));
 }
@@ -133,14 +148,16 @@ fn px_to_uv(px: f32) -> vec2<f32> {
   return vec2<f32>(px) * inv_size() * frame.sampling.zw;
 }
 
-"#);
+"#,
+    );
 
     s.push_str(body);
     s.push_str("\n");
 
     // Fullscreen triangle vertex stage. No vertex buffers: 3 vertices emitted
     // from the vertex index, covering the whole clip space.
-    s.push_str(r#"
+    s.push_str(
+        r#"
 @vertex
 fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
   var pos = array<vec2<f32>, 3>(
@@ -151,10 +168,12 @@ fn vs_main(@builtin(vertex_index) idx: u32) -> @builtin(position) vec4<f32> {
   return vec4<f32>(pos[idx], 0.0, 1.0);
 }
 
-"#);
+"#,
+    );
 
     // Entry point. `process` receives uv and source RGBA and returns premultiplied RGBA.
-    s.push_str(r#"
+    s.push_str(
+        r#"
 @fragment
 fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
   let uv = frag_coord.xy * inv_size();
@@ -163,7 +182,8 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
   let processed = process(uv, src);
   return final_mix(src, processed, p_wet(), m);
 }
-"#);
+"#,
+    );
     if !m.outputs.iter().any(|o| o.id == "color") {
         // generators output color as well
     }

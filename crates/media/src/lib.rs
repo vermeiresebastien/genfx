@@ -5,7 +5,9 @@
 //! crashes. Every operation is bounded and cancellable, and uses the exact
 //! rational time mapping from the engine, never nominal-fps frame math.
 
-use flux_domain::{Asset, AssetKind, AssetStream, ErrorCode, FluxError, FluxResult, PixelAspect, RationalTime};
+use flux_domain::{
+    Asset, AssetKind, AssetStream, ErrorCode, FluxError, FluxResult, PixelAspect, RationalTime,
+};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -40,7 +42,11 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
 
 pub fn find_ffprobe() -> Option<PathBuf> {
     if let Some(ff) = find_ffmpeg() {
-        let probe = ff.with_file_name(if cfg!(windows) { "ffprobe.exe" } else { "ffprobe" });
+        let probe = ff.with_file_name(if cfg!(windows) {
+            "ffprobe.exe"
+        } else {
+            "ffprobe"
+        });
         if probe.exists() {
             return Some(probe);
         }
@@ -49,7 +55,11 @@ pub fn find_ffprobe() -> Option<PathBuf> {
 }
 
 fn which(name: &str) -> Option<PathBuf> {
-    let exe = if cfg!(windows) { format!("{name}.exe") } else { name.to_string() };
+    let exe = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    };
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
         let cand = dir.join(&exe);
@@ -95,8 +105,13 @@ impl MediaWorker {
 
     /// Capability report: decoders/encoders the installed FFmpeg actually has.
     pub fn capabilities(&self) -> MediaCaps {
-        let out = Command::new(&self.ffmpeg).args(["-hide_banner", "-encoders"]).output().ok();
-        let text = out.map(|o| String::from_utf8_lossy(&o.stdout).to_string()).unwrap_or_default();
+        let out = Command::new(&self.ffmpeg)
+            .args(["-hide_banner", "-encoders"])
+            .output()
+            .ok();
+        let text = out
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default();
         let has = |n: &str| text.contains(n);
         MediaCaps {
             h264: has("libx264"),
@@ -143,7 +158,11 @@ impl MediaWorker {
             if s.codec_type.as_deref() == Some("video") {
                 width = s.width;
                 height = s.height;
-                if let Some(r) = s.side_data_list.as_ref().and_then(|l| l.iter().find_map(|d| d.rotation)) {
+                if let Some(r) = s
+                    .side_data_list
+                    .as_ref()
+                    .and_then(|l| l.iter().find_map(|d| d.rotation))
+                {
                     rotation = r;
                 }
                 if let Some(tag) = &s.sample_aspect_ratio {
@@ -175,7 +194,15 @@ impl MediaWorker {
                 let micros = (secs * 1_000_000.0).round() as i64;
                 RationalTime::new(micros, 1_000_000).ok()
             });
-        Ok(ProbeInfo { kind, duration, streams, rotation_deg: rotation, sample_aspect: sar, width, height })
+        Ok(ProbeInfo {
+            kind,
+            duration,
+            streams,
+            rotation_deg: rotation,
+            sample_aspect: sar,
+            width,
+            height,
+        })
     }
 
     pub fn asset_from_probe(&self, path: &Path, probe: &ProbeInfo) -> FluxResult<Asset> {
@@ -190,7 +217,11 @@ impl MediaWorker {
         Ok(Asset {
             id: uuid::Uuid::new_v4().to_string(),
             kind: probe.kind,
-            name: path.file_name().and_then(|s| s.to_str()).unwrap_or("asset").to_string(),
+            name: path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("asset")
+                .to_string(),
             original_path: path.display().to_string(),
             relative_path: None,
             fingerprint: format!("{}-{}", meta.len(), mtime),
@@ -215,7 +246,12 @@ impl MediaWorker {
     ) -> FluxResult<DecodedFrame> {
         let png = self.frame_to_rgba_bytes(path, pts, width, height, cancel)?;
         let (w, h, rgba) = decode_png_rgba(&png)?;
-        Ok(DecodedFrame { width: w, height: h, pts, rgba })
+        Ok(DecodedFrame {
+            width: w,
+            height: h,
+            pts,
+            rgba,
+        })
     }
 
     fn frame_to_rgba_bytes(
@@ -258,20 +294,32 @@ impl MediaWorker {
         loop {
             if cancel.load(Ordering::Relaxed) {
                 let _ = child.kill();
-                return Err(FluxError::new(ErrorCode::MediaDecode, "media", "decode cancelled"));
+                return Err(FluxError::new(
+                    ErrorCode::MediaDecode,
+                    "media",
+                    "decode cancelled",
+                ));
             }
             match stdout.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => bytes.extend_from_slice(&buf[..n]),
                 Err(e) => {
                     let _ = child.kill();
-                    return Err(FluxError::new(ErrorCode::MediaDecode, "media", e.to_string()));
+                    return Err(FluxError::new(
+                        ErrorCode::MediaDecode,
+                        "media",
+                        e.to_string(),
+                    ));
                 }
             }
         }
         let _ = child.wait();
         if bytes.is_empty() {
-            return Err(FluxError::new(ErrorCode::MediaDecode, "media", "empty frame"));
+            return Err(FluxError::new(
+                ErrorCode::MediaDecode,
+                "media",
+                "empty frame",
+            ));
         }
         Ok(bytes)
     }
@@ -304,14 +352,22 @@ impl MediaWorker {
             .wait_with_output()
             .map_err(|e| FluxError::new(ErrorCode::MediaDecode, "media", e.to_string()))?;
         if out.stdout.is_empty() {
-            return Err(FluxError::new(ErrorCode::MediaDecode, "media", "no audio track"));
+            return Err(FluxError::new(
+                ErrorCode::MediaDecode,
+                "media",
+                "no audio track",
+            ));
         }
         let samples: Vec<f32> = out
             .stdout
             .chunks_exact(4)
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
-        Ok(AudioTrack { sample_rate, frames: samples.len() / 2, samples })
+        Ok(AudioTrack {
+            sample_rate,
+            frames: samples.len() / 2,
+            samples,
+        })
     }
 
     /// Encode an RGBA8 image sequence + optional WAV into a container.
@@ -329,7 +385,12 @@ impl MediaWorker {
         let pattern = frames_dir.join("frame_%06d.png");
         let mut cmd = Command::new(&self.ffmpeg);
         cmd.args(["-hide_banner", "-loglevel", "error", "-y"]);
-        cmd.args(["-framerate", fps, "-i", pattern.to_str().unwrap_or_default()]);
+        cmd.args([
+            "-framerate",
+            fps,
+            "-i",
+            pattern.to_str().unwrap_or_default(),
+        ]);
         if let Some(a) = audio_wav {
             cmd.args(["-i", a.to_str().unwrap_or_default()]);
         }
@@ -341,7 +402,14 @@ impl MediaWorker {
                 cmd.args(["-c:v", "libx265", "-pix_fmt", "yuv420p", "-crf", "22"]);
             }
             EncodeCodec::ProRes => {
-                cmd.args(["-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le"]);
+                cmd.args([
+                    "-c:v",
+                    "prores_ks",
+                    "-profile:v",
+                    "4444",
+                    "-pix_fmt",
+                    "yuva444p10le",
+                ]);
             }
             EncodeCodec::Gif => {
                 cmd.args(["-vf", "fps=15,scale=640:-1:flags=lanczos", "-loop", "0"]);
@@ -356,7 +424,11 @@ impl MediaWorker {
             .status()
             .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
         if !status.success() {
-            return Err(FluxError::new(ErrorCode::ExportEncoder, "media", format!("encoder exited with {status}")));
+            return Err(FluxError::new(
+                ErrorCode::ExportEncoder,
+                "media",
+                format!("encoder exited with {status}"),
+            ));
         }
         Ok(())
     }
@@ -431,7 +503,11 @@ struct SideData {
 }
 
 fn infer_kind(path: &Path, probe: &ProbeJson) -> AssetKind {
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match ext.as_str() {
         "svg" => return AssetKind::Svg,
         "json" | "lottie" => return AssetKind::Lottie,
@@ -440,12 +516,17 @@ fn infer_kind(path: &Path, probe: &ProbeJson) -> AssetKind {
         "csv" => return AssetKind::Csv,
         _ => {}
     }
-    let has_video = probe.streams.iter().any(|s| s.codec_type.as_deref() == Some("video"));
-    let has_audio = probe.streams.iter().any(|s| s.codec_type.as_deref() == Some("audio"));
-    let is_image = probe
+    let has_video = probe
         .streams
         .iter()
-        .any(|s| s.codec_type.as_deref() == Some("video") && is_still_codec(s.codec_name.as_deref()));
+        .any(|s| s.codec_type.as_deref() == Some("video"));
+    let has_audio = probe
+        .streams
+        .iter()
+        .any(|s| s.codec_type.as_deref() == Some("audio"));
+    let is_image = probe.streams.iter().any(|s| {
+        s.codec_type.as_deref() == Some("video") && is_still_codec(s.codec_name.as_deref())
+    });
     if is_image {
         AssetKind::Image
     } else if has_video {
@@ -458,7 +539,10 @@ fn infer_kind(path: &Path, probe: &ProbeJson) -> AssetKind {
 }
 
 fn is_still_codec(codec: Option<&str>) -> bool {
-    matches!(codec, Some("png") | Some("mjpeg") | Some("bmp") | Some("webp") | Some("tiff") | Some("gif"))
+    matches!(
+        codec,
+        Some("png") | Some("mjpeg") | Some("bmp") | Some("webp") | Some("tiff") | Some("gif")
+    )
 }
 
 /// Decode PNG bytes (from ffmpeg image2pipe) into (w, h, rgba).
@@ -469,9 +553,11 @@ fn decode_png_rgba(bytes: &[u8]) -> FluxResult<(u32, u32, Vec<u8>)> {
     }
     let w = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
     let h = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
-    let ffmpeg = find_ffmpeg().ok_or_else(|| FluxError::new(ErrorCode::MediaDecode, "media", "ffmpeg"))?;
+    let ffmpeg =
+        find_ffmpeg().ok_or_else(|| FluxError::new(ErrorCode::MediaDecode, "media", "ffmpeg"))?;
     let tmp = tempfile_path("flux_frame", "png");
-    std::fs::write(&tmp, bytes).map_err(|e| FluxError::new(ErrorCode::MediaDecode, "media", e.to_string()))?;
+    std::fs::write(&tmp, bytes)
+        .map_err(|e| FluxError::new(ErrorCode::MediaDecode, "media", e.to_string()))?;
     let out = Command::new(&ffmpeg)
         .args([
             "-hide_banner",
@@ -491,7 +577,11 @@ fn decode_png_rgba(bytes: &[u8]) -> FluxResult<(u32, u32, Vec<u8>)> {
     let out = out?;
     let expected = (w as u64 * h as u64 * 4) as usize;
     if out.stdout.len() < expected {
-        return Err(FluxError::new(ErrorCode::MediaDecode, "media", "truncated frame"));
+        return Err(FluxError::new(
+            ErrorCode::MediaDecode,
+            "media",
+            "truncated frame",
+        ));
     }
     Ok((w, h, out.stdout[..expected].to_vec()))
 }
@@ -504,7 +594,8 @@ fn tempfile_path(prefix: &str, ext: &str) -> PathBuf {
 
 /// Write raw RGBA to a PNG file (used by export image sequence).
 pub fn write_png_rgba(path: &Path, width: u32, height: u32, rgba: &[u8]) -> FluxResult<()> {
-    let ffmpeg = find_ffmpeg().ok_or_else(|| FluxError::new(ErrorCode::ExportEncoder, "media", "ffmpeg"))?;
+    let ffmpeg =
+        find_ffmpeg().ok_or_else(|| FluxError::new(ErrorCode::ExportEncoder, "media", "ffmpeg"))?;
     let mut child = Command::new(&ffmpeg)
         .args([
             "-hide_banner",
@@ -536,7 +627,11 @@ pub fn write_png_rgba(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Flux
         .wait()
         .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
     if !status.success() {
-        return Err(FluxError::new(ErrorCode::ExportEncoder, "media", "png encode failed"));
+        return Err(FluxError::new(
+            ErrorCode::ExportEncoder,
+            "media",
+            "png encode failed",
+        ));
     }
     Ok(())
 }
@@ -589,7 +684,8 @@ pub fn read_wav_f32(path: &Path) -> FluxResult<(u32, u16, Vec<f32>)> {
     let mut pcm: &[u8] = &[];
     while pos + 8 <= data.len() {
         let id = &data[pos..pos + 4];
-        let size = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]]) as usize;
+        let size = u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+            as usize;
         let body = &data[pos + 8..(pos + 8 + size).min(data.len())];
         if id == b"fmt " {
             channels = u16::from_le_bytes([body[2], body[3]]);

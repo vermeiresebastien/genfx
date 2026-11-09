@@ -26,7 +26,19 @@ pub fn fx100_tone() -> (&'static str, Manifest, &'static str) {
         "FX100",
         "Levels, posterize, threshold, invert, duotone and thermal tone operations.",
         [
-            p_enum("mode", "Mode", "levels", &["levels", "posterize", "threshold", "invert", "duotone", "thermal"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "levels",
+                &[
+                    "levels",
+                    "posterize",
+                    "threshold",
+                    "invert",
+                    "duotone",
+                    "thermal"
+                ]
+            ),
             p_float("inBlack", "Input black", 0.0, 0.0, 1.0, ""),
             p_float("inWhite", "Input white", 1.0, 0.0, 1.0, ""),
             p_float("outBlack", "Output black", 0.0, 0.0, 1.0, ""),
@@ -203,7 +215,12 @@ pub fn fx103_blur() -> (&'static str, Manifest, &'static str) {
         "FX103",
         "Gaussian, directional, radial, focal and motion blur with normalized kernels.",
         [
-            p_enum("mode", "Mode", "gaussian", &["gaussian", "directional", "radial", "focal"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "gaussian",
+                &["gaussian", "directional", "radial", "focal"]
+            ),
             p_float("radius", "Radius", 8.0, 0.0, 128.0, "output_px"),
             p_float("angle", "Angle", 0.0, 0.0, 6.2831853, "rad"),
         ],
@@ -253,7 +270,12 @@ pub fn fx104_glow() -> (&'static str, Manifest, &'static str) {
         "FX104",
         "Outer glow, halo echo, light rays and light leaks with explicit alpha expansion.",
         [
-            p_enum("mode", "Mode", "outerGlow", &["outerGlow", "halo", "lightRays", "lightLeak"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "outerGlow",
+                &["outerGlow", "halo", "lightRays", "lightLeak"]
+            ),
             p_float("radius", "Radius", 16.0, 0.0, 128.0, "output_px"),
             p_float("intensity", "Intensity", 1.0, 0.0, 4.0, ""),
             p_color("color", "Color", [0.4, 0.6, 1.0, 1.0]),
@@ -449,7 +471,12 @@ pub fn fx108_glitch() -> (&'static str, Manifest, &'static str) {
         "FX108",
         "Held seeded glitch blocks, compression-style block tearing and fragment splits.",
         [
-            p_enum("mode", "Mode", "blocks", &["blocks", "compression", "tearing", "fragment"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "blocks",
+                &["blocks", "compression", "tearing", "fragment"]
+            ),
             p_float("intensity", "Intensity", 0.3, 0.0, 1.0, ""),
             p_int("blocks", "Blocks", 12, 2, 64),
             p_float("updateRate", "Update rate", 8.0, 0.1, 120.0, "Hz"),
@@ -496,7 +523,12 @@ pub fn fx109_pixel() -> (&'static str, Manifest, &'static str) {
         "FX109",
         "Modular pixel dissolve, bounded pixel sorting, voxel dots and mosaic.",
         [
-            p_enum("mode", "Mode", "mosaic", &["dissolve", "sort", "voxels", "mosaic"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "mosaic",
+                &["dissolve", "sort", "voxels", "mosaic"]
+            ),
             p_float("cellSize", "Cell size", 8.0, 1.0, 64.0, "output_px"),
             p_float("amount", "Amount", 0.5, 0.0, 1.0, ""),
         ],
@@ -544,7 +576,12 @@ pub fn fx110_smear() -> (&'static str, Manifest, &'static str) {
         "FX110",
         "Horizontal, directional, radial and slit-scan smear from a selected strip.",
         [
-            p_enum("mode", "Mode", "horizontal", &["horizontal", "directional", "radial"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "horizontal",
+                &["horizontal", "directional", "radial"]
+            ),
             p_float("origin", "Origin", 0.5, 0.0, 1.0, ""),
             p_float("extent", "Extent", 0.3, 0.0, 1.0, ""),
         ],
@@ -665,7 +702,12 @@ pub fn fx113_materials() -> (&'static str, Manifest, &'static str) {
         "FX113",
         "Chrome, liquid metal, emboss, iridescent holographic and specular relief materials.",
         [
-            p_enum("material", "Material", "chrome", &["chrome", "liquidMetal", "emboss", "iridescent", "specular"]),
+            p_enum(
+                "material",
+                "Material",
+                "chrome",
+                &["chrome", "liquidMetal", "emboss", "iridescent", "specular"]
+            ),
             p_float("strength", "Strength", 1.0, 0.0, 4.0, ""),
             p_float("roughness", "Roughness", 0.3, 0.0, 1.0, ""),
             p_float("lightAngle", "Light angle", 0.7, -3.14, 3.14, "rad"),
@@ -761,7 +803,12 @@ pub fn fx115_print() -> (&'static str, Manifest, &'static str) {
         "FX115",
         "CMYK print with dot angles, misregistration, risograph ink and comics outline.",
         [
-            p_enum("mode", "Mode", "cmyk", &["cmyk", "misregister", "risograph", "comics"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "cmyk",
+                &["cmyk", "misregister", "risograph", "comics"]
+            ),
             p_float("dotSize", "Dot size", 6.0, 2.0, 32.0, "output_px"),
             p_float("misregister", "Misregistration", 1.0, 0.0, 8.0, "output_px"),
             p_color("inkA", "Ink A", [0.0, 0.75, 0.8, 1.0]),
@@ -820,7 +867,12 @@ pub fn fx116_technical() -> (&'static str, Manifest, &'static str) {
         "FX116",
         "CT scan style, thermal, blueprint, contour lines and cutaway 2D styling of the source.",
         [
-            p_enum("mode", "Mode", "ct", &["ct", "thermal", "blueprint", "contour", "cutaway"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "ct",
+                &["ct", "thermal", "blueprint", "contour", "cutaway"]
+            ),
             p_float("banding", "Band density", 12.0, 1.0, 64.0, ""),
             p_float("sweep", "Scan sweep", 0.1, 0.0, 2.0, "cycles/s"),
         ],
@@ -958,7 +1010,12 @@ pub fn fx119_feedback() -> (&'static str, Manifest, &'static str) {
         "FX119",
         "Transform, displacement and reaction feedback reading the explicit prior-frame resource.",
         [
-            p_enum("mode", "Mode", "transform", &["transform", "displace", "reaction"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "transform",
+                &["transform", "displace", "reaction"]
+            ),
             p_float("zoom", "Zoom", 1.02, 0.8, 1.2, ""),
             p_float("rotate", "Rotate", 0.01, -0.2, 0.2, "rad"),
             p_float("mix", "Mix", 0.85, 0.0, 1.0, ""),
@@ -1036,8 +1093,18 @@ pub fn fx121_masks() -> (&'static str, Manifest, &'static str) {
         "FX121",
         "Shape, path, feather, dilate/erode, invert and combine mask operations.",
         [
-            p_enum("mode", "Mode", "shape", &["shape", "feather", "dilate", "combine"]),
-            p_enum("combine", "Combine", "union", &["union", "intersect", "subtract"]),
+            p_enum(
+                "mode",
+                "Mode",
+                "shape",
+                &["shape", "feather", "dilate", "combine"]
+            ),
+            p_enum(
+                "combine",
+                "Combine",
+                "union",
+                &["union", "intersect", "subtract"]
+            ),
             p_float("feather", "Feather", 4.0, 0.0, 64.0, "output_px"),
             p_float("radius", "Shape radius", 0.35, 0.0, 0.7, ""),
             p_bool("invert", "Invert", false),

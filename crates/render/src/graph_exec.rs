@@ -6,7 +6,9 @@
 //! the last valid graph if a new one fails.
 
 use crate::gpu::Gpu;
-use crate::pipeline::{render_target, AudioFeaturesGpu, EffectCompiler, FrameUniformGpu, NodeParamsBuffer};
+use crate::pipeline::{
+    render_target, AudioFeaturesGpu, EffectCompiler, FrameUniformGpu, NodeParamsBuffer,
+};
 use flux_catalog::{Catalog, CatalogEntry};
 use flux_domain::{ErrorCode, FluxError, FluxResult, Graph};
 use flux_engine::frame::{AudioSnapshot, FrameContext};
@@ -61,7 +63,10 @@ impl RuntimeGraph {
         }
 
         // Two ping-pong targets keep read/write from aliasing within a pass.
-        let targets = vec![render_target(gpu, width, height), render_target(gpu, width, height)];
+        let targets = vec![
+            render_target(gpu, width, height),
+            render_target(gpu, width, height),
+        ];
         let output_target = render_target(gpu, width, height);
         let frame_buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("frame-uniform"),
@@ -80,7 +85,9 @@ impl RuntimeGraph {
         let mut bind_groups = HashMap::new();
         let mut input_bind_groups = HashMap::new();
         for pass in &compiled.passes {
-            let Some(entry) = catalog.get(&pass.type_id) else { continue };
+            let Some(entry) = catalog.get(&pass.type_id) else {
+                continue;
+            };
             let (_, layout) = flux_catalog::pack::params_wgsl(&entry.manifest.parameters);
             let buf = NodeParamsBuffer {
                 floats: vec![[0.0; 4]; layout.f_count],
@@ -95,71 +102,93 @@ impl RuntimeGraph {
             });
             gpu.queue.write_buffer(&ubo, 0, &bytes);
             // Bind group 0: frame, params, audio.
-            let bgl0 = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("bind0"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(96),
+            let bgl0 = gpu
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("bind0"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(96),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(48),
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(48),
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                ],
-            });
+                    ],
+                });
             let bg = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bind0-group"),
                 layout: &bgl0,
                 entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: frame_buf.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 1, resource: ubo.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 2, resource: audio_buf.as_entire_binding() },
-                ],
-            });
-            // Bind group 1: source/mask/sampler + extras (using dummy views).
-            let bgl1 = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("bind1"),
-                entries: &[
-                    tex_entry(0),
-                    tex_entry(1),
-                    wgpu::BindGroupLayoutEntry {
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: frame_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: ubo.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
                         binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
+                        resource: audio_buf.as_entire_binding(),
                     },
                 ],
             });
+            // Bind group 1: source/mask/sampler + extras (using dummy views).
+            let bgl1 = gpu
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("bind1"),
+                    entries: &[
+                        tex_entry(0),
+                        tex_entry(1),
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                    ],
+                });
             let bg1 = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bind1-group"),
                 layout: &bgl1,
                 entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&targets[0].1) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&compiler.white_mask) },
-                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(compiler.sampler()) },
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&targets[0].1),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&compiler.white_mask),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(compiler.sampler()),
+                    },
                 ],
             });
             node_uniforms.insert(pass.node_id.clone(), buf);
@@ -195,7 +224,7 @@ impl RuntimeGraph {
 
     /// Execute a frame. `source` is the incoming scope texture (for the graph's
     /// Source node). All node uniforms are supplied by the caller, already
-    /// resolved. The final texture is left in the last target.
+    /// resolved. The final texture is left in the output target.
     pub fn execute(
         &mut self,
         gpu: &Gpu,
@@ -206,6 +235,32 @@ impl RuntimeGraph {
         resolved: &HashMap<String, NodeParamsBuffer>,
         wet: f32,
     ) -> FluxResult<()> {
+        self.execute_with_producers(
+            gpu,
+            compiler,
+            catalog,
+            ctx,
+            source,
+            resolved,
+            wet,
+            &HashMap::new(),
+        )
+    }
+
+    /// Like [`execute`], but producer nodes (vector/scene/CPU-simulation rows)
+    /// can supply their own rendered texture. `producers` maps `node_id` to a
+    /// texture view containing the node's produced RGBA content for this frame.
+    pub fn execute_with_producers(
+        &mut self,
+        gpu: &Gpu,
+        compiler: &EffectCompiler,
+        catalog: &Catalog,
+        ctx: &FrameContext,
+        source: &wgpu::TextureView,
+        resolved: &HashMap<String, NodeParamsBuffer>,
+        wet: f32,
+        producers: &HashMap<String, wgpu::TextureView>,
+    ) -> FluxResult<()> {
         // Upload frame + audio uniforms.
         let uniform = FrameUniformGpu {
             dims: ctx.uniform(wet).dims,
@@ -215,20 +270,33 @@ impl RuntimeGraph {
             music: ctx.uniform(wet).music,
             controls: ctx.uniform(wet).controls,
         };
-        gpu.queue.write_buffer(&self.frame_buf, 0, bytemuck::bytes_of(&uniform));
+        gpu.queue
+            .write_buffer(&self.frame_buf, 0, bytemuck::bytes_of(&uniform));
         let a: AudioSnapshot = ctx.audio;
-        let audio = AudioFeaturesGpu { bands: a.bands, extra: a.extra, params: a.params };
-        gpu.queue.write_buffer(&self.audio_buf, 0, bytemuck::bytes_of(&audio));
+        let audio = AudioFeaturesGpu {
+            bands: a.bands,
+            extra: a.extra,
+            params: a.params,
+        };
+        gpu.queue
+            .write_buffer(&self.audio_buf, 0, bytemuck::bytes_of(&audio));
 
         // Upload each node's resolved parameters.
         for pass in &self.compiled.passes {
-            if let (Some(buf), Some(ubo)) = (resolved.get(&pass.node_id), self.params_bufs.get(&pass.node_id)) {
+            if let (Some(buf), Some(ubo)) = (
+                resolved.get(&pass.node_id),
+                self.params_bufs.get(&pass.node_id),
+            ) {
                 let bytes = buf.bytes();
                 gpu.queue.write_buffer(ubo, 0, &bytes);
             }
         }
 
-        let mut encoder = gpu.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("graph") });
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("graph"),
+            });
 
         // Intermediate passes alternate between the two scratch targets; the
         // final pass writes the dedicated output target. A pass must never read
@@ -238,27 +306,37 @@ impl RuntimeGraph {
         let pass_count = self.compiled.passes.len();
 
         for (pass_idx, pass) in self.compiled.passes.iter().enumerate() {
-            let Some(entry) = catalog.get(&pass.type_id) else { continue };
-            let Some(pipeline) = compiler.pipeline(&pass.type_id) else { continue };
+            let Some(entry) = catalog.get(&pass.type_id) else {
+                continue;
+            };
+            let Some(pipeline) = compiler.pipeline(&pass.type_id) else {
+                continue;
+            };
             let is_last = pass_idx + 1 == pass_count;
 
             // Resolve the input texture view (scratch/output) or the external source.
             let read_scratch: Option<usize> = last_written;
             let input_view: &wgpu::TextureView = match pass.inputs.get("source") {
-                Some(InputBinding::NodeOutput(_)) | Some(InputBinding::ScopeSource) => match read_scratch {
-                    Some(2) => &self.output_target.1,
-                    Some(i) => &self.targets[i].1,
-                    None => source,
-                },
+                Some(InputBinding::NodeOutput(_)) | Some(InputBinding::ScopeSource) => {
+                    match read_scratch {
+                        Some(2) => &self.output_target.1,
+                        Some(i) => &self.targets[i].1,
+                        None => source,
+                    }
+                }
                 _ => source,
             };
 
             let has_source = entry.manifest.inputs.iter().any(|p| p.id == "source");
             // Scope-source nodes present the external texture even though they
             // declare no typed input port.
-            let is_scope_source = pass.type_id == "flux.source" || pass.type_id == "flux.mask_input";
-            let src_binding: &wgpu::TextureView = if has_source || is_scope_source {
-                // For a scope source, the passed-in `source` view is the frame.
+            let is_scope_source =
+                pass.type_id == "flux.source" || pass.type_id == "flux.mask_input";
+            // A producer node (vector/scene/simulation) supplies its own texture.
+            let produced = producers.get(&pass.node_id);
+            let src_binding: &wgpu::TextureView = if let Some(pv) = produced {
+                pv
+            } else if has_source || is_scope_source {
                 if is_scope_source {
                     source
                 } else {
@@ -272,9 +350,18 @@ impl RuntimeGraph {
                 label: Some("per-pass-input"),
                 layout: &input_layout,
                 entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(src_binding) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&compiler.white_mask) },
-                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(compiler.sampler()) },
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(src_binding),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&compiler.white_mask),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(compiler.sampler()),
+                    },
                 ],
             });
 
@@ -297,9 +384,18 @@ impl RuntimeGraph {
                 label: Some("bind0-per-pass"),
                 layout: &bgl0,
                 entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: self.frame_buf.as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 1, resource: self.params_bufs[&pass.node_id].as_entire_binding() },
-                    wgpu::BindGroupEntry { binding: 2, resource: self.audio_buf.as_entire_binding() },
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.frame_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.params_bufs[&pass.node_id].as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.audio_buf.as_entire_binding(),
+                    },
                 ],
             });
 
@@ -358,57 +454,59 @@ impl RuntimeGraph {
 }
 
 fn make_input_layout(gpu: &Gpu) -> wgpu::BindGroupLayout {
-    gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("input-layout"),
-        entries: &[
-            tex_entry(0),
-            tex_entry(1),
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    })
+    gpu.device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("input-layout"),
+            entries: &[
+                tex_entry(0),
+                tex_entry(1),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
 }
 
 fn make_bind0_layout(gpu: &Gpu) -> wgpu::BindGroupLayout {
-    gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("bind0-layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(96),
+    gpu.device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bind0-layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(96),
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(48),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(48),
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-        ],
-    })
+            ],
+        })
 }
 
 fn tex_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
