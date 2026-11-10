@@ -18,6 +18,8 @@
       <button id="fitBtn" class="ghost" title="Fit graph (1)">Fit</button>
       <button id="monitorBtn" class="ghost" title="Detached preview monitor">Monitor</button>
       <button id="newGraphBtn" class="ghost" title="New empty composition">New graph</button>
+      <button id="importMediaBtn" class="ghost" title="Load a movie, GIF, or image source">Import media</button>
+      <input id="mediaFile" type="file" accept="video/*,image/gif,image/*,.mov,.mp4,.m4v,.webm" style="display:none" />
 
       <span class="spacer"></span>
 
@@ -37,8 +39,8 @@
         <label class="badge" title="Keep the intermediate PNG frames" style="display:flex;align-items:center;gap:4px;cursor:pointer">
           <input id="keepFrames" type="checkbox" style="width:auto" /> frames
         </label>
-        <input id="expW" type="number" value="1280" style="width:56px" title="Export width" />
-        <input id="expH" type="number" value="720" style="width:56px" title="Export height" />
+        <label class="range-export" title="Export width">W <input id="expW" type="range" min="320" max="7680" value="1280" /><output id="expWVal">1280</output></label>
+        <label class="range-export" title="Export height">H <input id="expH" type="range" min="180" max="4320" value="720" /><output id="expHVal">720</output></label>
         <button id="exportBtn" class="primary">Export</button>
       </div>
 
@@ -122,6 +124,9 @@
       </div>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <script>
+      document.querySelector("#status .msg").textContent = "loading Flux…";
+    </script>
+    <script src="app.bundle.js?v=84d1413d9c1d" onerror="document.querySelector('#status .msg').textContent='startup error: UI bundle did not load'"></script>
   </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "name": "flux-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build step for the Flux desktop webview bundle.",
+  "scripts": {
+    "bundle": "node bundle.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

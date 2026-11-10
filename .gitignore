@@ -37,3 +37,4 @@ apps/spout-bridge/*.ilk
 apps/spout-bridge/*.manifest
 apps/spout-bridge/*.txtx
 sp_out.txt
+node_modules/

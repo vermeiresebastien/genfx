@@ -11,7 +11,7 @@ use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::Emitter;
+use tauri::{Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 struct AppState {
     host: Mutex<CommandHost>,
@@ -27,6 +27,33 @@ struct AppState {
 fn dispatch(state: tauri::State<AppState>, request: Request) -> Response {
     let mut host = state.host.lock().unwrap();
     host.handle(request)
+}
+
+#[tauri::command]
+fn open_monitor(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("monitor") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(&app, "monitor", WebviewUrl::App("monitor.html".into()))
+        .title("Flux Preview")
+        .inner_size(960.0, 540.0)
+        .min_inner_size(320.0, 180.0)
+        .resizable(true)
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn toggle_monitor_fullscreen(app: tauri::AppHandle) -> Result<bool, String> {
+    let window = app
+        .get_webview_window("monitor")
+        .ok_or_else(|| "monitor window is not open".to_string())?;
+    let fullscreen = !window.is_fullscreen().map_err(|e| e.to_string())?;
+    window.set_fullscreen(fullscreen).map_err(|e| e.to_string())?;
+    Ok(fullscreen)
 }
 
 /// Render a single preview frame of the active project at time `t` (seconds)
@@ -376,6 +403,13 @@ fn render_graph_preview(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Single instance: a second launch would open its own WebView2 profile and
+    // both would race on the GPU device + user data, which is exactly how a
+    // stale process kept serving an old inspector.
+    if !try_acquire_single_instance() {
+        std::process::exit(0);
+    }
+
     let host = CommandHost::new(Project::new("Untitled", 1));
     tauri::Builder::default()
         .manage(AppState {
@@ -383,8 +417,20 @@ pub fn run() {
             preview: Mutex::new(None),
             exporting: Arc::new(AtomicBool::new(false)),
         })
+        // The detached monitor is owned by the main editor window. Close it
+        // before the editor exits so WebView2 does not leave a helper process
+        // holding the Flux user-data profile open.
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, WindowEvent::CloseRequested { .. }) {
+                if let Some(monitor) = window.app_handle().get_webview_window("monitor") {
+                    let _ = monitor.close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             dispatch,
+            open_monitor,
+            toggle_monitor_fullscreen,
             render_preview,
             render_graph_preview,
             render_preview_raw,
@@ -393,8 +439,72 @@ pub fn run() {
             capabilities,
             produce_generator_frame
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            match event {
+                RunEvent::ExitRequested { .. } => {
+                    // Close every owned webview before the runtime tears down.
+                    // This makes normal shutdown deterministic even when the
+                    // detached preview monitor is still open.
+                    for window in app.webview_windows().values() {
+                        let _ = window.close();
+                    }
+                }
+                RunEvent::Exit => {
+                    // WebView2 can keep helper processes alive after a window
+                    // closes. Terminate only this Flux process tree so the
+                    // detached preview and its renderer cannot outlive Flux.
+                    #[cfg(target_os = "windows")]
+                    {
+                        let pid = std::process::id().to_string();
+                        let _ = std::process::Command::new("taskkill")
+                            .args(["/PID", &pid, "/T", "/F"])
+                            .spawn();
+                    }
+                }
+                _ => {}
+            }
+        });
 }
 
 fn _uses(_: GuiCommand) {}
+
+/// Hold a named mutex for the life of the process so only one Flux instance runs
+/// at a time. Returns false if another instance already holds it.
+#[cfg(target_os = "windows")]
+fn try_acquire_single_instance() -> bool {
+    use std::ptr::null_mut;
+
+    const ERROR_ALREADY_EXISTS: u32 = 183;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateMutexW(
+            lp_mutex_attributes: *mut std::ffi::c_void,
+            b_initial_owner: i32,
+            lp_name: *const u16,
+        ) -> *mut std::ffi::c_void;
+        fn GetLastError() -> u32;
+        fn CloseHandle(h_object: *mut std::ffi::c_void) -> i32;
+    }
+
+    let name: Vec<u16> = "Local\\dev.flux.desktop.single".encode_utf16().chain(std::iter::once(0)).collect();
+    let handle = unsafe { CreateMutexW(null_mut(), 1, name.as_ptr()) };
+    if handle.is_null() {
+        return true; // cannot determine; never hard-block startup
+    }
+    if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+        unsafe { CloseHandle(handle) };
+        return false;
+    }
+    // Intentionally leak the handle: it must stay open for the whole process so
+    // the mutex is released on exit.
+    std::mem::forget(handle as usize);
+    true
+}
+
+#[cfg(not(target_os = "windows"))]
+fn try_acquire_single_instance() -> bool {
+    true
+}
