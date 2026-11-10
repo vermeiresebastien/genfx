@@ -119,6 +119,15 @@ function renderAll() {
 const thumbCache = new Map();
 let previewBusy = false;
 let previewPending = false;
+let previewTimer = null;
+
+// Coalesce parameter-edit re-renders: sliders fire many changes per drag, and
+// each render is a full GPU frame. ~40ms keeps the preview live without backing
+// the render queue up.
+function requestPreviewSoon() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => requestPreviews(), 40);
+}
 
 function setThumb(id, url) {
   thumbCache.set(id, url);
@@ -570,6 +579,7 @@ async function boot() {
     commands: { ...commands, replaceConnect },
     manifestOf,
     fillThumb,
+    onParamChanged: () => requestPreviewSoon(),
     onSelectionChanged: () => { renderInspector(); canvas.render(); updateStats(); },
     onDuplicateSelection: duplicateSelection,
     onOpenSearch: (ctx) => overlay.open(ctx),
@@ -593,6 +603,10 @@ async function boot() {
   inspector = initInspector({
     commands,
     onFocusNode: (id) => canvas.focusNode(id),
+    // Every parameter edit must re-render: the engine stores the value, but the
+    // image only changes when a new frame is requested.
+    onParamChanged: () => requestPreviewSoon(),
+    onGraphChanged: () => { scheduleRender(); requestPreviews(); },
   });
 
   timeline = initTimeline({

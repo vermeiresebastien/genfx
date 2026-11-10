@@ -96,6 +96,32 @@ fn is_image_port(t: flux_catalog::manifest::PortType) -> bool {
     matches!(t, Texture2D | Mask)
 }
 
+/// Node ids that actually contribute to the rendered result: everything reachable
+/// upstream of `output_node`. Nodes parked on the canvas but not wired into the
+/// composition are inert — they must not block rendering.
+pub fn upstream_of_output(g: &Graph) -> BTreeSet<String> {
+    let mut incoming: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for e in &g.edges {
+        incoming
+            .entry(e.to_node.as_str())
+            .or_default()
+            .push(e.from_node.as_str());
+    }
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut stack = vec![g.output_node.clone()];
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        if let Some(deps) = incoming.get(id.as_str()) {
+            for d in deps {
+                stack.push((*d).to_string());
+            }
+        }
+    }
+    seen
+}
+
 pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
     let mut issues = Vec::new();
     if g.nodes.len() > MAX_NODES {
@@ -230,11 +256,17 @@ pub fn validate(g: &Graph, reg: &Registry) -> Vec<GraphIssue> {
         }
     }
 
-    // Required inputs.
+    // Required inputs — only for nodes that feed the rendered result. A node
+    // sitting on the canvas that isn't wired into the composition must not block
+    // the preview (that made adding an effect break everything).
+    let live = upstream_of_output(g);
     for n in &g.nodes {
         let Some(m) = reg.manifest(&n.type_id) else {
             continue;
         };
+        if !live.contains(&n.id) {
+            continue;
+        }
         for p in &m.inputs {
             if p.required && !incoming.contains_key(&(n.id.as_str(), p.id.as_str())) {
                 issues.push(GraphIssue {
@@ -411,7 +443,13 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
     }
 
     let mut passes = Vec::new();
-    for (i, node_id) in order.iter().enumerate() {
+    // Only compile nodes that feed the output. Unconnected nodes are inert on the
+    // canvas: rendering them wastes GPU work and can fail on their own.
+    let live = upstream_of_output(g);
+    for node_id in order.iter() {
+        if !live.contains(node_id) {
+            continue;
+        }
         let node = g.node(node_id).expect("node exists");
         let manifest = reg.manifest(&node.type_id);
         let mut inputs = BTreeMap::new();
@@ -432,7 +470,7 @@ pub fn compile(g: &Graph, reg: &Registry, graph_version: u64) -> FluxResult<Comp
             }
         }
         passes.push(CompiledPass {
-            index: i,
+            index: passes.len(),
             node_id: node.id.clone(),
             type_id: node.type_id.clone(),
             inputs,

@@ -246,6 +246,118 @@ fn insert_preset_creates_wired_graph_with_params() {
 }
 
 #[test]
+fn changing_a_param_changes_the_image() {
+    let _g = gpu_lock();
+    let Ok(mut renderer) = PreviewRenderer::new() else {
+        eprintln!("no GPU; skipping");
+        return;
+    };
+    let catalog = flux_catalog::build_catalog();
+
+    // gen.solid with an explicit colour. Set it through the same command the
+    // inspector sends, then re-render: the pixels must change.
+    let mut p = Project::new("t", 1);
+    let graph = samples::chain_graph("gen.solid", &[]);
+    let solid_id = graph.nodes[0].id.clone();
+    p.graphs.insert(graph.id.clone(), graph.clone());
+    p.timeline.master_graph_id = Some(graph.id.clone());
+
+    let mut d = Dispatcher::new(p.clone());
+    d.apply(
+        Command::SetParameter {
+            graph_id: graph.id.clone(),
+            node_id: solid_id.clone(),
+            param_id: "color".into(),
+            value: ParamValue::Color {
+                value: [1.0, 0.0, 0.0, 1.0],
+            },
+        },
+        None,
+    )
+    .unwrap();
+    let red = renderer.render(&d.project, rt(1), 64, 64).expect("render red");
+    let c = center(&red, 64, 64);
+    assert!(c.0 > 100 && c.1 < 60 && c.2 < 60, "expected red, got {c:?}");
+
+    d.apply(
+        Command::SetParameter {
+            graph_id: graph.id.clone(),
+            node_id: solid_id,
+            param_id: "color".into(),
+            value: ParamValue::Color {
+                value: [0.0, 0.0, 1.0, 1.0],
+            },
+        },
+        None,
+    )
+    .unwrap();
+    let blue = renderer.render(&d.project, rt(1), 64, 64).expect("render blue");
+    let c2 = center(&blue, 64, 64);
+    assert!(c2.2 > 100 && c2.0 < 60, "expected blue, got {c2:?}");
+    let _ = catalog;
+}
+
+#[test]
+fn unwired_effect_does_not_break_preview() {
+    let _g = gpu_lock();
+    let Ok(mut renderer) = PreviewRenderer::new() else {
+        eprintln!("no GPU; skipping");
+        return;
+    };
+
+    // Plasma -> Output, plus an effect dropped on the canvas but NOT wired in.
+    let mut graph = samples::chain_graph("gen.plasma", &[]);
+    let out_id = graph.output_node.clone();
+    graph.nodes.push(GraphNode {
+        id: "dangling".into(),
+        type_id: "fx.hatching".into(),
+        type_version: 1,
+        position: [600.0, 200.0],
+        params: BTreeMap::new(),
+        bypass: false,
+        missing_type: false,
+    });
+    let _ = out_id;
+
+    let mut p = Project::new("t", 1);
+    p.graphs.insert(graph.id.clone(), graph.clone());
+    p.timeline.master_graph_id = Some(graph.id.clone());
+
+    let px = renderer
+        .render(&p, rt(1), 160, 90)
+        .expect("an unwired effect must not break the render");
+    assert_eq!(px.len(), 160 * 90 * 4);
+    // Still the plasma, not blank.
+    let opaque = px.chunks(4).filter(|c| c[3] != 0).count();
+    assert!(opaque > (160 * 90) / 2, "preview went blank");
+}
+
+#[test]
+fn runtime_cache_is_size_aware() {
+    let _g = gpu_lock();
+    let Ok(mut renderer) = PreviewRenderer::new() else {
+        eprintln!("no GPU; skipping");
+        return;
+    };
+
+    let graph = samples::chain_graph("gen.plasma", &["fx.bloom"]);
+    let mut p = Project::new("t", 1);
+    p.graphs.insert(graph.id.clone(), graph.clone());
+    p.timeline.master_graph_id = Some(graph.id.clone());
+
+    // Small preview first (what the editor renders), then a large export frame.
+    // The runtime cache must not hand back the small runtime: doing so copies
+    // past the end of the source texture and aborts the process.
+    let small = renderer.render(&p, rt(1), 320, 180).expect("small render");
+    assert_eq!(small.len(), 320 * 180 * 4);
+    let large = renderer.render(&p, rt(1), 640, 360).expect("large render");
+    assert_eq!(large.len(), 640 * 360 * 4);
+    // Back to the small size again (both entries must stay usable).
+    let small2 = renderer.render(&p, rt(1), 320, 180).expect("small render again");
+    assert_eq!(small2.len(), 320 * 180 * 4);
+}
+
+#[test]
 fn master_graph_export_writes_video() {
     let _g = gpu_lock();
     let mut p = Project::new("export", 1);

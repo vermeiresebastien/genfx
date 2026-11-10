@@ -14,6 +14,12 @@ export function initInspector(options) {
   return { render };
 }
 
+/** Apply a parameter edit and request a fresh frame. */
+function commitParam(node, decl, kind, value) {
+  commands.setParam(node.id, decl.id, kind, value);
+  opts?.onParamChanged?.();
+}
+
 function timeWire(seconds) {
   const micros = Math.round(seconds * 1_000_000);
   return { numerator: String(micros), denominator: 1_000_000 };
@@ -81,6 +87,7 @@ function numericRow(node, decl) {
     if (decl.min != null) v = Math.max(decl.min, v);
     if (decl.max != null) v = Math.min(decl.max, v);
     commands.setParam(node.id, decl.id, decl.kind, v);
+    opts?.onParamChanged?.();
   };
   input.addEventListener("change", commit);
   wrap.appendChild(input);
@@ -100,7 +107,7 @@ function boolRow(node, decl) {
   const input = document.createElement("input");
   input.type = "checkbox";
   input.checked = !!valueOf(node, decl);
-  input.addEventListener("change", () => commands.setParam(node.id, decl.id, "bool", input.checked));
+  input.addEventListener("change", () => commitParam(node, decl, "bool", input.checked));
   wrap.appendChild(input);
   row.appendChild(wrap);
   return row;
@@ -125,7 +132,7 @@ function enumRow(node, decl) {
   sel.value = typeof current === "number" ? current : 0;
   // Enums are written as Int index: the router reads ParamValue::as_f64(), and
   // ParamValue::Enum (a string) resolves to 0.
-  sel.addEventListener("change", () => commands.setParam(node.id, decl.id, "enum", Number(sel.value)));
+  sel.addEventListener("change", () => commitParam(node, decl, "enum", Number(sel.value)));
   wrap.appendChild(sel);
   row.appendChild(wrap);
   return row;
@@ -153,6 +160,7 @@ function colorRow(node, decl) {
       const v = arr.slice();
       v[i] = Number(c.value);
       commands.setParam(node.id, decl.id, "color", v);
+      opts?.onParamChanged?.();
     });
     wrap.appendChild(c);
   }
@@ -180,6 +188,7 @@ function vecRow(node, decl) {
       const v = arr.slice();
       v[i] = Number(c.value);
       commands.setParam(node.id, decl.id, decl.kind, v);
+      opts?.onParamChanged?.();
     });
     wrap.appendChild(c);
   }
@@ -221,12 +230,12 @@ function toggleKeyframe(node, decl) {
     list.push({ time: timeWire(state.time), value, interpolation: "linear" });
     list.sort((a, b) => Number(a.time.numerator) / a.time.denominator - Number(b.time.numerator) / b.time.denominator);
   }
-  commands.setKeyframes(lane, list);
+  commands.setKeyframes(lane, list).then(() => opts?.onGraphChanged?.());
 }
 
 function toggleModulation(node, decl, existing) {
   if (existing) {
-    commands.removeMapping(existing.id);
+    commands.removeMapping(existing.id).then(() => opts?.onGraphChanged?.());
     return;
   }
   const id = "map-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -244,7 +253,7 @@ function toggleModulation(node, decl, existing) {
     attackMs: 0,
     releaseMs: 0,
     enabled: true,
-  });
+  }).then(() => opts?.onGraphChanged?.());
 }
 
 function paramRow(node, decl) {
@@ -368,19 +377,26 @@ function renderSingle(node) {
   host.appendChild(el("div", "sec", "Actions"));
   const row = el("div", "btnrow");
   const byp = el("button", node.bypass ? "on" : null, node.bypass ? "Bypassed" : "Bypass");
-  byp.addEventListener("click", () => commands.setBypass(node.id, !node.bypass));
+  byp.addEventListener("click", () => {
+    commands.setBypass(node.id, !node.bypass);
+    opts?.onGraphChanged?.();
+  });
   row.appendChild(byp);
 
   const reset = el("button", null, "Reset");
   reset.addEventListener("click", () => {
     for (const d of decls) commands.setParam(node.id, d.id, d.kind, d.default);
+    opts?.onParamChanged?.();
   });
   row.appendChild(reset);
 
   if (node.typeId !== "flux.output") {
     const setOut = el("button", null, "Set output");
     setOut.title = "Render this node as the composition result";
-    setOut.addEventListener("click", () => commands.setGraphOutput(node.id));
+    setOut.addEventListener("click", () => {
+      commands.setGraphOutput(node.id);
+      opts?.onGraphChanged?.();
+    });
     row.appendChild(setOut);
   }
   host.appendChild(row);

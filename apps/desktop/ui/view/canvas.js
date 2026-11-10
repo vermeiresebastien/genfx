@@ -138,8 +138,10 @@ export function initCanvas(opts) {
       // onLinkUp (elementFromPoint resolves the target port), so the per-port
       // handler is intentionally a no-op.
       onPortUp: () => {},
-      onInlineParam: (nodeId, paramId, kind, value) =>
-        opts.commands.setParamLive(nodeId, paramId, kind, value),
+      onInlineParam: (nodeId, paramId, kind, value) => {
+        opts.commands.setParamLive(nodeId, paramId, kind, value);
+        opts.onParamChanged?.();
+      },
     },
   };
 

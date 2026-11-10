@@ -376,8 +376,11 @@ fn render_single_frame(
     };
 
     // Cache key = graph CONTENT hash (not id), so edits rebuild the pipeline and
-    // a stale cached runtime can never render a blank/old frame.
-    let key = graph_content_key(&graph);
+    // a stale cached runtime can never render a blank/old frame. The render size
+    // is part of the key: the runtime allocates one texture per node at a fixed
+    // resolution, so reusing a 320x180 preview runtime for a 1280x720 export
+    // overran the source texture and aborted the process.
+    let key = format!("{}@{}x{}", graph_content_key(&graph), width, height);
     if !roots_cache.contains_key(&key) {
         // Bound the cache: keep it small so it cannot grow unbounded over an
         // editing session.
