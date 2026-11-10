@@ -62,20 +62,22 @@ fn golden_generator_project_exports_expected_media() {
     // Exact counts: 3s @ 60fps = 180 frames; 3s * 48000 * 2ch = 288000 samples.
     assert_eq!(res.frames, 180, "frame count");
     assert_eq!(res.samples, 288_000, "stereo sample count");
-    // Every frame file exists and is non-trivial.
-    let first = res.frames_dir.join("frame_000001.png");
-    let meta = std::fs::metadata(&first).expect("first frame written");
-    assert!(meta.len() > 1000, "frame should be a real PNG");
+    // Video codecs stream frames straight into ffmpeg: no PNG sequence is left
+    // behind, and a real video file must exist.
+    assert!(
+        !res.frames_dir.exists(),
+        "video export must not leave a PNG sequence"
+    );
+    let video = res.video.as_ref().expect("video produced");
+    assert!(std::fs::metadata(video).unwrap().len() > 1000, "video non-trivial");
     // WAV exists.
     let wav = res.wav.as_ref().expect("wav");
     assert!(std::fs::metadata(wav).unwrap().len() > 1000);
-    // Probe the MP4 if an encoder produced one.
-    if let Some(video) = &res.video {
-        let probe = MediaWorker::new().unwrap().probe(video).unwrap();
-        assert_eq!(probe.width, Some(320));
-        assert_eq!(probe.height, Some(180));
-        assert!(probe.streams.iter().any(|s| s.kind == "video"));
-    }
+    // Probe the MP4.
+    let probe = MediaWorker::new().unwrap().probe(video).unwrap();
+    assert_eq!(probe.width, Some(320));
+    assert_eq!(probe.height, Some(180));
+    assert!(probe.streams.iter().any(|s| s.kind == "video"));
 }
 
 #[test]

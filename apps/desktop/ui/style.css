@@ -230,6 +230,7 @@ label { color: var(--muted); }
   border-top: 1px solid var(--line2);
   border-radius: 0 0 6px 6px;
   object-fit: contain;
+  image-rendering: auto;
 }
 .node .outtag { padding: 4px 8px 6px; color: var(--muted); font-size: 10px; }
 

@@ -442,6 +442,169 @@ impl MediaWorker {
     }
 }
 
+/// Streams raw RGBA frames straight into ffmpeg over stdin and encodes once at
+/// the end. This replaces per-frame PNG files, which produced thousands of
+/// intermediate images and a very slow export.
+pub struct StreamingEncoder {
+    child: Option<std::process::Child>,
+    stdin: Option<std::process::ChildStdin>,
+    out: PathBuf,
+    width: u32,
+    height: u32,
+    codec: EncodeCodec,
+    ffmpeg: PathBuf,
+}
+
+impl StreamingEncoder {
+    pub fn start(
+        out: &Path,
+        width: u32,
+        height: u32,
+        fps: FileFrameRate,
+        codec: EncodeCodec,
+    ) -> FluxResult<Self> {
+        let ffmpeg = find_ffmpeg()
+            .ok_or_else(|| FluxError::new(ErrorCode::ExportEncoder, "media", "ffmpeg not found"))?;
+        if let Some(parent) = out.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let mut cmd = Command::new(&ffmpeg);
+        cmd.args(["-hide_banner", "-loglevel", "error", "-y"]);
+        // Raw RGBA input from the render loop.
+        cmd.args([
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgba",
+            "-s",
+            &format!("{width}x{height}"),
+            "-framerate",
+            &format!("{}/{}", fps.num, fps.den),
+            "-i",
+            "-",
+        ]);
+        match codec {
+            EncodeCodec::H264 => {
+                cmd.args(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18"]);
+                cmd.args(["-movflags", "+faststart"]);
+            }
+            EncodeCodec::Hevc => {
+                cmd.args(["-c:v", "libx265", "-pix_fmt", "yuv420p", "-crf", "22"]);
+                cmd.args(["-movflags", "+faststart"]);
+            }
+            EncodeCodec::ProRes => {
+                cmd.args([
+                    "-c:v",
+                    "prores_ks",
+                    "-profile:v",
+                    "4444",
+                    "-pix_fmt",
+                    "yuva444p10le",
+                ]);
+            }
+            EncodeCodec::Gif => {
+                cmd.args(["-vf", "fps=15,scale=640:-1:flags=lanczos", "-loop", "0"]);
+            }
+            _ => {}
+        }
+        cmd.arg(out);
+        cmd.stdin(Stdio::piped()).stderr(Stdio::piped());
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
+        let stdin = child.stdin.take();
+        Ok(Self {
+            child: Some(child),
+            stdin,
+            out: out.to_path_buf(),
+            width,
+            height,
+            codec,
+            ffmpeg,
+        })
+    }
+
+    /// Push one tightly-packed RGBA8 frame (top-left origin).
+    pub fn write_frame(&mut self, rgba: &[u8]) -> FluxResult<()> {
+        let expected = (self.width as usize) * (self.height as usize) * 4;
+        if rgba.len() != expected {
+            return Err(FluxError::new(
+                ErrorCode::ExportEncoder,
+                "media",
+                format!("frame size {} != expected {}", rgba.len(), expected),
+            ));
+        }
+        use std::io::Write;
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or_else(|| FluxError::new(ErrorCode::ExportEncoder, "media", "encoder closed"))?;
+        stdin
+            .write_all(rgba)
+            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))
+    }
+
+    /// Close the pipe, wait for ffmpeg, and (for video codecs) mux audio.
+    pub fn finish(mut self, audio_wav: Option<&Path>) -> FluxResult<PathBuf> {
+        drop(self.stdin.take());
+        let mut child = self
+            .child
+            .take()
+            .ok_or_else(|| FluxError::new(ErrorCode::ExportEncoder, "media", "no encoder"))?;
+        let stderr = child.stderr.take();
+        let status = child
+            .wait()
+            .map_err(|e| FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string()))?;
+        if !status.success() {
+            let mut msg = String::new();
+            if let Some(mut s) = stderr {
+                use std::io::Read;
+                let _ = s.read_to_string(&mut msg);
+            }
+            return Err(FluxError::new(
+                ErrorCode::ExportEncoder,
+                "media",
+                format!(
+                    "encoder failed: {}",
+                    msg.lines().last().unwrap_or("unknown error").trim()
+                ),
+            ));
+        }
+
+        // Mux audio: a second ffmpeg pass that copies the video stream.
+        if let Some(wav) = audio_wav {
+            if matches!(self.codec, EncodeCodec::H264 | EncodeCodec::Hevc | EncodeCodec::ProRes)
+                && wav.exists()
+            {
+                let tmp = self.out.with_extension("mux.mp4");
+                let status = Command::new(&self.ffmpeg)
+                    .args(["-hide_banner", "-loglevel", "error", "-y"])
+                    .arg("-i")
+                    .arg(&self.out)
+                    .arg("-i")
+                    .arg(wav)
+                    .args(["-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest"])
+                    .arg(&tmp)
+                    .status()
+                    .map_err(|e| {
+                        FluxError::new(ErrorCode::ExportEncoder, "media", e.to_string())
+                    })?;
+                if status.success() {
+                    let _ = std::fs::remove_file(&self.out);
+                    let _ = std::fs::rename(&tmp, &self.out);
+                }
+            }
+        }
+        Ok(self.out)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FileFrameRate {
+    pub num: u32,
+    pub den: u32,
+}
+
 fn finish_encode(mut cmd: Command) -> FluxResult<()> {
     let status = cmd
         .status()

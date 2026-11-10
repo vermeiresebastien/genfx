@@ -6,7 +6,7 @@ import {
   state, subscribe, setCatalog, syncCanvasMeta, manifestOf, selectedNodes,
 } from "./store.js";
 import * as commands from "./commands.js";
-import { renderPreview, renderGraphPreview, exportProject, listen } from "./ipc.js";
+import { renderPreviewRaw, exportProject, listen, buildInfo } from "./ipc.js";
 import { initCanvas } from "./view/canvas.js";
 import { initLibrary, render as renderLibrary } from "./view/library.js";
 import { initInspector, render as renderInspector } from "./view/inspector.js";
@@ -53,6 +53,13 @@ function updateStats() {
   if (badge) badge.textContent = `rev ${state.revision}`;
   const name = document.getElementById("projName");
   if (name && state.project?.name) name.textContent = state.project.name;
+}
+
+/** Show measured playback throughput so quality work is verifiable. */
+function updatePerf() {
+  const el = document.getElementById("perfStat");
+  if (!el) return;
+  el.textContent = `preview ${perf.fps || 0}fps · ${perf.lastMs}ms`;
 }
 
 // ---- connect with validation ---------------------------------------------
@@ -129,15 +136,63 @@ function requestPreviewSoon() {
   previewTimer = setTimeout(() => requestPreviews(), 40);
 }
 
-function setThumb(id, url) {
-  thumbCache.set(id, url);
-  const img = document.querySelector(`img[data-thumb-for="${id}"]`);
-  if (img) img.src = url;
+function setThumb(nodeId, w, h, u8) {
+  thumbCache.set(nodeId, { w, h, u8 });
+  paintThumb(document.querySelector(`canvas[data-thumb-for="${nodeId}"]`), nodeId);
 }
 
-function fillThumb(img, nodeId) {
-  const url = thumbCache.get(nodeId);
-  if (url) img.src = url;
+function paintThumb(canvas, nodeId) {
+  if (!canvas) return;
+  const rec = thumbCache.get(nodeId);
+  if (!rec) return;
+  drawRgba(canvas, rec.w, rec.h, rec.u8);
+}
+
+function fillThumb(canvas, nodeId) {
+  paintThumb(canvas, nodeId);
+}
+
+/** Paint packed RGBA into a canvas (zero-copy view over the received buffer). */
+function drawRgba(canvas, w, h, u8) {
+  if (!canvas || !w || !h || !u8) return;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  const ctx = canvas.getContext("2d", { alpha: true });
+  const view =
+    u8 instanceof Uint8Array
+      ? new Uint8ClampedArray(u8.buffer, u8.byteOffset, u8.byteLength)
+      : new Uint8ClampedArray(u8);
+  ctx.putImageData(new ImageData(view, w, h), 0, 0);
+}
+
+// Live playback performance counters, shown in the status bar.
+const perf = { frames: 0, lastFpsAt: 0, fps: 0, lastMs: 0 };
+
+function recordPerf(ms) {
+  perf.lastMs = Math.round(ms);
+  perf.frames++;
+  const now = performance.now();
+  if (!perf.lastFpsAt) perf.lastFpsAt = now;
+  if (now - perf.lastFpsAt >= 1000) {
+    perf.fps = Math.round((perf.frames * 1000) / (now - perf.lastFpsAt));
+    perf.frames = 0;
+    perf.lastFpsAt = now;
+  }
+}
+
+/** Thumbnail render size: CSS width x devicePixelRatio, capped by the readback cap. */
+function thumbSize() {
+  const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+  const cssW = 176; // must match NODE_W in view/node.js
+  const w = Math.min(960, Math.max(160, Math.round(cssW * dpr)));
+  return { w, h: Math.round((w * 9) / 16) };
+}
+
+function monitorSize() {
+  // The GPU readback is capped at 960x540; render at that for a crisp monitor.
+  return { w: 960, h: 540 };
 }
 
 function requestPreviews() {
@@ -149,20 +204,30 @@ function requestPreviews() {
   previewBusy = true;
   (async () => {
     try {
+      const t0 = performance.now();
       const g = state.graph;
       const outputs = (g?.nodes || []).filter((n) => n.typeId === "flux.output");
+      const { w, h } = thumbSize();
+      // Render each Output node from raw RGBA: no PNG encode, no base64, no <img>
+      // decode — this is what made playback choppy.
       for (const n of outputs) {
-        const url = await renderGraphPreview(state.activeGraphId, state.time, 320, 180, n.id);
-        setThumb(n.id, url);
+        const frame = await renderPreviewRaw(state.activeGraphId, state.time, w, h, n.id);
+        setThumb(n.id, frame.w, frame.h, frame.u8);
       }
       if (overlay?.isMonitorOpen()) {
-        const url = await renderPreview(state.time, 640, 360);
-        overlay.setMonitorImage(url);
+        const ms = monitorSize();
+        const frame = await renderPreviewRaw(state.activeGraphId, state.time, ms.w, ms.h, null);
+        overlay.setMonitorFrame(frame.w, frame.h, frame.u8);
       }
+      recordPerf(performance.now() - t0);
+      document.title = `Flux | ok ${w}x${h} ${perf.lastMs}ms ${perf.fps}fps`;
     } catch (e) {
-      setStatus("preview: " + (e?.message || e), true);
+      const msg = String(e?.message || e);
+      setStatus("preview: " + msg, true);
+      document.title = "Flux | ERR " + msg.slice(0, 90);
     } finally {
       previewBusy = false;
+      updatePerf();
       if (previewPending) { previewPending = false; requestPreviews(); }
     }
   })();
@@ -367,9 +432,9 @@ function toggleLoopMode() {
   applyLoopButton();
 }
 
-function playbackTick() {
+function playbackTick(dtSeconds) {
   const dur = durationSeconds();
-  const dt = 1 / 30;
+  const dt = dtSeconds;
   if (state.loopMode === "pingpong") {
     state.time += dt * state.playDir;
     if (state.time >= dur) {
@@ -387,19 +452,35 @@ function playbackTick() {
   renderTimeline();
 }
 
+// Playback is driven by requestAnimationFrame and advances by real elapsed time,
+// so it runs as fast as frames can actually be produced (the old fixed 100 ms
+// interval forced 10 fps regardless of how cheap a frame was).
+let playRaf = 0;
+let lastTick = 0;
+function playbackLoop(now) {
+  if (!state.playing) return;
+  if (!lastTick) lastTick = now;
+  const dt = Math.min(0.25, (now - lastTick) / 1000);
+  lastTick = now;
+  playbackTick(dt);
+  playRaf = requestAnimationFrame(playbackLoop);
+}
+
 function startPlayback() {
   if (state.playing) return;
   state.playing = true;
   const btn = document.getElementById("playBtn");
   btn.textContent = "Pause";
   btn.classList.add("on");
-  playTimer = setInterval(playbackTick, 100);
+  lastTick = 0;
+  playRaf = requestAnimationFrame(playbackLoop);
 }
 
 function stopPlayback() {
   state.playing = false;
-  clearInterval(playTimer);
-  playTimer = null;
+  cancelAnimationFrame(playRaf);
+  playRaf = 0;
+  lastTick = 0;
   const btn = document.getElementById("playBtn");
   btn.textContent = "Play";
   btn.classList.remove("on");
@@ -562,6 +643,12 @@ function makeTabs() {
 
 async function boot() {
   commands.setStatusSink((m) => setStatus(m, true));
+
+  // Show which build is running — makes a stale binary obvious immediately.
+  buildInfo().then((info) => {
+    const el = document.getElementById("buildStat");
+    if (el && info) el.textContent = `build ${info.gitHash || "?"} v${info.version || ""}`;
+  });
 
   // 1. project + catalog
   await commands.createProject("Untitled", 1, 1280, 720, 60, 1);

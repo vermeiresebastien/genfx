@@ -203,12 +203,17 @@ export function createNodeEl(node, opts) {
   }
 
   if (node.typeId === "flux.output") {
-    const img = document.createElement("img");
-    img.className = "thumb";
-    img.alt = "output preview";
-    img.dataset.thumbFor = node.id;
-    img.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-    el.appendChild(img);
+    // A canvas is painted from raw RGBA (no PNG encode/decode per frame) and is
+    // sized to device pixels so the thumbnail stays sharp when zoomed.
+    const canvas = document.createElement("canvas");
+    canvas.className = "thumb";
+    canvas.dataset.thumbFor = node.id;
+    const cssW = NODE_W;
+    const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round((cssW * 9 / 16) * dpr);
+    canvas.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    el.appendChild(canvas);
   }
 
   el.addEventListener("pointerdown", (ev) => {

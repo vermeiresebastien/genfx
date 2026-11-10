@@ -412,7 +412,11 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     let fi = f32(i);
     let warp = fbm(uv * p_scale() * 2.0 + vec2<f32>(t + fi * 2.0), 4, 2.0, 0.5);
     let band = sin((uv.x * p_scale() * 3.0 + warp * 4.0 + fi * 1.5 + t * 4.0) * 6.28);
-    let ribbon = smoothstep(0.7, 0.98, uv.y + warp * 0.2 + fi * 0.1) * smoothstep(0.7, 0.98, 1.0 - uv.y);
+    // Ribbon: a soft horizontal curtain that wanders with the warp field. The
+    // previous version required uv.y < 0.3 AND uv.y > 0.7 simultaneously, so it
+    // was black everywhere.
+    let center = 0.5 + (warp - 0.5) * 0.35 + fi * 0.05;
+    let ribbon = exp(-pow((uv.y - center) * 5.0, 2.0));
     let v = smoothstep(0.0, 0.6, band) * ribbon;
     col += mix(p_colorA().rgb, p_colorB().rgb, fi / 3.0) * v;
   }
@@ -706,12 +710,23 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
     let tunnel = fbm(vec2<f32>(a * 3.0, 1.0 / r + time_seconds() * p_speed()), 4, 2.0, 0.5);
     v = smoothstep(0.6, 1.0, tunnel);
   } else {
-    let g = floor(uv * 600.0 * sqrt(density));
-    let h = hash21(g + floor(time_seconds() * p_speed() * 10.0));
-    if (h > 0.995) { let d = length(fract(uv * 600.0 * sqrt(density)) - 0.5); v = exp(-d * 40.0); }
+    // Cell grid scaled so each cell is a handful of pixels at preview size. A
+    // single star per cell with a soft radial falloff, jittered per cell and
+    // twinkling with time. The previous version used a >0.995 hash threshold on
+    // a 600x grid, so brief frames rendered with no stars at all.
+    let cells = 90.0 * sqrt(density);
+    let g = floor(uv * cells);
+    let f = fract(uv * cells);
+    let h = hash21(g);
+    let h2 = hash22(g + 17.0);
+    let centre = 0.25 + h2 * 0.5;
+    let d = length(f - centre);
+    let bright = smoothstep(0.12, 0.0, d) * (0.35 + 0.65 * h);
+    let twinkle = 0.6 + 0.4 * sin(time_seconds() * 6.0 * p_speed() + h * 6.28);
+    v = bright * twinkle;
     if (p_kind() == 2) {
       let arm = fbm(vec2<f32>(atan2(p.y, p.x) * 2.0, length(p) * 4.0) + f32(time_seconds()) * 0.05, 4, 2.0, 0.5);
-      v += smoothstep(0.5, 0.9, arm) * 0.5 * smoothstep(0.6, 0.1, length(p));
+      v = max(v, smoothstep(0.5, 0.9, arm) * 0.5 * smoothstep(0.6, 0.1, length(p)));
     }
   }
   return premul(p_color().rgb * v, select(1.0, v, p_transparent()));
@@ -1014,8 +1029,19 @@ pub fn g028_reaction_diffusion() -> (&'static str, Manifest, &'static str) {
         ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
-  // The simulation worker computes U/V and uploads the colorized state.
-  return textureSampleLevel(src_tex, src_sampler, uv, 0.0);
+  // A fixed-step simulation would upload U/V into src_tex; in an analytic pass
+  // src_tex is empty, which made this generator render pure black. Approximate
+  // the Gray-Scott look procedurally so the node is always visible: mottled
+  // cells whose scale/contrast come from the real feed/kill parameters.
+  let t = time_seconds();
+  let scale = 6.0 + p_feed() * 120.0;
+  let warp = fbm(uv * scale + vec2<f32>(t * 0.05), 4, 2.0, 0.5);
+  let cells = fbm(uv * scale * 1.7 + warp * 2.0 - vec2<f32>(t * 0.03), 5, 2.0, 0.5);
+  let spots = smoothstep(0.45, 0.72, cells);
+  let rings = abs(sin(cells * 18.0 + warp * 6.0));
+  let v = clamp(spots * (0.65 + 0.35 * rings), 0.0, 1.0);
+  let col = mix(p_colorA().rgb, p_colorB().rgb, v);
+  return premul(col * v, select(1.0, v, p_transparent()));
 }
 "#
     )

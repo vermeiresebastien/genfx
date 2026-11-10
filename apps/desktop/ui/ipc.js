@@ -39,6 +39,28 @@ export async function renderGraphPreview(graphId, timeSeconds, width, height, ou
   });
 }
 
+/** Render a graph to raw RGBA (binary IPC, no PNG/base64). Fast path. */
+export async function renderPreviewRaw(graphId, timeSeconds, width, height, outputNodeId) {
+  const buf = await invoke("render_preview_raw", {
+    graphId,
+    timeSeconds,
+    width,
+    height,
+    outputNodeId: outputNodeId ?? null,
+  });
+  const u8 =
+    buf instanceof Uint8Array
+      ? buf
+      : buf instanceof ArrayBuffer
+      ? new Uint8Array(buf)
+      : Uint8Array.from(buf);
+  return { w: width, h: height, u8 };
+}
+
+export async function buildInfo() {
+  try { return await invoke("build_info"); } catch (e) { return null; }
+}
+
 export async function exportProject(outDir, width, height, codec = "h264", keepFrames = false) {
   return invoke("export_project_cmd", { outDir, width, height, codec, keepFrames });
 }

@@ -101,10 +101,15 @@ fn export_project_impl(
     };
     let total = export_frame_count(duration, fps);
 
+    // PNG frames are only written when the user explicitly asked for a sequence.
+    // Video codecs stream raw RGBA straight into ffmpeg instead.
+    let write_png_frames = matches!(opts.codec, EncodeCodec::None | EncodeCodec::JpegSequence);
     let frames_dir = opts
         .out_dir
         .join(format!("{}_frames", sanitize(&opts.project_name)));
-    std::fs::create_dir_all(&frames_dir)?;
+    if write_png_frames {
+        std::fs::create_dir_all(&frames_dir)?;
+    }
 
     // Determine which graph to render: the master graph if present, else build a
     // presentation graph that composites the visible clip's own graph or a solid
@@ -113,6 +118,30 @@ fn export_project_impl(
     let mut roots_cache: HashMap<String, RuntimeGraph> = HashMap::new();
     let mut router = Router::default();
     let media_worker = MediaWorker::new().ok();
+
+    // Open a raw-RGBA pipe into ffmpeg once, for video codecs.
+    let mut encoder = if write_png_frames {
+        None
+    } else {
+        Some(flux_media::StreamingEncoder::start(
+            &opts.out_dir.join(format!(
+                "{}.{}",
+                sanitize(&opts.project_name),
+                match opts.codec {
+                    EncodeCodec::Gif => "gif",
+                    EncodeCodec::ProRes => "mov",
+                    _ => "mp4",
+                }
+            )),
+            opts.width,
+            opts.height,
+            flux_media::FileFrameRate {
+                num: fps.num,
+                den: fps.den,
+            },
+            opts.codec,
+        )?)
+    };
 
     let mut rendered = 0u64;
     for i in 0..total {
@@ -143,11 +172,13 @@ fn export_project_impl(
         if let Some(cb) = &frame_cb {
             cb(i + 1, total, &px, opts.width, opts.height);
         }
-        let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
-        // Encode PNG in-process. Shelling out to ffmpeg per frame dominated
-        // export time (one process spawn per frame) and made progress feel frozen.
-        let png = flux_media::encode_png_rgba(opts.width, opts.height, &px)?;
-        std::fs::write(&path, png)?;
+        if let Some(enc) = encoder.as_mut() {
+            enc.write_frame(&px)?;
+        } else {
+            let path = frames_dir.join(format!("frame_{:06}.png", i + 1));
+            let png = flux_media::encode_png_rgba(opts.width, opts.height, &px)?;
+            std::fs::write(&path, png)?;
+        }
         rendered += 1;
         if let Some(cb) = &progress {
             cb(i + 1, total);
@@ -165,37 +196,11 @@ fn export_project_impl(
         &samples.samples,
     )?;
 
-    // Encode video if requested and supported.
+    // Finish the video stream (video codecs) or convert the PNG sequence.
     let mut video = None;
-    if !matches!(opts.codec, EncodeCodec::None | EncodeCodec::JpegSequence) {
-        if let Ok(worker) = MediaWorker::new() {
-            let fps_str = format!("{}/{}", fps.num, fps.den);
-            let ext = match opts.codec {
-                EncodeCodec::Gif => "gif",
-                EncodeCodec::ProRes => "mov",
-                _ => "mp4",
-            };
-            let out = opts
-                .out_dir
-                .join(format!("{}.{ext}", sanitize(&opts.project_name)));
-            let res = if matches!(opts.codec, EncodeCodec::Gif) {
-                worker.encode_video_from_frames(&frames_dir, &fps_str, None, &out, EncodeCodec::Gif)
-            } else {
-                worker.encode_video_from_frames(
-                    &frames_dir,
-                    &fps_str,
-                    Some(&wav_path),
-                    &out,
-                    opts.codec,
-                )
-            };
-            // Surface encoder failures: silently leaving a PNG sequence behind was
-            // the "export produced no video" bug.
-            match res {
-                Ok(()) => video = Some(out),
-                Err(e) => return Err(e),
-            }
-        }
+    if let Some(enc) = encoder {
+        // Mux the audio track in a second pass so the WAV exists first.
+        video = Some(enc.finish(Some(&wav_path))?);
     } else if matches!(opts.codec, EncodeCodec::JpegSequence) {
         if let Ok(worker) = MediaWorker::new() {
             let fps_str = format!("{}/{}", fps.num, fps.den);

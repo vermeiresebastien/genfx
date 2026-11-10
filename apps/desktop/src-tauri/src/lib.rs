@@ -278,6 +278,57 @@ fn produce_generator_frame(
     }
 }
 
+/// Render a graph to raw RGBA bytes (no PNG encode, no base64). Used for live
+/// playback: the webview paints this into a canvas, which is far cheaper than a
+/// PNG encode + data-URL decode per frame.
+///
+/// Returns the bytes as a binary IPC response (`ArrayBuffer` in JS). Returning a
+/// `Vec<u8>` normally serialises to a JSON array of numbers — ~278 000 numbers
+/// for a 352x198 frame — which was the real cause of choppy previews.
+#[tauri::command]
+fn render_preview_raw(
+    state: tauri::State<AppState>,
+    graph_id: String,
+    time_seconds: f64,
+    width: u32,
+    height: u32,
+    output_node_id: Option<String>,
+) -> Result<tauri::ipc::Response, String> {
+    let (project, mut graph) = {
+        let host = state.host.lock().unwrap();
+        (
+            host.dispatcher.project.clone(),
+            host.dispatcher.project.graphs.get(&graph_id).cloned(),
+        )
+    };
+    let mut graph = graph.take().ok_or_else(|| "graph not found".to_string())?;
+    if let Some(node_id) = output_node_id {
+        if graph.node(&node_id).is_none() {
+            return Err("output node not found".into());
+        }
+        graph.output_node = node_id;
+    }
+    let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
+        .map_err(|e| e.to_string())?;
+    let mut guard = state.preview.lock().unwrap();
+    if guard.is_none() {
+        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
+    }
+    let renderer = guard.as_mut().unwrap();
+    let rgba = renderer
+        .render_graph(&graph, &project, t, width, height)
+        .map_err(|e| format!("render: {e:?}"))?;
+    Ok(tauri::ipc::Response::new(rgba))
+}
+
+#[tauri::command]
+fn build_info() -> serde_json::Value {
+    serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "gitHash": option_env!("FLUX_GIT_HASH").unwrap_or("unknown"),
+    })
+}
+
 /// Render a chosen graph (or a specific node within it) to a PNG data URL.
 /// Used by the Output node's inline thumbnail and the detached preview monitor;
 /// `output_node_id` overrides which node is treated as the result, so each Output
@@ -336,6 +387,8 @@ pub fn run() {
             dispatch,
             render_preview,
             render_graph_preview,
+            render_preview_raw,
+            build_info,
             export_project_cmd,
             capabilities,
             produce_generator_frame

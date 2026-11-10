@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default capability for the Flux editor window: IPC commands plus event listen/emit so the UI can receive export progress and live frames.","local":true,"windows":["main","Flux"],"permissions":["core:default","core:event:default","core:event:allow-listen","core:event:allow-unlisten","core:event:allow-emit","core:event:allow-emit-to"]}}

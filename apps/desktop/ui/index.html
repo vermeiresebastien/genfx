@@ -91,6 +91,8 @@
     <footer id="status">
       <span class="msg">ready</span>
       <span class="stat"></span>
+      <span class="stat" id="perfStat"></span>
+      <span class="stat" id="buildStat" title="Running build"></span>
     </footer>
 
     <!-- Spacebar node search -->
@@ -113,6 +115,7 @@
         <button id="monitorClose" class="ghost" title="Close">✕</button>
       </div>
       <img id="monitorImg" alt="preview monitor" />
+      <canvas id="monitorCanvas" style="width:100%;aspect-ratio:16/9;display:none;background:#000"></canvas>
       <div class="mbody">
         <span class="dim">16:9</span>
         <span class="dim" id="monitorInfo"></span>

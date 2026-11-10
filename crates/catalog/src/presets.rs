@@ -53,23 +53,51 @@ fn chain(types: &[&str], ids: &str) -> Preset {
     let catalog = shared_catalog();
     let manifest = |t: &str| catalog.get(t).map(|e| &e.manifest);
 
+    // Recipes were authored as "effect on footage". In the node editor there is
+    // no footage, so a `flux.source` root is a passthrough of transparent black
+    // and the whole chain renders black. Substitute a generator that gives the
+    // recipe something real to work on, chosen from its id.
+    let substitute: &str = if ids.contains("glass") || ids.contains("chrome") || ids.contains("thermal")
+        || ids.contains("metal") || ids.contains("bloom")
+    {
+        "gen.mesh_gradient_fill"
+    } else if ids.contains("technical") || ids.contains("wireframe") || ids.contains("blueprint")
+        || ids.contains("industrial") || ids.contains("ascii") || ids.contains("code_rain")
+        || ids.contains("mosaic")
+    {
+        // These modes derive structure from luminance, so they need a bright,
+        // high-contrast field (a dark grid renders as black).
+        "gen.texture_field"
+    } else {
+        "gen.plasma"
+    };
+
+    let types: Vec<&str> = types
+        .iter()
+        .map(|t| if *t == "flux.source" { substitute } else { *t })
+        .collect();
+    let types = types.as_slice();
+
+    // If a recipe is a bare effect with nothing feeding it, prepend the seed
+    // generator (handled by the auto-prepend below).
+
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
     let mut next = 0usize;
 
-    // If the first node is an effect that needs an image input, prepend Source so
-    // the preset starts from something.
+    // If the first node is an effect that needs an image input, prepend the seed
+    // generator so the preset starts from something visible.
     let first = types.first().copied().unwrap_or("gen.solid");
     let first_needs_source = manifest(first)
         .map(|m| m.inputs.iter().any(|p| p.id == "source"))
         .unwrap_or(false);
     if first != "flux.source" && first_needs_source {
-        nodes.push(n(next, "flux.source", &[]));
+        nodes.push(n(next, substitute, &[]));
         next += 1;
     }
 
     let mut prev: Option<(usize, &str)> = if next == 1 {
-        Some((0, "flux.source"))
+        Some((0, substitute))
     } else {
         None
     };

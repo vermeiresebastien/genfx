@@ -178,8 +178,8 @@ export function initCanvas(opts) {
     for (const node of g.nodes) {
       if (node.typeId !== "flux.output") continue;
       const el = nodeEls.get(node.id)?.el;
-      const img = el?.querySelector("img.thumb");
-      if (img) opts.fillThumb(img, node.id);
+      const cv = el?.querySelector("canvas.thumb");
+      if (cv) opts.fillThumb(cv, node.id);
     }
   }
 

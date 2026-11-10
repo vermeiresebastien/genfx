@@ -137,6 +137,19 @@ export function initOverlay(options) {
       return on;
     },
     setMonitorImage(src) { mImg.src = src; },
+    /** Paint raw RGBA into the monitor canvas (fast path). */
+    setMonitorFrame(w, h, u8) {
+      const cv = document.getElementById("monitorCanvas");
+      if (!cv) return;
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      const ctx = cv.getContext("2d", { alpha: true });
+      const view = u8 instanceof Uint8Array
+        ? new Uint8ClampedArray(u8.buffer, u8.byteOffset, u8.byteLength)
+        : new Uint8ClampedArray(u8);
+      ctx.putImageData(new ImageData(view, w, h), 0, 0);
+      mImg.style.display = "none";
+      cv.style.display = "block";
+    },
     isMonitorOpen: () => monitor.classList.contains("open"),
   };
 }
