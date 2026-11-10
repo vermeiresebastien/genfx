@@ -221,7 +221,13 @@ impl TextProducer {
             "gen.counter" => "",
             _ => "FLUX",
         };
-        let text = if let Some(ParamValue::Enum { value }) = params.get("contentKey") {
+        let text = if let Some(ParamValue::Text { value }) = params.get("content") {
+            value.clone()
+        } else if let Some(ParamValue::Enum { value }) = params.get("content") {
+            value.clone()
+        } else if let Some(ParamValue::Text { value }) = params.get("contentKey") {
+            value.clone()
+        } else if let Some(ParamValue::Enum { value }) = params.get("contentKey") {
             match value.as_str() {
                 "Hello" => "Hello".to_string(),
                 "0123" => "0123".to_string(),

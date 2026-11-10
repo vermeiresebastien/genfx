@@ -34,7 +34,7 @@ async function run(command, { expected = state.revision } = {}) {
       return retry;
     }
     onStatus(`${res.error.code}: ${res.error.message}`);
-    return res;
+    throw new Error(`${res.error.code}: ${res.error.message}`);
   }
   applyResponse(res);
   await refreshIfNeeded(res);
@@ -105,6 +105,20 @@ export function newGraph(name) {
   return enqueue(() => run({ type: "newGraph", name }));
 }
 
+export function importMedia(path) {
+  return enqueue(() => run({ type: "importMedia", path }));
+}
+
+export function openMonitor() {
+  const invoke = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+  return invoke("open_monitor");
+}
+
+export function toggleMonitorFullscreen() {
+  const invoke = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+  return invoke("toggle_monitor_fullscreen");
+}
+
 // ---- parameters -----------------------------------------------------------
 
 export function paramValue(kind, value) {
@@ -113,6 +127,7 @@ export function paramValue(kind, value) {
   if (kind === "color") return { kind: "color", value };
   if (kind === "vec2") return { kind: "vec2", value };
   if (kind === "vec3") return { kind: "vec3", value };
+  if (kind === "text") return { kind: "text", value: String(value ?? "") };
   return { kind: "float", value: Number(value) || 0 };
 }
 

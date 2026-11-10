@@ -301,6 +301,7 @@ impl PreviewRenderer {
         height: u32,
     ) -> FluxResult<Vec<u8>> {
         let frame_ctx = FrameContext::for_project(project, time, 0);
+        let media_worker = MediaWorker::new().ok();
         render_single_frame(
             &self.gpu,
             &self.catalog,
@@ -309,7 +310,7 @@ impl PreviewRenderer {
             &frame_ctx,
             &mut self.roots_cache,
             &mut self.router,
-            None,
+            media_worker.as_ref(),
             width,
             height,
             Some(graph),

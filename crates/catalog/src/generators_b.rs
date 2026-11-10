@@ -309,7 +309,7 @@ pub fn g070_text_plate() -> (&'static str, Manifest, &'static str) {
             p_float("strokeWidth", "Stroke width", 0.0, 0.0, 8.0, "output_px"),
             p_enum("align", "Align", "center", &["left", "center", "right"]),
             p_float("opacity", "Text opacity", 1.0, 0.0, 1.0, ""),
-            p_enum("contentKey", "Content", "FLUX", &["FLUX", "Hello", "0123", "ABC"]),
+            p_text("content", "Text", "FLUX"),
         ]
     )
 }
@@ -326,6 +326,7 @@ pub fn g071_kinetic() -> (&'static str, Manifest, &'static str) {
         "Per-glyph position/rotation/scale/opacity with wave and stagger intro/hold/outro.",
         vec![],
         [
+            p_text("content", "Text", "FLUX"),
             p_float("stagger", "Stagger", 0.06, 0.0, 0.5, "s"),
             p_float("waveAmp", "Wave amplitude", 0.1, 0.0, 0.5, ""),
             p_enum(
@@ -350,6 +351,7 @@ pub fn g072_typewriter() -> (&'static str, Manifest, &'static str) {
         "Reveals shaped clusters with a cursor and deterministic random substitution.",
         vec![],
         [
+            p_text("content", "Text", "Hello Flux"),
             p_float("speed", "Chars per second", 12.0, 1.0, 60.0, ""),
             p_bool("cursor", "Cursor", true),
             p_float("scramble", "Scramble", 0.0, 0.0, 1.0, "")
@@ -369,6 +371,7 @@ pub fn g073_text_path() -> (&'static str, Manifest, &'static str) {
         "Arc-length placement of glyphs along a PathSet with tangent rotation and scrolling.",
         vec![],
         [
+            p_text("content", "Text", "FLUX"),
             p_float("offset", "Path offset", 0.0, 0.0, 1.0, ""),
             p_float("scroll", "Scroll speed", 0.0, -4.0, 4.0, "")
         ]
@@ -379,7 +382,7 @@ pub fn g074_text_3d() -> (&'static str, Manifest, &'static str) {
     vgen!(
         "gen.text_3d", "3D text", "Typography", "gen_vector", QualityClass::M, "G074", TimeModel::Analytic,
         "Extruded glyph outlines with holes, bevel and scene lighting (rendered by the mesh scene path).",
-        vec![], [p_float("depth", "Depth", 0.2, 0.0, 2.0, "m"), p_float("bevel", "Bevel", 0.02, 0.0, 0.1, "m"), p_float("yaw", "Yaw", 0.3, -3.14, 3.14, "rad")]
+        vec![], [p_text("content", "Text", "FLUX"), p_float("depth", "Depth", 0.2, 0.0, 2.0, "m"), p_float("bevel", "Bevel", 0.02, 0.0, 0.1, "m"), p_float("yaw", "Yaw", 0.3, -3.14, 3.14, "rad")]
     )
 }
 
@@ -395,6 +398,7 @@ pub fn g075_text_particles() -> (&'static str, Manifest, &'static str) {
         "Outline/interior sampled glyph emission with attract-to-text and release events.",
         vec![],
         [
+            p_text("content", "Text", "FLUX"),
             p_int("count", "Count", 8000, 100, 200000),
             p_float("blend", "Attract blend", 0.5, 0.0, 1.0, "")
         ]
@@ -405,7 +409,7 @@ pub fn g076_physics_type() -> (&'static str, Manifest, &'static str) {
     vgen!(
         "gen.physics_type", "Physics type", "Typography", "gen_vector", QualityClass::M, "G076", TimeModel::FixedStep,
         "Glyph/word rigid bodies with gravity, bounce and springs. Layout is remembered and reset is deterministic.",
-        vec![], [p_float("gravity", "Gravity", 9.81, 0.0, 30.0, "m/s2"), p_float("bounce", "Bounce", 0.4, 0.0, 1.0, "")]
+        vec![], [p_text("content", "Text", "FLUX"), p_float("gravity", "Gravity", 9.81, 0.0, 30.0, "m/s2"), p_float("bounce", "Bounce", 0.4, 0.0, 1.0, "")]
     )
 }
 

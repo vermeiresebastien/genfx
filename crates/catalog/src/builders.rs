@@ -91,6 +91,27 @@ pub fn p_enum(id: &str, label: &str, default: &str, options: &[&str]) -> ParamDe
     }
 }
 
+pub fn p_text(id: &str, label: &str, default: &str) -> ParamDecl {
+    ParamDecl {
+        id: id.into(),
+        kind: ParamKind::Text,
+        default: serde_json::json!(default),
+        min: None,
+        max: None,
+        soft_min: None,
+        soft_max: None,
+        scale: Scale::Linear,
+        unit: String::new(),
+        automatable: false,
+        modulatable: false,
+        smoothing_ms: 0.0,
+        state_impact: StateImpact::None,
+        options: vec![],
+        label: label.into(),
+        hidden: false,
+    }
+}
+
 pub fn p_color(id: &str, label: &str, rgba: [f64; 4]) -> ParamDecl {
     ParamDecl {
         id: id.into(),

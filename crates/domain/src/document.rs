@@ -164,6 +164,7 @@ pub enum ParamValue {
     Int { value: i32 },
     Bool { value: bool },
     Enum { value: String },
+    Text { value: String },
     Color { value: [f64; 4] },
     Vec2 { value: [f64; 2] },
     Vec3 { value: [f64; 3] },

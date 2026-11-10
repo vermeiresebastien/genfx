@@ -142,7 +142,7 @@ pub fn insert_preset(preset: &Preset) -> Graph {
             missing_type: false,
         });
     }
-    let edges = preset
+    let mut edges: Vec<GraphEdge> = preset
         .edges
         .iter()
         .filter_map(|e| {
@@ -155,6 +155,30 @@ pub fn insert_preset(preset: &Preset) -> Graph {
         })
         .collect();
     let output_node = id_map.get(&preset.output).cloned().unwrap_or_default();
+
+    // Presets are user-editable data. Keep the graph renderable even when a
+    // recipe omitted its final sink edge: the last non-output image node is the
+    // only sensible provider for the required Output.source input.
+    let output_is_wired = edges
+        .iter()
+        .any(|e| e.to_node == output_node && e.to_port == "source");
+    if !output_is_wired {
+        if let Some(last) = preset
+            .nodes
+            .iter()
+            .filter(|pn| pn.index != preset.output && pn.type_id != "flux.output")
+            .max_by_key(|pn| pn.index)
+            .and_then(|pn| id_map.get(&pn.index))
+        {
+            edges.push(GraphEdge {
+                from_node: last.clone(),
+                from_port: "color".into(),
+                to_node: output_node.clone(),
+                to_port: "source".into(),
+            });
+        }
+    }
+
     Graph {
         id: preset.id.clone(),
         name: preset.name.clone(),
@@ -178,6 +202,7 @@ fn json_param_value(
             .as_i64()
             .map(|x| ParamValue::Int { value: x as i32 })
             .or_else(|| v.as_str().map(|_| ParamValue::Int { value: 0 })),
+        Some(K::Text) => v.as_str().map(|x| ParamValue::Text { value: x.into() }),
         Some(K::Bool) => v.as_bool().map(|x| ParamValue::Bool { value: x }),
         Some(K::Color) => json_array(v).and_then(|a| {
             (a.len() == 4).then(|| ParamValue::Color {
@@ -255,6 +280,11 @@ pub fn empty_graph(name: impl Into<String>) -> Graph {
 /// `src`'s output into `dst`'s output node. Used when a preset is dropped onto an
 /// existing graph.
 pub fn merge_graph(dst: &mut Graph, src: &Graph, offset: [f32; 2]) {
+    let existing_output = dst
+        .edges
+        .iter()
+        .find(|e| e.to_node == dst.output_node && e.to_port == "source")
+        .cloned();
     let mut id_map: BTreeMap<String, String> = BTreeMap::new();
     for n in &src.nodes {
         let id = uuid::Uuid::new_v4().to_string();
@@ -267,7 +297,7 @@ pub fn merge_graph(dst: &mut Graph, src: &Graph, offset: [f32; 2]) {
     let mut mapped_src_output = None;
     for e in &src.edges {
         if let (Some(from), Some(to)) = (id_map.get(&e.from_node), id_map.get(&e.to_node)) {
-            if e.from_node == src.output_node {
+            if e.to_node == src.output_node && e.to_port == "source" {
                 mapped_src_output = Some(from.clone());
             }
             dst.edges.push(GraphEdge {
@@ -278,14 +308,49 @@ pub fn merge_graph(dst: &mut Graph, src: &Graph, offset: [f32; 2]) {
             });
         }
     }
-    // Rewire the merged preset's output into this graph's output sink.
-    if let Some(from) = mapped_src_output {
-        dst.edges.push(GraphEdge {
-            from_node: from,
-            from_port: "color".into(),
-            to_node: dst.output_node.clone(),
-            to_port: "source".into(),
-        });
+    // Preserve the existing composition and combine it with the dragged
+    // preset through the real two-input compositor. The compositor remains a
+    // normal editable node, so its Photoshop-style mode and opacity are
+    // available in the inspector after the drop.
+    if let Some(preset_provider) = mapped_src_output {
+        dst.edges.retain(|e| !(e.to_node == dst.output_node && e.to_port == "source"));
+        if let Some(existing) = existing_output {
+            let blend_id = uuid::Uuid::new_v4().to_string();
+            dst.nodes.push(GraphNode {
+                id: blend_id.clone(),
+                type_id: "fx.composite".into(),
+                type_version: 1,
+                position: [offset[0] + 260.0, offset[1] + 180.0],
+                params: BTreeMap::new(),
+                bypass: false,
+                missing_type: false,
+            });
+            dst.edges.push(GraphEdge {
+                from_node: existing.from_node,
+                from_port: existing.from_port,
+                to_node: blend_id.clone(),
+                to_port: "a".into(),
+            });
+            dst.edges.push(GraphEdge {
+                from_node: preset_provider,
+                from_port: "color".into(),
+                to_node: blend_id.clone(),
+                to_port: "b".into(),
+            });
+            dst.edges.push(GraphEdge {
+                from_node: blend_id,
+                from_port: "color".into(),
+                to_node: dst.output_node.clone(),
+                to_port: "source".into(),
+            });
+        } else {
+            dst.edges.push(GraphEdge {
+                from_node: preset_provider,
+                from_port: "color".into(),
+                to_node: dst.output_node.clone(),
+                to_port: "source".into(),
+            });
+        }
     }
 }
 

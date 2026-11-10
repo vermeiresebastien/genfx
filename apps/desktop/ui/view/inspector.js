@@ -65,6 +65,33 @@ function labelFor(decl) {
   return decl.label || decl.id;
 }
 
+function rangeBounds(decl, value) {
+  const current = Number(value) || 0;
+  let min = Number(decl.min);
+  let max = Number(decl.max);
+  if (!Number.isFinite(min)) min = Math.min(0, current);
+  if (!Number.isFinite(max)) max = Math.max(1, current, min + 1);
+  if (max <= min) max = min + 1;
+  return { min, max };
+}
+
+function rangeControl(decl, value, onInput) {
+  const input = document.createElement("input");
+  input.type = "range";
+  const { min, max } = rangeBounds(decl, value);
+  input.min = min;
+  input.max = max;
+  input.step = decl.kind === "int" ? "1" : "0.001";
+  input.value = Number(value) || 0;
+  const readout = document.createElement("output");
+  readout.className = "range-readout";
+  const format = (v) => decl.kind === "int" ? String(Math.round(Number(v))) : Number(v).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+  const update = () => { readout.value = format(input.value); readout.textContent = format(input.value); };
+  input.addEventListener("input", () => { update(); onInput(Number(input.value)); });
+  update();
+  return { input, readout };
+}
+
 function numericRow(node, decl) {
   const row = document.createElement("div");
   row.className = "inspector-param";
@@ -75,22 +102,10 @@ function numericRow(node, decl) {
 
   const wrap = document.createElement("div");
   wrap.className = "val";
-  const input = document.createElement("input");
-  input.type = "number";
-  input.step = decl.kind === "int" ? "1" : "0.001";
-  if (decl.min != null) input.min = decl.min;
-  if (decl.max != null) input.max = decl.max;
-  input.value = valueOf(node, decl);
-  const commit = () => {
-    let v = Number(input.value);
-    if (!Number.isFinite(v)) return;
-    if (decl.min != null) v = Math.max(decl.min, v);
-    if (decl.max != null) v = Math.min(decl.max, v);
-    commands.setParam(node.id, decl.id, decl.kind, v);
-    opts?.onParamChanged?.();
-  };
-  input.addEventListener("change", commit);
-  wrap.appendChild(input);
+  const control = rangeControl(decl, valueOf(node, decl), (v) => {
+    commitParam(node, decl, decl.kind, v);
+  });
+  wrap.append(control.input, control.readout);
   row.appendChild(wrap);
   attachAnimButtons(row, node, decl);
   return row;
@@ -138,6 +153,20 @@ function enumRow(node, decl) {
   return row;
 }
 
+function textRow(node, decl) {
+  const row = document.createElement("div");
+  row.className = "inspector-param inspector-text";
+  const lab = document.createElement("label");
+  lab.textContent = labelFor(decl);
+  const input = document.createElement("textarea");
+  input.rows = 3;
+  input.value = valueOf(node, decl) ?? "";
+  input.placeholder = "Enter text…";
+  input.addEventListener("change", () => commitParam(node, decl, "text", input.value));
+  row.append(lab, input);
+  return row;
+}
+
 function colorRow(node, decl) {
   const row = document.createElement("div");
   row.className = "inspector-param";
@@ -150,19 +179,23 @@ function colorRow(node, decl) {
   const arr = Array.isArray(current) ? current.slice() : [1, 1, 1, 1];
   for (let i = 0; i < 4; i++) {
     const c = document.createElement("input");
-    c.type = "number";
+    c.type = "range";
     c.step = "0.01";
     c.min = "0";
     c.max = "1";
     c.value = arr[i] ?? (i === 3 ? 1 : 0);
+    const value = document.createElement("output");
+    value.className = "range-readout";
+    value.textContent = Number(c.value).toFixed(2);
     c.title = ["R", "G", "B", "A"][i];
-    c.addEventListener("change", () => {
+    c.addEventListener("input", () => {
       const v = arr.slice();
       v[i] = Number(c.value);
+      value.textContent = Number(c.value).toFixed(2);
       commands.setParam(node.id, decl.id, "color", v);
       opts?.onParamChanged?.();
     });
-    wrap.appendChild(c);
+    wrap.append(c, value);
   }
   row.appendChild(wrap);
   return row;
@@ -181,16 +214,23 @@ function vecRow(node, decl) {
   const arr = Array.isArray(current) ? current.slice() : new Array(n).fill(0);
   for (let i = 0; i < n; i++) {
     const c = document.createElement("input");
-    c.type = "number";
+    c.type = "range";
     c.step = "0.001";
+    const bounds = rangeBounds(decl, arr[i] ?? 0);
+    c.min = bounds.min;
+    c.max = bounds.max;
     c.value = arr[i] ?? 0;
-    c.addEventListener("change", () => {
+    const value = document.createElement("output");
+    value.className = "range-readout";
+    value.textContent = Number(c.value).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+    c.addEventListener("input", () => {
       const v = arr.slice();
       v[i] = Number(c.value);
+      value.textContent = Number(c.value).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
       commands.setParam(node.id, decl.id, decl.kind, v);
       opts?.onParamChanged?.();
     });
-    wrap.appendChild(c);
+    wrap.append(c, value);
   }
   row.appendChild(wrap);
   return row;
@@ -260,6 +300,7 @@ function paramRow(node, decl) {
   switch (decl.kind) {
     case "bool": return boolRow(node, decl);
     case "enum": return enumRow(node, decl);
+    case "text": return textRow(node, decl);
     case "color": return colorRow(node, decl);
     case "vec2":
     case "vec3": return vecRow(node, decl);
@@ -328,6 +369,30 @@ function alignNodes(nodes, mode) {
   }
 }
 
+function randomizeValue(decl) {
+  const unit = () => Math.random();
+  const range = () => {
+    const min = Number.isFinite(decl.min) ? decl.min : 0;
+    const max = Number.isFinite(decl.max) ? decl.max : 1;
+    return min + unit() * (max - min);
+  };
+  switch (decl.kind) {
+    case "bool": return Math.random() >= 0.5;
+    case "enum": return Math.floor(unit() * Math.max(1, (decl.options || []).length));
+    case "text": return ["FLUX", "GENFX", "Hello world", "VIDEO", "0101"][Math.floor(unit() * 5)];
+    case "color": return [unit(), unit(), unit(), 1];
+    case "vec2": return [range(), range()];
+    case "vec3": return [range(), range(), range()];
+    case "int": return Math.round(range());
+    default: return range();
+  }
+}
+
+async function randomizeNode(node, decls) {
+  await Promise.all(decls.map((d) => opts.commands.setParam(node.id, d.id, d.kind, randomizeValue(d))));
+  opts?.onParamChanged?.();
+}
+
 function renderSingle(node) {
   const host = document.getElementById("inspector");
   const m = manifestOf(node.typeId);
@@ -389,6 +454,13 @@ function renderSingle(node) {
     opts?.onParamChanged?.();
   });
   row.appendChild(reset);
+
+  if (m?.kind === "generator" || m?.generator === true || node.typeId.startsWith("gen.")) {
+    const random = el("button", null, "Randomize");
+    random.title = "Randomize every editable generator setting";
+    random.addEventListener("click", () => randomizeNode(node, decls));
+    row.appendChild(random);
+  }
 
   if (node.typeId !== "flux.output") {
     const setOut = el("button", null, "Set output");

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flux Preview</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; background: #050608; color: #dce3ec; font: 12px system-ui, sans-serif; overflow: hidden; }
+      body { display: flex; flex-direction: column; }
+      header { height: 34px; flex: 0 0 34px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #101318; border-bottom: 1px solid #282e38; }
+      header span { color: #8c96a5; }
+      .spacer { flex: 1; }
+      button { color: #dce3ec; background: #171c24; border: 1px solid #343b47; border-radius: 5px; padding: 3px 8px; cursor: pointer; }
+      button:hover { background: #232a35; }
+      main { min-height: 0; flex: 1; display: grid; place-items: center; background: #000; }
+      canvas { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+      footer { height: 24px; flex: 0 0 24px; padding: 5px 10px; color: #778292; background: #101318; border-top: 1px solid #282e38; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span>Flux Preview</span><span id="state">connecting…</span><span class="spacer"></span>
+      <button id="pause">Pause</button><button id="full">⛶ Fullscreen</button>
+    </header>
+    <main><canvas id="frame" width="960" height="540"></canvas></main>
+    <footer id="info">Move this window to another display with the normal title bar.</footer>
+    <script src="monitor.js"></script>
+  </body>
+</html>

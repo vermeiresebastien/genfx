@@ -246,14 +246,38 @@ function newId() {
 }
 
 async function addAt(typeId, pt, skipAutoWire = false) {
-  const res = await commands.addNode(typeId, pt.x, pt.y);
-  const id = res?.result?.nodeId;
-  if (!id) return null;
-  state.selection = new Set([id]);
-  if (!skipAutoWire) await autoWire(id, typeId);
-  renderAll();
-  requestPreviews();
-  return id;
+  try {
+    const res = await commands.addNode(typeId, pt.x, pt.y);
+    const id = res?.result?.nodeId;
+    if (!id) {
+      setStatus(`Could not add ${typeId}: the engine returned no node id`, true);
+      return null;
+    }
+    state.selection = new Set([id]);
+    if (!skipAutoWire) await autoWire(id, typeId);
+    renderAll();
+    requestPreviews();
+    return id;
+  } catch (e) {
+    setStatus(`Add node failed: ${e?.message || e}`, true);
+    return null;
+  }
+}
+
+async function insertPresetAt(presetId, pt, mergeInto = state.activeGraphId) {
+  try {
+    const res = await commands.insertPreset(presetId, pt, mergeInto);
+    if (res?.error) throw new Error(`${res.error.code}: ${res.error.message}`);
+    state.selection.clear();
+    syncCanvasMeta();
+    renderAll();
+    canvas.fit();
+    requestPreviews();
+    return res;
+  } catch (e) {
+    setStatus(`Insert preset failed: ${e?.message || e}`, true);
+    return null;
+  }
 }
 
 /** Wire a newly-created node into the composition sensibly, using matching port
@@ -423,6 +447,18 @@ function applyLoopButton() {
   if (!btn) return;
   btn.textContent = state.loopMode === "pingpong" ? "Loop: Ping" : "Loop: Fwd";
   btn.classList.toggle("on", state.loopMode === "pingpong");
+}
+
+async function startNewComposition() {
+  await commands.newGraph("Composition");
+  state.selection.clear();
+  // Keep a new composition renderable immediately. The reference flow always
+  // has a live image branch; an Output-only graph otherwise reports a required
+  // input error until the user manually adds a generator.
+  await addAt("gen.plasma", { x: 0, y: 0 });
+  renderAll();
+  canvas.fit();
+  requestPreviews();
 }
 
 function toggleLoopMode() {
@@ -642,7 +678,9 @@ function makeTabs() {
 }
 
 async function boot() {
+  window.__fluxBooted = true;
   commands.setStatusSink((m) => setStatus(m, true));
+  setStatus("starting Flux…");
 
   // Show which build is running — makes a stale binary obvious immediately.
   buildInfo().then((info) => {
@@ -657,6 +695,13 @@ async function boot() {
 
   const presets = await commands.listPresets();
   if (presets?.result?.presets) state.presets = presets.result.presets;
+
+  // Start with the closest built-in composition to the captured reference:
+  // generator -> chromatic treatment -> VHS -> CRT -> output. This keeps the
+  // editor useful on first launch while leaving every node fully editable.
+  if (state.presets.some((p) => p.id === "preset.vhs_tracking")) {
+    await commands.insertPreset("preset.vhs_tracking", { x: 0, y: 0 });
+  }
 
   syncCanvasMeta();
 
@@ -679,12 +724,7 @@ async function boot() {
 
   library = initLibrary({
     onAdd: (typeId) => addAt(typeId, centerWorld()),
-    onInsertPreset: async (presetId, pt) => {
-      await commands.insertPreset(presetId, pt || centerWorld());
-      state.selection.clear();
-      renderAll();
-      requestPreviews();
-    },
+    onInsertPreset: (presetId, pt) => insertPresetAt(presetId, pt || centerWorld()),
   });
 
   inspector = initInspector({
@@ -737,27 +777,50 @@ async function boot() {
   applyLoopButton();
   document.getElementById("fitBtn").onclick = () => canvas.fit();
   document.getElementById("monitorBtn").onclick = () => {
-    const open = overlay.toggleMonitor();
-    document.getElementById("monitorBtn").classList.toggle("on", open);
-    if (open) requestPreviews();
+    commands.openMonitor()
+      .then(() => document.getElementById("monitorBtn").classList.add("on"))
+      .catch((e) => setStatus("monitor: " + e, true));
   };
   document.getElementById("monitorClose").onclick = () => {
     overlay.toggleMonitor(false);
     document.getElementById("monitorBtn").classList.remove("on");
   };
   document.getElementById("monitorFull").onclick = () => {
-    const img = document.getElementById("monitorImg");
-    if (img.requestFullscreen) img.requestFullscreen().catch(() => {});
+    commands.toggleMonitorFullscreen().catch((e) => setStatus("monitor: " + e, true));
   };
   document.getElementById("hudFit").onclick = () => canvas.fit();
   document.getElementById("hudAdd").onclick = () => overlay.open({ world: centerWorld() });
   document.getElementById("undoBtn").onclick = () => commands.undo().then(() => { renderAll(); requestPreviews(); });
   document.getElementById("redoBtn").onclick = () => commands.redo().then(() => { renderAll(); requestPreviews(); });
-  document.getElementById("newGraphBtn").onclick = () => commands.newGraph("Composition").then(() => { state.selection.clear(); renderAll(); requestPreviews(); });
+  document.getElementById("newGraphBtn").onclick = startNewComposition;
+  document.getElementById("importMediaBtn").onclick = () => document.getElementById("mediaFile").click();
+  document.getElementById("mediaFile").addEventListener("change", async (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    const path = file.path || file.webkitRelativePath;
+    if (!path || path === file.name) {
+      setStatus("media import needs a desktop file path", true);
+      return;
+    }
+    const res = await commands.importMedia(path);
+    if (!res?.error) {
+      state.selection.clear();
+      renderAll();
+      canvas.fit();
+      requestPreviews();
+      setStatus(`loaded ${file.name}`);
+    }
+    ev.target.value = "";
+  });
   document.getElementById("saveBtn").onclick = saveNow;
   document.getElementById("openBtn").onclick = openFile;
   document.getElementById("openFile").addEventListener("change", onOpenFile);
   document.getElementById("exportBtn").onclick = onExport;
+  for (const id of ["expW", "expH"]) {
+    const input = document.getElementById(id);
+    const output = document.getElementById(id + "Val");
+    input?.addEventListener("input", () => { if (output) output.textContent = input.value; });
+  }
 
   // Export runs on a background thread; the monitor shows the real rendered
   // output frames while the composition is processed.
@@ -798,7 +861,7 @@ async function boot() {
     const typeId = ev.dataTransfer.getData("application/x-flux-node");
     const presetId = ev.dataTransfer.getData("application/x-flux-preset");
     if (typeId) await addAt(typeId, world);
-    else if (presetId) { await commands.insertPreset(presetId, world); state.selection.clear(); renderAll(); requestPreviews(); }
+    else if (presetId) await insertPresetAt(presetId, world);
   });
 
   document.addEventListener("keydown", onKeyDown);
@@ -807,9 +870,18 @@ async function boot() {
   // fit on first paint
   requestAnimationFrame(() => { canvas.fit(); requestPreviews(); });
 
-  setStatus("ready · Space to add a node");
+  setStatus(
+    `ready · ${state.graph?.nodes?.length || 0} nodes · ${state.catalog.length} node types · ${state.presets.length} presets`
+  );
 }
 
 let pendingLink = null;
 
-window.addEventListener("DOMContentLoaded", boot);
+window.addEventListener("DOMContentLoaded", () => {
+  boot().catch((e) => {
+    const message = e?.message || String(e);
+    console.error("Flux startup failed", e);
+    setStatus("startup failed: " + message, true);
+    document.title = "Flux | startup error";
+  });
+});

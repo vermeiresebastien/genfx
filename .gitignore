@@ -38,3 +38,9 @@ apps/spout-bridge/*.manifest
 apps/spout-bridge/*.txtx
 sp_out.txt
 node_modules/
+.flux-preview-runtime/
+.flux-preview-runtime-v2/
+.flux-preview-runtime-current/
+gui_err.txt
+release_gui_err.txt
+release_gui_out.txt

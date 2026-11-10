@@ -83,6 +83,9 @@ fn every_manifest_defaults_in_range() {
                 ParamKind::Bool => {
                     assert!(p.default.is_boolean());
                 }
+                ParamKind::Text => {
+                    assert!(p.default.is_string());
+                }
             }
         }
     }
@@ -217,6 +220,12 @@ fn uniform_layout_matches_expected_size() {
             "{} node params too large: {bytes}",
             e.manifest.id
         );
-        assert_eq!(layout.slots.len(), e.manifest.parameters.len());
+        let numeric = e
+            .manifest
+            .parameters
+            .iter()
+            .filter(|p| p.kind != ParamKind::Text)
+            .count();
+        assert_eq!(layout.slots.len(), numeric);
     }
 }

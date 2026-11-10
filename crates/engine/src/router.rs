@@ -156,7 +156,7 @@ pub fn pack_params(manifest: &flux_catalog::Manifest, values: &ResolvedParams) -
                 floats[f_vec4] = [value as f32, 0.0, 0.0, 1.0];
                 f_used += 4;
             }
-            ParamKind::Int | ParamKind::Bool | ParamKind::Enum => {
+            ParamKind::Int | ParamKind::Bool | ParamKind::Enum | ParamKind::Text => {
                 if u_used + 1 > 4 {
                     u_vec4 += 1;
                     u_used = 0;

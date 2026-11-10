@@ -1141,7 +1141,12 @@ fn blend_fn(b: vec3<f32>, s: vec3<f32>) -> vec3<f32> {
   if (m == 7) { return abs(b - s); }
   if (m == 8) { return b + s - 2.0 * b * s; }
   if (m == 9) { return b / max(vec3<f32>(1.0) - s, vec3<f32>(0.001)); }
-  return 1.0 - (vec3<f32>(1.0) - b) / max(s, vec3<f32>(0.001));
+  if (m == 10) { return 1.0 - (vec3<f32>(1.0) - b) / max(s, vec3<f32>(0.001)); }
+  if (m == 11) { return max(b - s, vec3<f32>(0.0)); }
+  if (m == 12) { return min(b, s); }
+  if (m == 13) { return max(b, s); }
+  if (m == 14) { return b / max(s, vec3<f32>(0.001)); }
+  return b;
 }
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   // Two real image inputs: `a` = src_tex (binding 0), `b` = aux_tex (binding 3).
@@ -1160,7 +1165,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
         "fx_composite",
         QualityClass::L,
         vec![
-            p_enum("blend", "Blend", "over", &["over", "add", "screen", "multiply", "overlay", "softLight", "hardLight", "difference", "exclusion", "dodge", "burn"]),
+            p_enum("blend", "Blend", "over", &["over", "add", "screen", "multiply", "overlay", "softLight", "hardLight", "difference", "exclusion", "dodge", "burn", "subtract", "darken", "lighten", "divide"]),
             p_float("opacity", "Opacity", 1.0, 0.0, 1.0, ""),
         ],
         "Two-image compositor: blends input A (source) with input B (aux) using standard blend modes. Use it to merge parallel branches.",

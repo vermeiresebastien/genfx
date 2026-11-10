@@ -134,11 +134,13 @@ export function initLibrary(options) {
   host = document.getElementById("library");
   loadCollapsed();
 
-  const search = document.getElementById("search");
-  search.addEventListener("input", () => {
-    filter = search.value;
-    render();
-  });
+  const search = document.getElementById("search") || host?.closest("#lib")?.querySelector('input[type="text"]');
+  if (search) {
+    search.addEventListener("input", () => {
+      filter = search.value;
+      render();
+    });
+  }
 
   document.querySelectorAll("#lib .tabs button").forEach((btn) => {
     btn.addEventListener("click", () => {

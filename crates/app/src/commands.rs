@@ -115,6 +115,10 @@ pub enum GuiCommand {
     NewGraph {
         name: String,
     },
+    /// Import a movie, GIF, or still image and make it the active composition source.
+    ImportMedia {
+        path: String,
+    },
     /// List the built-in multi-node presets.
     Presets,
     /// Insert a preset as the active composition (or merge into the active graph).
@@ -392,6 +396,7 @@ impl CommandHost {
                                         flux_catalog::ParamKind::Int => "int",
                                         flux_catalog::ParamKind::Bool => "bool",
                                         flux_catalog::ParamKind::Enum => "enum",
+                                        flux_catalog::ParamKind::Text => "text",
                                         flux_catalog::ParamKind::Color => "color",
                                         flux_catalog::ParamKind::Vec2 => "vec2",
                                         flux_catalog::ParamKind::Vec3 => "vec3",
@@ -602,6 +607,36 @@ impl CommandHost {
                 self.active_graph = graph_id.clone();
                 self.dispatcher.project.timeline.master_graph_id = Some(graph_id.clone());
                 Ok(serde_json::json!({ "graphId": graph_id }))
+            }
+            GuiCommand::ImportMedia { path } => {
+                let path = std::path::PathBuf::from(path);
+                if !path.is_file() {
+                    return Err(FluxError::new(ErrorCode::MediaMissing, "media", "file not found"));
+                }
+                let worker = flux_media::MediaWorker::new()?;
+                worker.probe(&path)?;
+                let imported = crate::samples::demo_media_project(&path, 8);
+                let asset = imported.assets.values().next().cloned().ok_or_else(|| {
+                    FluxError::new(ErrorCode::MediaDecode, "media", "media asset was not created")
+                })?;
+                if asset.missing {
+                    return Err(FluxError::new(ErrorCode::MediaDecode, "media", "media asset could not be decoded"));
+                }
+                let graph_id = imported.graphs.keys().next().cloned().ok_or_else(|| {
+                    FluxError::new(ErrorCode::InvalidCommand, "media", "media graph was not created")
+                })?;
+                let graph = imported.graphs.get(&graph_id).cloned().unwrap();
+                let track = imported.timeline.tracks.values().next().cloned().unwrap();
+                let clip = imported.timeline.clips.values().next().cloned().unwrap();
+                self.dispatcher.project.assets.insert(asset.id.clone(), asset);
+                self.dispatcher.project.graphs.insert(graph_id.clone(), graph);
+                self.dispatcher.project.timeline.tracks.insert(track.id.clone(), track.clone());
+                self.dispatcher.project.timeline.track_order.push(track.id.clone());
+                self.dispatcher.project.timeline.clips.insert(clip.id.clone(), clip);
+                self.dispatcher.project.timeline.range = imported.timeline.range;
+                self.active_graph = graph_id.clone();
+                self.dispatcher.project.timeline.master_graph_id = Some(graph_id.clone());
+                Ok(self.snapshot())
             }
             GuiCommand::Presets => {
                 let presets: Vec<serde_json::Value> = flux_catalog::presets::all_presets()

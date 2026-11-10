@@ -70,12 +70,18 @@ pub fn params_wgsl(params: &[crate::manifest::ParamDecl]) -> (String, ParamLayou
 
     for p in params {
         use crate::manifest::ParamKind::*;
+        if matches!(p.kind, Text) {
+            // Text is consumed by CPU/vector producers and is not a numeric
+            // shader uniform.
+            continue;
+        }
         let slot_kind = match p.kind {
             Float => SlotKind::F32,
             Color => SlotKind::Vec4,
             Vec2 => SlotKind::Vec2,
             Vec3 => SlotKind::Vec3,
             Int | Bool | Enum => SlotKind::U32,
+            Text => unreachable!(),
         };
         let width = match slot_kind {
             SlotKind::F32 => 1,

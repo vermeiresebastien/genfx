@@ -2,7 +2,14 @@
 // owned by Rust; this module only submits the typed command envelope and reads
 // snapshots. No engine logic lives here.
 
-const invoke = window.__TAURI__.core.invoke;
+// Tauri 2 may expose the bridge through the compatibility global or the
+// internal runtime global depending on the packaged WebView configuration.
+// Resolve both forms before importing any UI module so production startup
+// cannot fail before boot() runs.
+const invoke = window.__TAURI__?.core?.invoke || window.__TAURI_INTERNALS__?.invoke;
+if (typeof invoke !== "function") {
+  throw new Error("Tauri IPC bridge is unavailable");
+}
 
 export function rid() {
   try {
@@ -67,7 +74,7 @@ export async function exportProject(outDir, width, height, codec = "h264", keepF
 
 /** Subscribe to a Tauri event; returns the unlisten promise. */
 export function listen(event, handler) {
-  const ev = window.__TAURI__.event;
+  const ev = window.__TAURI__?.event;
   if (!ev || !ev.listen) return Promise.resolve(() => {});
   return ev.listen(event, (e) => handler(e.payload));
 }

@@ -183,16 +183,18 @@ export function createNodeEl(node, opts) {
       lbl.title = decl.label || decl.id;
       wrap.appendChild(lbl);
       const input = document.createElement("input");
-      input.type = decl.kind === "bool" ? "checkbox" : "number";
+      input.type = decl.kind === "bool" ? "checkbox" : "range";
       if (decl.kind === "bool") input.checked = !!val;
       else {
+        const min = Number.isFinite(Number(decl.min)) ? Number(decl.min) : Math.min(0, Number(val) || 0);
+        const max = Number.isFinite(Number(decl.max)) ? Number(decl.max) : Math.max(1, Number(val) || 0, min + 1);
+        input.min = min;
+        input.max = max;
         input.value = val;
         input.step = decl.kind === "int" ? "1" : "0.01";
-        if (decl.min != null) input.min = decl.min;
-        if (decl.max != null) input.max = decl.max;
       }
       input.addEventListener("pointerdown", (ev) => ev.stopPropagation());
-      input.addEventListener("change", () => {
+      input.addEventListener("input", () => {
         const v = decl.kind === "bool" ? input.checked : Number(input.value);
         opts.callbacks.onInlineParam(node.id, decl.id, decl.kind, v);
       });

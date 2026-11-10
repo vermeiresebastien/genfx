@@ -81,6 +81,10 @@ pub fn utility_manifests() -> Vec<(Manifest, &'static str)> {
                         "hardLight",
                         "difference",
                         "exclusion",
+                        "subtract",
+                        "darken",
+                        "lighten",
+                        "divide",
                     ],
                 ),
                 p_float("opacity", "Opacity", 1.0, 0.0, 1.0, ""),
@@ -197,6 +201,10 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   else if (m == 6) { c = mix(2.0 * a * b, 1.0 - 2.0 * (1.0 - a) * (1.0 - b), step(vec3<f32>(0.5), b)); }
   else if (m == 7) { c = abs(a - b); }
   else if (m == 8) { c = a + b - 2.0 * a * b; }
+  else if (m == 9) { c = max(a - b, vec3<f32>(0.0)); }
+  else if (m == 10) { c = min(a, b); }
+  else if (m == 11) { c = max(a, b); }
+  else if (m == 12) { c = a / max(b, vec3<f32>(0.001)); }
   c = clamp(c, vec3<f32>(0.0), vec3<f32>(4.0));
   return premul(mix(a, c, p_opacity()), src.a);
 }

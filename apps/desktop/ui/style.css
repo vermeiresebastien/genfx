@@ -68,7 +68,7 @@ button.ghost { background: transparent; border-color: transparent; color: var(--
 button.ghost:hover { color: var(--text); border-color: var(--line2); }
 button.on { background: var(--accent-dim); border-color: var(--accent); color: #eaf3ff; }
 
-input[type=text], input[type=number], select {
+input[type=text], select {
   background: var(--panel2); color: var(--text);
   border: 1px solid var(--line2); border-radius: 5px;
   padding: 5px 8px; font: inherit; width: 100%;
@@ -223,7 +223,7 @@ label { color: var(--muted); }
 .node .inline { padding: 4px 8px 6px; border-top: 1px solid var(--line2); display: flex; flex-direction: column; gap: 3px; }
 .node .inline .ival { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .node .inline .ival label { font-size: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.node .inline .ival input[type=number] { width: 58px; padding: 2px 4px; font-size: 11px; }
+.node .inline .ival input[type=range] { flex: 1; min-width: 0; width: 80px; padding: 0; font-size: 11px; }
 .node .thumb {
   display: block; width: 100%; aspect-ratio: 16 / 9;
   background: repeating-conic-gradient(#161a20 0% 25%, #1d222a 0% 50%) 50% / 14px 14px;
@@ -275,7 +275,11 @@ label { color: var(--muted); }
 .inspector-param { display: grid; grid-template-columns: 96px 1fr; gap: 6px; align-items: center; margin: 4px 0; }
 .inspector-param > label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .inspector-param .val { display: flex; gap: 4px; align-items: center; }
-.inspector-param .val input[type=number] { width: 100%; }
+.inspector-param .val input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.range-readout { min-width: 38px; color: var(--muted); font: 10px ui-monospace, monospace; text-align: right; }
+.range-export { display: flex; align-items: center; gap: 3px; color: var(--muted); font: 10px ui-monospace, monospace; }
+.range-export input[type=range] { width: 72px; accent-color: var(--accent); }
+.range-export output { min-width: 34px; color: var(--text); }
 .inspector-param .auto { background: none; border: none; color: var(--dim); cursor: pointer; padding: 0 2px; font-size: 13px; }
 .inspector-param .auto:hover { color: var(--accent); }
 .inspector-param .auto.active { color: var(--ok); }

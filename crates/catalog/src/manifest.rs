@@ -53,6 +53,7 @@ pub enum ParamKind {
     Int,
     Bool,
     Enum,
+    Text,
     Color,
     Vec2,
     Vec3,
