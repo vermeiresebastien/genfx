@@ -9,6 +9,9 @@ fn main() {
             println!("cargo:rustc-env=FLUX_GIT_HASH={hash}");
         }
     }
+    // Watch the git ref, not just HEAD: committing rewrites refs/heads/<branch>,
+    // not HEAD itself, so watching HEAD alone left the embedded hash stale.
     println!("cargo:rerun-if-changed=../../../.git/HEAD");
+    println!("cargo:rerun-if-changed=../../../.git/refs");
     tauri_build::build()
 }
