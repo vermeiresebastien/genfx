@@ -1,17 +1,25 @@
 ﻿{
-    "generatedAt":  "2026-11-09T03:18:43.7231624Z",
+    "generatedAt":  "2026-11-14T05:06:32.0770879Z",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
-    "quick":  true,
-    "ok":  true,
+    "quick":  false,
+    "ok":  false,
     "steps":  {
                   "fmt":  {
-                              "exit":  0,
-                              "ok":  true
+                              "exit":  1,
+                              "ok":  false
                           },
                   "unit-tests":  {
                                      "exit":  0,
                                      "ok":  true
                                  },
+                  "integration-tests":  {
+                                            "exit":  0,
+                                            "ok":  true
+                                        },
+                  "golden":  {
+                                 "exit":  0,
+                                 "ok":  true
+                             },
                   "catalog":  {
                                   "exit":  0,
                                   "ok":  true
@@ -43,6 +51,20 @@
                   "gui-build":  {
                                     "exit":  0,
                                     "ok":  true
-                                }
+                                },
+                  "link-integration":  {
+                                           "ok":  true,
+                                           "skipped":  true,
+                                           "reason":  "FLUX_ABLETON_LINK_LIB unset"
+                                       },
+                  "ndi-discovery":  {
+                                        "exit":  0,
+                                        "ok":  true
+                                    },
+                  "spout-enumeration":  {
+                                            "ok":  true,
+                                            "skipped":  true,
+                                            "reason":  "FLUX_SPOUT_SHIM unset"
+                                        }
               }
 }

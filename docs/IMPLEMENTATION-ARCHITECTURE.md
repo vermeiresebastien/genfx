@@ -860,7 +860,8 @@ Divergences between code and the markdown, ordered by how much they will mislead
 | `spec/ARCHITECTURE.md:199` texture pool keyed by size/format/usage, ping-pong for blur/fluid/feedback | No pool; targets are allocated per activation and keyed only on graph shape (`graph_exec.rs:82-91`) |
 | `implementation/COMPLETION_PLAN.md:95` "ping-pong execution" | Same as row 1 |
 | `main.rs:2-9` (7 commands) and `main.rs:140` (18 commands) | 27 subcommand names (`main.rs:31-133`) |
-| `apps/max-for-live/README.md` verification path `D:\Projects\skeer-audio\genfx\...` | Repo is at `D:\Projects\visual\genfx` |
+| `apps/max-for-live/README.md` verification path `D:\Projects\skeer-audio\genfx\...` | **Fixed 2026-11-14** — patch `bootpath` and README now use `D:/Projects/visual/genfx`; `check-maxpat.cjs` PASSes |
+| `implementation/STATE.json` (Nov 9) "CI workflow + verify.ps1 (VERIFY: PASS)" | **`VERIFY: FAIL` at `e84fe67`, measured 2026-11-14.** `cargo fmt --all -- --check` (`ci.yml:29`, `verify.ps1:32`) exits 1 with 56 diffs in 12 files; every other executed step passes. Two harness defects compound it: `verify.ps1:35` records only the last of three `;`-chained `cargo test` exit codes, and skipped Link/Spout gates are stored as `ok: true`. See DECISIONS D019 and AGENTS.md "Traps inside this repo's own verification harness" |
 | `graph.rs:17-19` implying all three limits bind | `MAX_NESTING` is never enforced |
 | `commands.rs:679-692` naming a `validate_clip` guard | Stub; asset existence is not checked on edit |
 | `Track::blend_mode` (`document.rs:413-414`) + 9-variant `BlendMode` (`document.rs:381-391`) | Read nowhere in the engine or renderer; the real blend vocabulary is the 13-mode `flux.blend` enum (`utility.rs:70-89`) |

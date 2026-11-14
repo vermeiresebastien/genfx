@@ -56,9 +56,31 @@ FFmpeg: set `FLUX_FFMPEG` or have `ffmpeg`/`ffprobe` on `PATH`.
 
 ## Status docs are claims, not evidence
 
-`implementation/` and `docs/` describe intent and history. They lag the code:
-the status set was last written on 2026-11-09 while the engine moved through
-2026-11-13. Read `docs/IMPLEMENTATION-ARCHITECTURE.md` §8 and
-`docs/PERFORMANCE-READINESS.md` for the current divergence register before
-trusting any "verified" line, and re-run the commands above rather than reusing
-the committed evidence in `implementation/evidence/`.
+`implementation/` and `docs/` describe intent and history. They lag the code.
+The status set was reconciled against the tree on 2026-11-14 (`e84fe67`, and
+`implementation/DECISIONS.md` D014–D019), but reconciliation is a snapshot: the
+diverges register in `docs/IMPLEMENTATION-ARCHITECTURE.md` §8 and the gates in
+`docs/PERFORMANCE-READINESS.md` are where known drift is recorded. Re-run the
+commands above rather than reusing the committed evidence in
+`implementation/evidence/` — and note that a verification run rewrites those
+tracked evidence files, so a dirty tree afterwards is expected.
+
+One measured caveat, because it is the kind this section exists for: at
+2026-11-14 HEAD the repo does **not** pass its own first CI step
+(`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of
+it in `ci.yml` therefore never runs in GitHub Actions, even though all of it
+passes locally. See `AGENTS.md` § "Traps inside this repo's own verification
+harness".
+
+## Documentation
+
+| Document | What it is |
+|---|---|
+| `AGENTS.md` | Working rules for anyone editing this repo — truthfulness, canonical commands, non-negotiable architecture, harness traps |
+| `docs/USER-GUIDE.md` | How to drive Flux: GUI, node graph, CLI, controls, export |
+| `docs/FILE-FORMATS.md` | Project document, export outputs, shader ABI, OSC and Max bridge wire formats |
+| `docs/IMPLEMENTATION-ARCHITECTURE.md` | How the code actually works, incl. §3.6 add-a-node procedure and §8 divergence register |
+| `docs/PERFORMANCE-READINESS.md` | Gates A–H: what must be proven on real hardware, and the shortest procedure for each |
+| `docs/DISK-INVENTORY.md` | Measured inventory — committed vs regenerable bytes, and what could be reclaimed |
+| `implementation/DECISIONS.md` | Decision record D001–D019; D014–D019 are the 2026-11-10→14 reconciliation |
+| `implementation/STATE.json` | Machine-readable current state, re-measured at 2026-11-14 |

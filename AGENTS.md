@@ -49,6 +49,30 @@ different files hold different mutexes.
 Never wrap a verification command in a pipe or a trailing `echo` — it replaces the
 tool's exit status with the echo's. Check the exit code of the thing you are claiming.
 
+## Traps inside this repo's own verification harness
+
+Measured on 2026-11-14 (D019). Do not trust these to tell you the truth without reading
+them first.
+
+- **`cargo fmt --all -- --check` fails at HEAD** (56 diffs, 12 files, since 2026-11-10).
+  It is the first check step in CI, so the CI job dies before the test suite runs. If you
+  "run CI locally" and see green, you did not run this step.
+- **`verify.ps1` masks exit codes.** `Step` reads `$LASTEXITCODE` once, after the whole
+  block. Step `'integration-tests'` chains three `cargo test` runs with `;`, so its verdict
+  is the *last* command's. Never put two commands in one `Step` block; and treat a
+  `verify.json` `ok` as weaker evidence than the printed `VERIFY:` line.
+- **Skipped gates are recorded as `ok: true`.** `link-integration` and `spout-enumeration`
+  write `{ ok = true; skipped = true }` when their env vars are unset. That violates the
+  rule above inside the harness itself — check `steps.<name>.skipped` before claiming a
+  gate ran.
+- **Step names overpromise.** `ndi-discovery` runs `ndi::`, which selects 2 tests that only
+  prove the DLL loads and discovery does not crash.
+- **`xtask benchmark --profile X` ignores X.** Resolution is hardcoded 1920×1080, the set is
+  the first 30 fragment generators, each iteration includes a full readback, and with 12
+  samples the `p95ms` field is literally the worst sample. It is not a frame-budget number.
+- A gate pass **rewrites `implementation/evidence/*.json`**, which are tracked. A dirty tree
+  after verification is normal and is not a code change.
+
 ## Architecture rules that are not negotiable
 
 - **Rust is the only authority.** The GUI is a thin `dispatch` client. Do not

@@ -8,8 +8,8 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >
 > Everything below this box was written on 2026-11-09 against an older tree and is kept
 > as a historical record rather than silently rewritten. A full audit against HEAD
-> `46cfd94` found these lines no longer true. Read together with
-> `implementation/DECISIONS.md` D014-D018, `implementation/STATE.json` and
+> `46cfd94` and re-measured at `e84fe67` found these lines no longer true. Read together with
+> `implementation/DECISIONS.md` D014-D019, `implementation/STATE.json` and
 > `docs/IMPLEMENTATION-ARCHITECTURE.md` §8.
 >
 > - **Catalog size is 217, not 216** (`flux list` and `flux doctor` both report 217).
@@ -33,6 +33,15 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 > - **Not covered below at all**: the node-graph editor that replaced the clip timeline
 >   (D013), the slider/monitor-window work, the webview bundling, and the fact that
 >   feedback loops currently render black.
+> - **"CI workflow … VERIFY: PASS" no longer holds.** Re-measured 2026-11-14 at HEAD
+>   `e84fe67`: `infrastructure/verify.ps1` exits 1 with `VERIFY: FAIL`, because
+>   `cargo fmt --all -- --check` — the first check step in `ci.yml` — reports 56 diffs
+>   across 12 files, all of it style written on 2026-11-10 and never rustfmt-ed. Every
+>   other step that ran passed (149 lib tests, 16 integration, 3 golden, catalog 217,
+>   doctor, 217 shader compiles with 0 failures, export_shaders, maxpat, fixtures, both
+>   builds, NDI). In GitHub Actions the fmt failure aborts the job before the suite even
+>   starts, which is why the green local result and the red CI result are both true.
+>   See D019.
 
 ## 1. What works (verified on this host: Windows x64, RTX 2080 Ti, FFmpeg 9)
 

@@ -213,3 +213,69 @@ being read as proof.
    without the snapshot/rollback that `apply` has, so a rejected inverse leaves the
    project half-mutated; autosave `.bak` files are never pruned.
 7. **Catalog count is 217, not 216** (`flux list`, `flux doctor` both agree).
+
+## D019 — 2026-11-14 re-measurement: the tree does not pass its own CI
+
+After D018 the docs were reconciled and the artifacts untracked (`5fbfc1e`, `e84fe67`).
+The completion batch then re-ran every canonical command bare, at HEAD `e84fe67`, on the
+same host. Measured, not reasoned:
+
+| Gate | Result |
+|---|---|
+| `cargo test --workspace -- --test-threads=1` | 196 passed / 0 failed / 0 ignored, 40 binaries, exit 0 |
+| `cargo run -q -p xtask -- catalog` | 217 entries, duplicates=0, exit 0 |
+| `cargo run -q -p xtask -- doctor` | PASS, RTX 2080 Ti / Vulkan / DiscreteGpu, exit 0 |
+| `cargo run -q -p xtask -- test-gpu --profile baseline` | 217 shaders compiled on the device, 0 failures, exit 0 |
+| `cargo run -q -p xtask --bin export_shaders` | 217 WGSL, 0 Naga failures, exit 0 |
+| `cargo run -q -p xtask -- fixtures` | 3 fixtures rebuilt, exit 0 |
+| `cargo run -q -p xtask -- benchmark --profile ordinary` | 30 generators @ 1920x1080, median p95 4.98 ms, exit 0 |
+| `node apps/max-for-live/check-maxpat.cjs` | structural PASS, exit 0 |
+| `cargo build -p flux-desktop` | exit 0 |
+| `cargo fmt --all -- --check` | **FAIL — exit 1, 56 diffs across 12 files** |
+| `infrastructure/verify.ps1` (full) | **VERIFY: FAIL — exit 1**, fmt the only failing step of 15 |
+
+Three conclusions follow, and they change how the earlier evidence should be read.
+
+1. **The repository has been failing its own CI since 2026-11-10.** `Format check` is the
+   first check step in `ci.yml` (`:29`). rustfmt objects to the compact style written by
+   `fe9e35e`, `ac73572` and `8139007` — multi-item arrays like `BRIK_GALLERY_NAMES` left
+   several strings per line, and long `assert!` calls left on one line. In Actions a failed
+   step aborts the job, so the workspace suite and every xtask gate would never have run in
+   CI. Locally they all pass; only the formatting is wrong. A single `cargo fmt --all` fixes
+   it, but that is a formatting-only commit touching the 25-preset tables, so it is the
+   user's call and was not made here.
+2. **`verify.ps1` can record a passing step for failing work.** `Step` reads `$LASTEXITCODE`
+   once, after the whole scriptblock. Step `'integration-tests'` (`:35`) chains three
+   `cargo test` invocations with `;`, so its verdict is `dag_parallel`'s alone and a
+   `producer_tests` or `export_matrix` regression is invisible in `verify.json`. Proved
+   directly rather than argued: a block containing a failing `cargo fmt --all -- --check`
+   followed by a passing `xtask doctor` records `ok=True exit=0`, while the same `cargo fmt`
+   run alone exits 1. The same file also writes `{ ok = true; skipped = true }` for the
+   Link and Spout gates when their env vars are unset — the exact "missing prerequisite is
+   `blocked_external`, never `passed`" rule from AGENTS.md, violated inside the harness that
+   is supposed to enforce it.
+3. **Some step names describe more than their tests prove.** `ndi-discovery` runs
+   `cargo test -p flux-integrations --features ndi ndi::`, which selects 2 tests
+   (`runtime_loads_and_initializes`, `discovery_returns_state_without_crash`); `ndi.rs`
+   contains no others. The "5 live sources discovered + live send/receive cross-process"
+   line in the old STATE.json came from a manual run that nothing reproduces. Meanwhile
+   `test-gpu --profile baseline` genuinely does the work it claims — 217 shader compiles on
+   the device, 0 failures — which is the strongest single piece of evidence in the tree, and
+   the reason D018 item 3's "the green suite is weak" caveat needs the exception recorded
+   here.
+4. **The benchmark gate is weaker than its output looks** (`crates/xtask/src/main.rs:299-382`).
+   `--profile` is parsed and written into the JSON but never read again: resolution is
+   hardcoded 1920×1080 (`:331`, `:355`) and the sample set is the first 30 fragment
+   generators (`:324`), so no profile changes the work. Every timed iteration wraps a full
+   1920×1080 `read_preview` (`:371`), so the numbers are render **plus** an ~8 MB GPU→CPU
+   copy and are not a frame-budget measurement. And with 12 samples, `times[len*95/100]`
+   is index 11 — the single worst sample — so the field labelled `p95ms` is really `max`.
+
+Performance, for the record: on the ordinary label the benchmark puts the median worst-sample
+at 4.98 ms across 30 single generators at 1920×1080, with one row above a 16.6 ms budget
+(`gen.concentric`, worst 21.49 ms, median 2.75 ms — one outlier in twelve, not a slow node).
+Each row is one generator on one frame. Nothing in the tree times a multi-node DAG at 1080p60:
+`preview_perf.rs` renders `chain_graph("gen.plasma", &[])` — a generator with zero effects —
+at 320×180, 352×198, 640×360 and 960×540 only. That missing number, not this one, decides
+whether Flux is performable. See `docs/PERFORMANCE-READINESS.md` gate F3.
+

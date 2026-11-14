@@ -2,7 +2,7 @@
   "spec_version": "2.0",
   "spec_date": "2026-11-09",
   "state_updated": "2026-11-14",
-  "state_note": "Reconciled against HEAD 46cfd94 by a full-tree audit. Where this file previously asserted verified for something the code cannot do, the claim is corrected here and the evidence is recorded in implementation/DECISIONS.md D014-D018. Treat implementation/evidence/* as 2026-11-09 artifacts, not current proof.",
+  "state_note": "Reconciled against HEAD 46cfd94 by a full-tree audit, then re-measured against HEAD e84fe67 on 2026-11-14 with a full CI-parity run. Where this file previously asserted verified for something the code cannot do, the claim is corrected here and the evidence is recorded in implementation/DECISIONS.md D014-D019.",
   "active_platform": "windows-x64",
   "host": {
     "os": "Windows 10.0.19045",
@@ -26,7 +26,27 @@
   "test_run_2026_11_14": {
     "first_attempt": "exit 101 - rustc ICE at rustc_monomorphize/collector.rs:298 (Option::unwrap on None) while compiling the flux-audio lib test",
     "retry": "the same target compiled cleanly with no source change; the ICE is a transient rustc fault, not a project defect",
-    "note": "The first run only looked green because a trailing echo masked cargo's exit status. Never wrap a verification command in a pipe or trailing echo."
+    "note": "The first run only looked green because a trailing echo masked cargo's exit status. Never wrap a verification command in a pipe or trailing echo.",
+    "cargo_test_workspace": "196 passed / 0 failed / 0 ignored across 40 test binaries, exit 0",
+    "verify_ps1_full": {
+      "command": "powershell -File infrastructure/verify.ps1   (no -Quick)",
+      "at_head": "e84fe67",
+      "verdict": "VERIFY: FAIL, exit 1",
+      "failing_step": "fmt - the ONLY failing step",
+      "passing_steps": "unit-tests (149 lib tests), integration-tests (producer_tests 6 + export_matrix 6 + dag_parallel 4), golden (3), catalog, doctor, test-gpu, shaders-export, maxpat, fixtures, cli-build, gui-build, ndi-discovery",
+      "skipped_steps": "link-integration (FLUX_ABLETON_LINK_LIB unset), spout-enumeration (FLUX_SPOUT_SHIM unset) - both recorded as ok:true in verify.json, see ci_defects_found_2026_11_14",
+      "evidence": "implementation/evidence/verify.json"
+    },
+    "gates_measured": {
+      "catalog": "217 entries (52 fx/util, 165 generators), duplicates=0",
+      "doctor": "PASS - GPU NVIDIA GeForce RTX 2080 Ti (Vulkan, DiscreteGpu), catalog entries 217",
+      "test-gpu": "compiled 217 shaders on the device, 0 failures - this gate does real GPU work, unlike the vacuous lib tests",
+      "export_shaders": "217 WGSL written to apps/shader-harness/shaders.json, 0 naga failures",
+      "fixtures": "test_10s_60fps.mp4 212,405 B; test_2997.mp4 158,067 B; sine_1k_48k.wav 384,078 B",
+      "benchmark": "ordinary profile: 30 generators at 1920x1080, median p95 4.98 ms; only gen.concentric (p95 21.49 ms) exceeds a 16.6 ms frame budget",
+      "maxpat": "structural checks PASS (audio bridge, midi bridge, 52-byte OSC encoder)",
+      "fmt": "FAIL - 56 diffs in 12 files, 59,490 bytes of output, exit 1"
+    }
   },
   "models": {
     "status": "VERIFIED - real ONNX inference works (AT075 + AT077 verified), behind feature vision",
@@ -56,7 +76,7 @@
       "not_covered": "single-master tempo arbitration and seek/loop assertions - BLOCKERS.md keeps AT063 implemented_unverified, contradicting the older claim on this line",
       "build": "clone link; cmake -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo test -p flux-integrations --features link link::"
     },
-    "ndi": "DISCOVERY ONLY. The earlier live send/receive cross-process (real 640x360 frame) claim is wrong about the frame: main.rs builds a synthetic gradient (vec![w*h*4], (x*255/w+t/8)%256) and never touches Gpu/PreviewRenderer, so no Flux frame has ever left the process. Feature off by default.",
+    "ndi": "DISCOVERY ONLY. The earlier live send/receive cross-process (real 640x360 frame) claim is wrong about the frame: main.rs builds a synthetic gradient (vec![w*h*4], (x*255/w+t/8)%256) and never touches Gpu/PreviewRenderer, so no Flux frame has ever left the process. Feature off by default. The only repeatable NDI evidence is 2 tests (runtime loads, discovery does not crash); the '5 live sources' figure was an unrepeatable manual run.",
     "spout": "C++ shim built (spout_shim.dll); sender enumeration verified behind feature spout; SendImage needs a GL context; same synthetic-gradient sender. Production fix is compiling SpoutDX into the binary.",
     "syphon": "interface present; blocked_external (needs macOS)"
   },
@@ -95,7 +115,15 @@
     "autosave .bak files are never pruned (the filter requires extension json); save is copy-delete-rename, not atomic; relink matches name+size only",
     "frame_index in WGSL reads only counters.x as f32, losing integer precision past 2^24 frames; negative Int params are destroyed by .max(0.0) as u32"
   ],
-  "current_task": "T27 reconcile and deliver",
+  "ci_defects_found_2026_11_14": [
+    "HEAD DOES NOT PASS ITS OWN CI. `cargo fmt --all -- --check` is the first check step in ci.yml (line 29, 'Format check') and the first step of verify.ps1 (line 32); at e84fe67 it exits 1 with 56 diffs across 12 files (src-tauri build.rs + lib.rs, app/commands.rs, app/samples.rs, catalog/presets.rs, media/lib.rs, and tests export_formats/golden/node_editor/preset_sweep/preview_perf/sweep_catalog). The compact hand-formatted multi-item arrays and long assert! lines committed on 2026-11-10 (fe9e35e, ac73572, 8139007) were never rustfmt-ed. In GitHub Actions a failing step aborts the job, so every step after 'Format check' - including the whole workspace test suite - would not run.",
+    "verify.ps1:35 masks two of its three exit codes. The 'integration-tests' Step block runs three cargo tests separated by `;`, and Step only reads $LASTEXITCODE after the block - so the step's ok reflects dag_parallel (the last command) alone. Measured directly: a block containing a failing `cargo fmt` then a passing `doctor` records ok=True exit=0. A producer_tests or export_matrix regression is invisible in verify.json.",
+    "verify.json records skipped gates as ok:true. link-integration and spout-enumeration write { ok = true; skipped = true } when their env vars are unset, which is exactly the AGENTS.md rule 'missing prerequisite is blocked_external, never passed' violated inside the verification harness itself. The aggregate ok can never reflect an unavailable SDK.",
+    "The step name 'ndi-discovery' overpromises. It runs `cargo test -p flux-integrations --features ndi ndi::`, which selects exactly 2 tests (runtime_loads_and_initializes, discovery_returns_state_without_crash). crates/integrations/src/ndi.rs contains no other test. So the repeatable NDI evidence is 'the DLL loads and discovery does not crash' - the 'discovery of 5 live sources + live send/receive cross-process' claim came from an ad-hoc manual run that no test reproduces.",
+    "clippy is neutered: ci.yml:31 runs `cargo clippy --workspace --all-targets -- -A warnings` (-A = allow), so it can only detect a compile failure, never a lint. The plain build already emits ~10 warnings, including dead fields in RuntimeGraph and a never-used flux_app_persistence_load.",
+    "xtask benchmark lies about what it measured (crates/xtask/src/main.rs:299-382). (a) `--profile` is parsed and echoed into the JSON but never used - resolution is hardcoded 1920x1080 at :331/:355 and the sample set is `.take(30)` fragment generators at :324, so `--profile ordinary` and a hypothetical `--profile 4k` do identical work. (b) Each timed iteration includes a full 1920x1080 readback (:371), so p50/p95 are render + an ~8 MB GPU->CPU copy, not render cost, and are not comparable to a frame budget. (c) With 12 samples, `times[len*95/100]` = index 11 = the single worst sample, so 'p95' is really max and 'p50' is index 6. The headline 'gen.concentric p95 21.49 ms' is one outlier of twelve."
+  ],
+  "current_task": "2026-11-14 orientation complete: docs reconciled (D014-D019), 919->334 tracked files, CI-parity re-measured at e84fe67 (VERIFY: FAIL on fmt only). Nothing is being built; the next decision belongs to the user.",
   "delivered": [
     "Engine + GPU renderer + 217-entry catalog (all shaders compile on GPU, 0 failures)",
     "Tauri 2 desktop GUI over a vanilla ES-module node-graph editor (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
@@ -109,9 +137,10 @@
     "Live source/sink interfaces (NDI/Spout/Syphon contracts) - discovery and enumeration only",
     "Windows capture: real WASAPI endpoint + PnP camera enumeration (enumeration only, no capture)",
     "Redacted diagnostics report; docs (user guide, file/protocol formats, implementation architecture, performance readiness)",
-    "CI workflow + infrastructure/verify.ps1"
+    "CI workflow + infrastructure/verify.ps1 - the pipeline exists and 13 of 15 steps pass, but at e84fe67 the run ends VERIFY: FAIL on the fmt step (see ci_defects_found_2026_11_14)"
   ],
   "known_gaps": [
+    "The tree is not rustfmt-clean, so the repo's own CI fails at its first check step. One `cargo fmt --all` would clear it, but that is a formatting-only commit across 12 files including the 25 preset tables - the user has not asked for it.",
     "OSC receive is never routed into the LiveOsc command, and the desktop process opens no UDP listener — the two halves exist and are unconnected. This is the highest-value gap for live use, and it is a wiring job, not a missing subsystem.",
     "No wgpu->NDI/Spout frame path; the senders emit a test pattern",
     "No live audio input at all: crates/audio has no device dependency and crates/platform only enumerates. ASIO appears once in the tree, in Link's build script.",
@@ -133,11 +162,12 @@
     "cargo run -p xtask -- benchmark --profile ordinary",
     "cargo run -p xtask --bin export_shaders",
     "node apps/max-for-live/check-maxpat.cjs",
-    "infrastructure\\verify.ps1 -Quick"
+    "infrastructure\\verify.ps1   (full, no -Quick; expect VERIFY: FAIL until the fmt gate is cleared)"
   ],
   "further_reading": {
     "docs/IMPLEMENTATION-ARCHITECTURE.md": "how the code actually works, with a divergence register in section 8",
     "docs/PERFORMANCE-READINESS.md": "what still needs real hardware, and the shortest proving procedure per item",
-    "implementation/DECISIONS.md D014-D018": "the Nov 10-13 work that had no decision record, plus the audit findings"
+    "docs/DISK-INVENTORY.md": "measured byte-for-byte inventory of the repo: what is committed, what is regenerable, what could be reclaimed",
+    "implementation/DECISIONS.md D014-D019": "the Nov 10-13 work that had no decision record, the audit findings, and the 2026-11-14 re-measurement"
   }
 }
