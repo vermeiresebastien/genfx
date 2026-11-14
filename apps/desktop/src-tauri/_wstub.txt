@@ -1,2 +1,0 @@
-[workspace] 
-ECHO is on.
