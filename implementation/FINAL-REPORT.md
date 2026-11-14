@@ -4,6 +4,36 @@ Specification version 2.0. Updated after the completion batches (GUI, persistenc
 matrix, OSC/MIDI, live control bridge, Max bridge, platform capture, recording, diagnostics,
 shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 
+> ## Corrections — 2026-11-14
+>
+> Everything below this box was written on 2026-11-09 against an older tree and is kept
+> as a historical record rather than silently rewritten. A full audit against HEAD
+> `46cfd94` found these lines no longer true. Read together with
+> `implementation/DECISIONS.md` D014-D018, `implementation/STATE.json` and
+> `docs/IMPLEMENTATION-ARCHITECTURE.md` §8.
+>
+> - **Catalog size is 217, not 216** (`flux list` and `flux doctor` both report 217).
+>   Every "216" below, including "216 shaders compile on the real GPU", is one short.
+> - **"§6b NDI — fully working (discovery, send, receive verified)" is wrong about the
+>   frame.** The send/receive tests broadcast a synthetic 640×360 gradient built in
+>   `crates/app/src/main.rs`; no wgpu frame has ever crossed that boundary, and feature
+>   `ndi` is off by default. Discovery of 5 live sources is real. This also contradicts
+>   the blockers paragraph at `FINAL-REPORT.md:81` (which lists NDI as
+>   `blocked_external`) and `implementation/UPSTREAM.md:46-49` (which says no SDK
+>   headers are shipped). Reconciliation: vendored headers and discovery are real;
+>   live Flux output is not.
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-14: 196
+>   passed, 0 failed across 40 test binaries — and 14 of those passes are GPU tests that
+>   return early when no device is created. `golden.rs` asserts file sizes, not pixels.
+> - **"live control bridge -> engine commands" needs the nuance**: the apply command
+>   exists (`GuiCommand::LiveOsc`, `crates/app/src/commands.rs:478`), the
+>   transport→command wire does not, and no OSC output path exists at all.
+> - **"deterministic undo/redo" holds only for accepted inverses**: `undo`/`redo`
+>   re-enter `execute` without `apply`'s snapshot/rollback.
+> - **Not covered below at all**: the node-graph editor that replaced the clip timeline
+>   (D013), the slider/monitor-window work, the webview bundling, and the fact that
+>   feedback loops currently render black.
+
 ## 1. What works (verified on this host: Windows x64, RTX 2080 Ti, FFmpeg 9)
 
 Engine, GPU renderer, 216-entry catalog, media, audio, persistence, export matrix,

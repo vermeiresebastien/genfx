@@ -128,3 +128,88 @@ it is now keyed by a **content hash** of the graph.
 
 
 
+
+## D014 — Desktop shell is vanilla ES modules + esbuild, not React (corrects D001)
+D001 recorded "Tauri 2 + React". What actually shipped is Tauri 2 over hand-written ES
+modules in `apps/desktop/ui/` (no framework, no virtual DOM), bundled by
+`ui/bundle.mjs` with esbuild and served from disk (`bundle.active: false`). Rust remains
+the only authority; the shell is a thin `dispatch` client. **Decision: keep the vanilla
+shell** — reactivating D001 would mean rebuilding the canvas, inspector and monitor for a
+framework that buys nothing here. Update D001 if React is ever actually adopted.
+
+## D015 — Bundled webview, content-hashed cache-bust, single instance (`fe9e35e`)
+The UI bundle is embedded at build time; `bundle.mjs` sha256s the bundle and rewrites the
+`?v=` on the script tag so WebView2 cannot serve a stale inspector. A raw
+`CreateMutexW("Local\dev.flux.desktop.single")` enforces one instance, the monitor window
+is closed on the main window's `CloseRequested`, all webviews are closed on
+`ExitRequested`, and `taskkill /PID /T /F` reaps the WebView2 tree on `Exit`.
+
+**Defect found 2026-11-14, not yet fixed:** `src-tauri/build.rs:18-20` reports a failed
+bundle step as `cargo:warning=ui bundle not rebuilt (... os error 267); using committed
+bundle` and continues. The last build hit exactly that, so the cache-buster this decision
+exists to provide silently did not run, and `bundle.mjs:37` only rewrites a tag that
+already carries `?v=`. The bundle step must fail the build, and `bundle.mjs` /
+`package.json` must be added to `rerun-if-changed`.
+
+## D016 — Sliders, monitor window, catalog/producer refinements (`ac73572`)
+Inspector range inputs commit through `setParam` (discrete) or `setParamLive`
+(rAF-coalesced, used by canvas drags) into the same typed `dispatch` path; preview is
+debounced 40 ms behind a single-flight guard. A second WebView2 window shows the live
+frame. **Known cost:** `export.rs::graph_content_key` hashes node params, so every slider
+tick re-enters `RuntimeGraph::activate` (recompile + one render-target allocation per
+node) and the 12-entry `roots_cache` clears itself mid-drag.
+
+## D017 — Max patch repoint (`46cfd94`) pointed at a tree that does not exist
+The commit "Repoint the Max patch at the new tree" set `bootpath` to
+`D:/Projects/skeer-audio/genfx/apps/max-for-live` and `apps/max-for-live/README.md:55`
+to the same absent root — a third wrong location after `D:\CURSOR LOCAL PROJECTS\...`.
+The repo is `D:\Projects\visual\genfx`. Both corrected 2026-11-14. Still true: these are
+`.maxpat` patches, no `.amxd` has ever been produced, and the bridge addresses they send
+are discarded by the receiver (see D018).
+
+## D018 — 2026-11-14 audit: what the status docs were asserting that the code cannot do
+A full read of the tree against HEAD `46cfd94` (host: RTX 2080 Ti, Vulkan, FFmpeg 9.0)
+found the following. None of it is fixed yet; it is recorded so the evidence files stop
+being read as proof.
+
+1. **Feedback loops render black, silently.** `is_feedback_boundary` returns `false`
+   unconditionally (`engine/src/graph.rs:358`) and `temporal_pairs` is always `vec![]`
+   (`:487`), so no legal loop can be built; an unresolved `NodeOutput` falls through to
+   `compiler.dummy_tex` (`render/src/graph_exec.rs:368`). D013's "true DAG executor"
+   claim holds for acyclic graphs only.
+2. **The capability report overstates three integrations.** `integrations/src/lib.rs`
+   marks `osc`, `bridge` and NDI `implemented: true, verified: true`. Precisely:
+   OSC receive (UDP 9000) and OSC→engine application (`GuiCommand::LiveOsc` →
+   `control::apply_to_dispatcher`, `app/src/commands.rs:478`) **both exist and are not
+   connected** — no code turns a received `OscControl` into a `LiveOsc` dispatch,
+   `apply_controls`/`apply_osc` have no non-test callers, and the desktop process opens
+   no UDP listener at all, so `flux osc` remains a print-only demo. There is no OSC
+   output path (`encode_param_feedback` is test-only, 9001 unused). `LiveOsc` is also a
+   no-op until a `LearnBinding` sets `control_map.graph_id`. Separately,
+   `/flux/v1/bridge/…` is rejected by the address gate (`osc.rs:44`), and the NDI/Spout
+   senders emit a synthetic 640×360 gradient rather than a rendered frame — behind
+   features that are off by default.
+   *Correction to the first pass of this audit, which claimed "control application is
+   not wired": the application half is implemented; the gap is the transport→command
+   wire. That makes it a wiring job, not a missing subsystem.*
+3. **14 GPU tests pass vacuously** by returning on `Err` ("no GPU; skipping"), and
+   `golden.rs` asserts file sizes, not pixels (`bytes.len() > 1000`). "216 catalog
+   shaders verified" is a compile check plus a 1 % non-black threshold
+   (`sweep_catalog.rs:152`), which also reclassifies `flux.feedback_read` Blank→Ok at
+   `:184`.
+4. **VRAM is unbounded and per-frame work is real.** One full-res target per live node
+   with no pool or budget (4096 nodes = 32 GiB), bind groups and layouts rebuilt per pass
+   per frame, while the eager `bind_groups` / `input_bind_groups` / `node_uniforms`
+   caches are dead fields. `MAX_NESTING` is unreferenced and the "16 texture inputs"
+   limit does not exist in code.
+5. **Two packers disagree.** `engine/src/router.rs::pack_params` allocates a slot for
+   `Text` params that `catalog/src/pack.rs` skips, and resolves Color/Vec to 0 because
+   `ResolvedParams` is `BTreeMap<String,f64>`. The live export path uses `pack.rs`; the
+   dead one would shift every later int/bool/enum by one.
+6. **Media and undo defects.** `StreamingEncoder` has no `Drop`, so a failed export
+   orphans ffmpeg writing an unindexed MP4; stderr is piped and never drained
+   (`media/lib.rs:287`, `:511`) which can deadlock past 64 KB; `codec_from_name` and
+   `parse_codec` disagree on `mov` and `sequence`; `undo`/`redo` re-enter `execute`
+   without the snapshot/rollback that `apply` has, so a rejected inverse leaves the
+   project half-mutated; autosave `.bak` files are never pruned.
+7. **Catalog count is 217, not 216** (`flux list`, `flux doctor` both agree).

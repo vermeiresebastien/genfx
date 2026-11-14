@@ -80,7 +80,7 @@ Six files contain absolute paths of the form
 `fix_intcmp.py`, `fix_ucomp.py`, `noop.py` and `rename_mod.py`. That was this
 repository's location before every project on the machine was relocated to
 `D:\Projects` on 2026-11-13; the equivalent path now is
-`D:\Projects\skeer-audio\genfx`.
+`D:\Projects\visual\genfx`.
 
 Those paths were deliberately **not** updated. For the three spent migrations the
 dead path is now the only thing standing between them and a destructive rewrite

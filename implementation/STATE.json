@@ -1,89 +1,143 @@
 {
   "spec_version": "2.0",
   "spec_date": "2026-11-09",
+  "state_updated": "2026-11-14",
+  "state_note": "Reconciled against HEAD 46cfd94 by a full-tree audit. Where this file previously asserted verified for something the code cannot do, the claim is corrected here and the evidence is recorded in implementation/DECISIONS.md D014-D018. Treat implementation/evidence/* as 2026-11-09 artifacts, not current proof.",
   "active_platform": "windows-x64",
   "host": {
     "os": "Windows 10.0.19045",
-    "gpu": "NVIDIA RTX 2080 Ti (wgpu Vulkan)",
+    "gpu": "NVIDIA RTX 2080 Ti (wgpu Vulkan), driver 560.94, max 2D texture 8192, rgba16f filterable",
     "rustc": "1.99.0 stable x86_64-pc-windows-msvc",
     "node": "24.19.0",
-    "ffmpeg": "9.0-full_build",
+    "ffmpeg": "9.0-full_build (h264/hevc/prores/aac/gif/png/wav all present)",
     "tauri": "2"
   },
-  "test_totals": { "passed": 167, "failed": 0, "suites_failed": 0, "note": "default; +link/ndi/spout when features enabled" },
+  "catalog_entries": 217,
+  "catalog_entries_note": "Authoritative: `flux list` prints Catalog (217 entries) and `flux doctor` reports 217. Every doc saying 216 is stale.",
+  "test_totals": {
+    "passed": 196,
+    "failed": 0,
+    "ignored": 0,
+    "test_binaries": 40,
+    "measured": "2026-11-14, `cargo test --workspace -- --test-threads=1`, exit 0, ~98.5s of binary time",
+    "previous_claim": "167 passed / 0 failed (2026-11-09)",
+    "caveat": "14 GPU integration tests pass vacuously by returning on device-creation error (no GPU; skipping), and golden.rs asserts file sizes rather than pixels. A green suite does not mean the GPU paths ran."
+  },
+  "test_run_2026_11_14": {
+    "first_attempt": "exit 101 - rustc ICE at rustc_monomorphize/collector.rs:298 (Option::unwrap on None) while compiling the flux-audio lib test",
+    "retry": "the same target compiled cleanly with no source change; the ICE is a transient rustc fault, not a project defect",
+    "note": "The first run only looked green because a trailing echo masked cargo's exit status. Never wrap a verification command in a pipe or trailing echo."
+  },
   "models": {
-    "status": "VERIFIED — real ONNX inference works (AT075 + AT077 verified)",
-    "backend": "ONNX Runtime via `ort` crate (statically linked, feature `vision`)",
+    "status": "VERIFIED - real ONNX inference works (AT075 + AT077 verified), behind feature vision",
+    "backend": "ONNX Runtime via `ort` crate (statically linked, feature vision)",
     "nodes": "G170-G177 model-backed conditional rows stay editable; report MODEL status",
     "depth": "Depth Anything v2 small ONNX; `flux depth` -> 518x518 depth in ~330ms (evidence/depth-demo)",
     "states_verified": "missing / available / incompatible / invalid-manifest + real inference",
-    "install": "user drops model.onnx + model.json via FLUX_MODEL_<ID> / FLUX_MODELS_DIR"
+    "install": "user drops model.onnx + model.json via FLUX_MODEL_<ID> / FLUX_MODELS_DIR",
+    "open_question": "depth polarity is self-contradictory: the code says near=bright while the evidence records center=0.001 corner=0.991"
   },
   "max_for_live": {
     "source": "2 .maxpat + bridge-osc.js + check-maxpat.cjs (structural conformance PASS)",
-    "amxd": "packaging procedure fully documented in apps/max-for-live/README.md; .amxd bytes need a Max host (external)"
+    "amxd": "no .amxd exists; packaging needs a Max host (external)",
+    "paths_fixed_2026_11_14": "flux-audio-bridge.maxpat bootpath and apps/max-for-live/README.md both pointed at D:/Projects/skeer-audio/genfx, which does not exist; repointed to D:/Projects/visual/genfx"
   },
   "integrations": {
-    "osc": "verified (real UDP loopback)",
-    "midi": "verified (message parsing)",
-    "bridge_max": "verified (protocol decode + maxpat structure)",
+    "default_features": "NONE - crates/app and crates/integrations both set default = []. link/ndi/spout/syphon/vision are compiled out of a plain build; check with `flux integrations`.",
+    "osc": "TRANSPORT AND APPLICATION BOTH EXIST, THEY ARE NOT CONNECTED. UDP receive is real (osc.rs, 127.0.0.1:9000) and OSC->engine application is real (GuiCommand::LiveOsc -> control::apply_to_dispatcher, app/src/commands.rs:478). What is missing is the wire between them: nothing converts a received OscControl into a LiveOsc dispatch, integrations::apply_controls and app::control::apply_osc have no non-test callers, and the desktop process never opens a receiver at all. `flux osc <port>` only prints. There is also no OSC output path (encode_param_feedback is test-only; port 9001 unused). Note LiveOsc is a no-op unless a LearnBinding set control_map.graph_id first.",
+    "midi": "verified (message parsing); device presence is host-dependent; no virtual ports on Windows",
+    "bridge_max": "protocol decoder tested in isolation, but the receiver rejects it: osc.rs:44 requires parts[2]==project, so every /flux/v1/bridge/... packet is discarded. decode_bridge_packet and BridgeState have no non-test callers. OSC bundles are dropped too, not just malformed packets.",
     "ableton_link": {
-      "status": "supported + verified (feature `link`)",
-      "licensing": "resolved — product not sold; GPLv2+ acceptable (DECISIONS D012)",
+      "status": "supported + verified when built with feature link",
+      "licensing": "resolved - product not sold; GPLv2+ acceptable (DECISIONS D012)",
       "upstream": "https://github.com/Ableton/link @ 5ba907ae (GPLv2-or-later)",
       "evidence": "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1); 6 tests",
-      "verified_async_behaviors": "peer discovery, tempo convergence, single-master tempo arbitration, start/stop propagation, clock, enable",
-      "build": "clone link; cmake -G 'Visual Studio 18 2026' -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo build --features link"
+      "verified_async_behaviors": "peer discovery, tempo convergence, start/stop propagation, clock, enable",
+      "not_covered": "single-master tempo arbitration and seek/loop assertions - BLOCKERS.md keeps AT063 implemented_unverified, contradicting the older claim on this line",
+      "build": "clone link; cmake -A x64; build abl_link; set FLUX_ABLETON_LINK_LIB; cargo test -p flux-integrations --features link link::"
     },
-    "ndi": "VERIFIED: discovery (5 live sources) + live send/receive cross-process (real 640x360 frame); C++ shim over official SDK headers",
-    "spout": "C++ shim built (spout_shim.dll); sender enumeration verified (feature `spout`); SendImage needs GL context",
+    "ndi": "DISCOVERY ONLY. The earlier live send/receive cross-process (real 640x360 frame) claim is wrong about the frame: main.rs builds a synthetic gradient (vec![w*h*4], (x*255/w+t/8)%256) and never touches Gpu/PreviewRenderer, so no Flux frame has ever left the process. Feature off by default.",
+    "spout": "C++ shim built (spout_shim.dll); sender enumeration verified behind feature spout; SendImage needs a GL context; same synthetic-gradient sender. Production fix is compiling SpoutDX into the binary.",
     "syphon": "interface present; blocked_external (needs macOS)"
   },
   "gui_status": {
-    "dev_binary": "target/debug/flux-desktop.exe (works, screenshotted)",
-    "release_binary": "target/release/flux-desktop.exe (works, screenshotted)",
-    "evidence": "implementation/evidence/gui-release.png",
+    "dev_binary": "target/debug/flux-desktop.exe",
+    "release_binary": "target/release/flux-desktop.exe (stale: built 2026-11-10, predates HEAD)",
+    "evidence": "implementation/evidence/gui-release.png (2026-11-09 artifact)",
     "verified": [
       "launches with a visible window on Windows x64 (WebView2 157)",
-      "library populates with all 216 catalog entries grouped by category",
+      "library populates with all 217 catalog entries grouped by category",
       "preview renders real GPU plasma frames",
-      "inspector lists catalog parameter declarations (Opacity/Frequency/Speed/Colors/) with editable controls",
-      "timeline shows exactly one clip per added scene",
+      "inspector lists catalog parameter declarations with editable controls",
+      "node-graph canvas is the composition surface; the timeline strip drives duration and transport (the one-clip-per-scene model was replaced by D013)",
       "GUI-backend e2e test: create/catalog/add/edit/export passes"
     ],
-    "root_cause_fixed": "serde rename_all (tag only) vs rename_all_fields (fields) on GuiCommand/Command made all camelCase IPC payloads fail; GUI showed empty library + broken preview. Fixed + regression test."
+    "root_cause_fixed": "serde rename_all (tag only) vs rename_all_fields (fields) on GuiCommand/Command made all camelCase IPC payloads fail; GUI showed empty library + broken preview. Fixed + regression test.",
+    "open_defects": [
+      "src-tauri/build.rs reports a failed ui-bundle step as cargo:warning and continues, so the content-hash cache-buster silently did not run on the last build; bundle.mjs and package.json are missing from rerun-if-changed",
+      "bundle.mjs only rewrites a script tag that already carries ?v=, so cache-busting no-ops on a plain src",
+      "graph_content_key hashes node params, so every slider tick re-enters RuntimeGraph::activate and the 12-entry roots_cache clears itself mid-drag",
+      "monitor frames are base64 PNG downscaled to 480px at ~90ms and share the preview mutex, halving main-window fps",
+      "preview commands unwrap() a mutex without recover, so one panic inside a render poisons it permanently",
+      "export nulls the preview device once and holds nothing, so a preview during export can recreate the second device the code comment warns about",
+      "taskkill /PID /T /F on Exit is a hard kill: skips Drop and can kill an in-flight export mid-file"
+    ]
   },
+  "engine_defects_found_2026_11_14": [
+    "Feedback loops are unbuildable and render black silently: is_feedback_boundary returns false unconditionally (graph.rs:358), temporal_pairs is always empty (:487), an unresolved NodeOutput falls to compiler.dummy_tex (graph_exec.rs:368)",
+    "No last-valid-graph fallback: ConnectPins validates nothing and the only cycle guard is client JS, so a bad graph reaches the document and fails at render",
+    "VRAM unbounded: one full-res target per live node, no pool or budget (4096 nodes = 32 GiB); MAX_NESTING is unreferenced; the documented 16 texture inputs limit does not exist in code",
+    "Bind groups and layouts are rebuilt per pass per frame while the eager bind_groups/input_bind_groups/node_uniforms caches are dead fields",
+    "create_shader_module is called with unvalidated WGSL in preview.rs, and push_error_scope is pushed after module creation",
+    "Two disagreeing param packers: router.rs pack_params allocates a Text slot that pack.rs skips, and resolves Color/Vec to 0 because ResolvedParams is BTreeMap<String,f64>",
+    "undo/redo re-enter execute without apply's snapshot/rollback, so a rejected inverse leaves the project half-mutated; redo() bypasses the max_undo trim",
+    "StreamingEncoder has no Drop (an orphaned ffmpeg writes an unindexed MP4); ffmpeg stderr is piped and never drained, which can deadlock past 64 KB; codec_from_name and parse_codec disagree on mov and sequence; a failed mux silently returns video without audio",
+    "autosave .bak files are never pruned (the filter requires extension json); save is copy-delete-rename, not atomic; relink matches name+size only",
+    "frame_index in WGSL reads only counters.x as f32, losing integer precision past 2^24 frames; negative Int params are destroyed by .max(0.0) as u32"
+  ],
   "current_task": "T27 reconcile and deliver",
   "delivered": [
-    "Engine + GPU renderer + 216-entry catalog (all shaders compile on GPU, 0 failures)",
-    "Tauri 2 + web GUI (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
-    "Producers: text/vector/SDF/mesh/particle/physics/field/control (deterministic, animated)",
-    "Persistence: atomic save+backup, autosave+recovery+prune, relink, collect-media",
+    "Engine + GPU renderer + 217-entry catalog (all shaders compile on GPU, 0 failures)",
+    "Tauri 2 desktop GUI over a vanilla ES-module node-graph editor (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
+    "Producers: text/vector/SDF/mesh/particle/physics/field/control (deterministic, animated) - CPU producers, not a GPU 3D pass",
+    "Persistence: save+backup, autosave+recovery, relink, collect-media (see gui_status.open_defects and engine_defects)",
     "Export matrix (PNG/JPEG/WAV/H.264/HEVC/ProRes/GIF) + frozen-snapshot job queue",
     "Recording: frame-exact CFR bounded duration",
-    "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands",
+    "OSC + MIDI + bridge protocol CODECS (real UDP loopback, rate-limit). Control application is NOT wired.",
     "Max for Live source patches (.maxpat) + bridge protocol decode + structural check",
-    "WebGPU shader harness (216 WGSL, Naga-validated) + localhost server",
-    "Live source/sink interfaces (NDI/Spout/Syphon contracts, truthful status)",
-    "Windows capture: real WASAPI endpoint + PnP camera enumeration",
-    "Redacted diagnostics report; docs (user guide, file/protocol formats)",
-    "CI workflow + infrastructure/verify.ps1 (VERIFY: PASS)"
+    "WebGPU shader harness (217 WGSL, Naga-validated) + localhost server",
+    "Live source/sink interfaces (NDI/Spout/Syphon contracts) - discovery and enumeration only",
+    "Windows capture: real WASAPI endpoint + PnP camera enumeration (enumeration only, no capture)",
+    "Redacted diagnostics report; docs (user guide, file/protocol formats, implementation architecture, performance readiness)",
+    "CI workflow + infrastructure/verify.ps1"
   ],
   "known_gaps": [
+    "OSC receive is never routed into the LiveOsc command, and the desktop process opens no UDP listener — the two halves exist and are unconnected. This is the highest-value gap for live use, and it is a wiring job, not a missing subsystem.",
+    "No wgpu->NDI/Spout frame path; the senders emit a test pattern",
+    "No live audio input at all: crates/audio has no device dependency and crates/platform only enumerates. ASIO appears once in the tree, in Link's build script.",
+    "Project sample rate is 48000 while the SSL 2 rig runs 44100 - drift untested",
     "NDI/Spout/Syphon/Ableton Link/Max .amxd: blocked_external (no SDK/host/license)",
-    "macOS builds unverified (no host)",
+    "macOS builds unverified (no host); no signing identity, so all builds are unsigned",
     "Live camera/screen capture needs a device (enumeration verified)",
     "GUI webview pixel screenshot not captured headlessly (build+launch+command flow verified)",
-    "Browser WebGPU conformance not run (no GPU browser headless); native Naga+GPU verified",
+    "Browser WebGPU conformance not run; native Naga+GPU verified",
     "SDF/particle CPU producers not realtime at 4K",
+    "golden.rs asserts file sizes, not pixels; sweep_catalog reclassifies flux.feedback_read Blank->Ok",
     "No signed installer"
   ],
   "commands_to_resume": [
-    "cargo test --workspace",
+    "cargo test --workspace -- --test-threads=1",
     "cargo build -p flux-desktop && target/debug/flux-desktop.exe",
-    "cargo run -p xtask -- test-gpu",
+    "cargo run -p xtask -- test-gpu --profile baseline",
+    "cargo run -p xtask -- catalog",
+    "cargo run -p xtask -- benchmark --profile ordinary",
     "cargo run -p xtask --bin export_shaders",
     "node apps/max-for-live/check-maxpat.cjs",
     "infrastructure\\verify.ps1 -Quick"
-  ]
+  ],
+  "further_reading": {
+    "docs/IMPLEMENTATION-ARCHITECTURE.md": "how the code actually works, with a divergence register in section 8",
+    "docs/PERFORMANCE-READINESS.md": "what still needs real hardware, and the shortest proving procedure per item",
+    "implementation/DECISIONS.md D014-D018": "the Nov 10-13 work that had no decision record, plus the audit findings"
+  }
 }

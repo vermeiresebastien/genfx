@@ -52,7 +52,7 @@ Max/Max-for-Live installation. Steps (≈4 clicks each, patches need no editing)
 4. **File → Save As…** → type **Max MIDI Effect** → `flux-midi-bridge` → same folder.
 5. Verify (PowerShell):
    ```powershell
-   Get-ChildItem "D:\Projects\skeer-audio\genfx\apps\max-for-live\*.amxd"
+   Get-ChildItem "D:\Projects\visual\genfx\apps\max-for-live\*.amxd"
    ```
    Each `.amxd` should begin with the Max binary magic (`ampf`), not `{` (JSON).
 

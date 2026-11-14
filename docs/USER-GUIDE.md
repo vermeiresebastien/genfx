@@ -30,20 +30,32 @@ target\debug\flux-desktop.exe
 ```
 
 1. Pick an effect or generator from the left **Library**.
-2. The starter scene appears in the **Preview** (center) and on the **Timeline** (bottom).
+2. Drop it onto the **node-graph canvas** (center) and wire its pins; the
+   `flux.output` node is the graph root. A **timeline** strip remains at the
+   bottom and drives duration and transport, but composition happens on the
+   canvas — the clip-per-track editor it replaced is gone (see D013).
 3. Select a node to edit its **Inspector** parameters (right).
-4. **Play** to scrub; **Export** renders the timeline to `out\`.
+4. **Play** to scrub; **Export** renders to `out\`.
 5. **Undo/Redo** step through edits; the revision badge shows the current revision.
+6. **Monitor** (`open_monitor`) opens a second window with the live frame.
 
 ## Projects
 
-Projects are JSON (`*.flux.json`) with an explicit `schemaVersion`. Save is atomic
-(temp file + fsync + rename) and keeps a `.bak` of the previous file. Projects that
-reference media store both the original path and a relative `media/…` path; run
-`flux collect <project>` to copy assets next to the project.
+Projects are JSON (`*.flux.json`) with an explicit `schemaVersion` (currently
+`2`). Save writes a temp file and then swaps it in, but the swap is
+copy → delete → rename, so there is a brief window with no project file at the
+final path; treat power loss during a save as a real risk rather than assuming
+an atomic rename. A `.bak` of the previous file is kept. Projects that reference
+media store both the original path and a relative `media/…` path; run
+`flux collect <project>` to copy assets next to the project. Note that relink
+matches on filename and size only — the "fingerprint" it stores is a byte count,
+so a zero-length asset matches anything.
 
 - Autosave snapshots live in `<project dir>\.flux-autosave\` with a
   `recovery.json` manifest. `flux recover <dir>` restores the newest one.
+- Known defect: the autosave pruner filters on extension `json`, so the `.bak`
+  files it writes are never pruned — one per 30 seconds, forever. `RETENTION_DAYS`
+  is declared and unused.
 - A newer `schemaVersion` opens read-only and is never overwritten.
 
 ## Determinism
@@ -53,13 +65,25 @@ frame — no wall-clock in evaluation. This is why offline export matches previe
 
 ## Controls
 
-- **OSC**: `flux osc 9000` listens for `/flux/v1/project/{id}/node/{node}/param/{param}`.
+- **OSC**: the receive path (UDP 127.0.0.1:9000) and the apply path
+  (`LiveOsc` → `control::apply_to_dispatcher`) are both implemented, but **nothing
+  connects them**: no code turns a received packet into a `LiveOsc` dispatch, and
+  Flux Desktop opens no UDP listener at all. `flux osc 9000` therefore only prints
+  what it receives for 30 seconds. There is no OSC output path, so nothing is sent
+  back on 9001. See `docs/FILE-FORMATS.md`.
 - **MIDI**: CC/note/pitch-bend/pressure/clock are parsed into normalized controls.
+  Parsing is tested; no virtual ports exist on Windows, so a real device is needed.
 - **Ableton Link**: `flux link` joins a Link session (tempo, beat, phase, start/stop sync).
   `FLUX_LINK_BPM` sets the starting tempo, `FLUX_LINK_SECS` the observation time. Run it in
   two terminals (or on two machines on the same LAN) to see peer discovery. Requires a
   build with `--features link` and `FLUX_ABLETON_LINK_LIB` pointing at `abl_link.lib`.
-- **Max for Live**: source devices + OSC bridge in `apps/max-for-live/`.
+- **Max for Live**: `.maxpat` patches + an OSC bridge in `apps/max-for-live/`. These
+  are Max patches, not packaged Live devices — no `.amxd` exists yet, and the bridge
+  addresses they send are currently discarded by the receiver.
+- **NDI / Spout / Syphon / vision**: behind cargo features that are **off by
+  default**, so the binary you just built does not contain them. Check with
+  `flux integrations`. Even when enabled, the senders emit a synthetic 640×360
+  gradient — there is no wgpu→NDI/Spout frame path yet.
 
 ## Troubleshooting
 

@@ -196,7 +196,7 @@
 ,
 		"dependency_cache" : [ 			{
 				"name" : "bridge-osc.js",
-				"bootpath" : "D:/Projects/skeer-audio/genfx/apps/max-for-live",
+				"bootpath" : "D:/Projects/visual/genfx/apps/max-for-live",
 				"patcherrelativepath" : ".",
 				"type" : "TEXT",
 				"implicit" : 1

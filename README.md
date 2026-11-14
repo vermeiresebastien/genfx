@@ -12,33 +12,53 @@ run it, and what remains blocked, and `implementation/STATE.json` /
 
 - `crates/domain` — exact rational time, project document, typed commands +
   deterministic undo/redo, parameter modulation.
-- `crates/catalog` — every effect and generator as manifest + WGSL; 216 entries.
-  The single source of truth for UI metadata, uniform layout, shader generation,
-  docs and tests.
+- `crates/catalog` — every effect and generator as manifest + WGSL; **217
+  entries** (`flux doctor` prints the authoritative count). The single source of
+  truth for UI metadata, uniform layout, shader generation, docs and tests.
 - `crates/engine` — graph validation/compile (types, cycles via feedback pairs,
   required inputs, limits), timeline→source mapping, modulation router, 96-byte
   frame ABI.
 - `crates/render` — one authoritative wgpu renderer: adapter/device selection,
-  per-manifest pipelines, graph execution with ping-pong targets, bounded preview
-  and full-resolution readback.
+  per-manifest pipelines, graph execution with **one render target per node**
+  (a true DAG, not ping-pong), bounded preview and full-resolution readback.
 - `crates/media` — FFmpeg process worker: probe, RGBA frame decode at exact PTS,
   audio decode, PNG/WAV/H.264/HEVC/ProRes/GIF encode.
 - `crates/audio` — Hann FFT bands, RMS/peak, onset, tempo, chroma, mixer, PCM ring.
-- `crates/app` — the `flux` CLI: list, doctor, demo-render, demo-media,
-  contact-sheet, render, and the offline export orchestrator.
+- `crates/integrations` — OSC, MIDI, Ableton Link, NDI/Spout shims, vision. Only
+  OSC + MIDI + the bridge decoder are compiled by default; `link`, `ndi`,
+  `spout`, `syphon` and `vision` sit behind features that are off.
+- `crates/platform` — Windows-only WASAPI endpoint and PnP camera enumeration.
+- `crates/app` — the `flux` CLI (27 subcommands; `flux list` and `flux doctor`
+  report the real set) and the headless preview/export orchestrator.
 - `crates/xtask` — `cargo xtask` project commands and evidence.
+- `crates/tests` — GPU integration suite. Requires a device.
+- `apps/desktop` — the Flux Desktop GUI: Tauri 2 shell over a vanilla ES-module
+  node-graph editor, bundled by esbuild with a content-hashed script URL.
 
 ## Quick start (Windows)
 
 ```
-cargo test --workspace
+cargo test --workspace -- --test-threads=1
 cargo build -p flux-app --release
 target/release/flux.exe doctor
 target/release/flux.exe demo-render gen.plasma out      # -> out/Demo_gen_plasma.mp4
 target/release/flux.exe demo-media clip.mp4 out         # import + export a video
-target/release/flux.exe contact-sheet out               # 43-effect contact sheet
+target/release/flux.exe contact-sheet out               # every fragment-shader effect + preset
 cargo xtask test-gpu --profile baseline                 # compile all catalog shaders on GPU
 cargo xtask benchmark --profile ordinary                # 1080p timings
+cargo build -p flux-desktop                             # the GUI; run target/debug/flux-desktop.exe
 ```
 
+`flux gui` / `flux editor` deliberately exit 2 — the desktop app is a separate
+binary (`flux-desktop`), not a mode of the CLI.
+
 FFmpeg: set `FLUX_FFMPEG` or have `ffmpeg`/`ffprobe` on `PATH`.
+
+## Status docs are claims, not evidence
+
+`implementation/` and `docs/` describe intent and history. They lag the code:
+the status set was last written on 2026-11-09 while the engine moved through
+2026-11-13. Read `docs/IMPLEMENTATION-ARCHITECTURE.md` §8 and
+`docs/PERFORMANCE-READINESS.md` for the current divergence register before
+trusting any "verified" line, and re-run the commands above rather than reusing
+the committed evidence in `implementation/evidence/`.
