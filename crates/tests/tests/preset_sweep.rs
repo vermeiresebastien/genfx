@@ -32,8 +32,7 @@ fn every_preset_renders_something() {
     let mut ok = 0usize;
 
     let mut project = Project::new("presets", 1);
-    project.timeline.range =
-        TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(4));
+    project.timeline.range = TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(4));
 
     for preset in flux_catalog::presets::all_presets() {
         let graph = flux_app::samples::insert_preset(&preset);
@@ -60,7 +59,12 @@ fn every_preset_renders_something() {
     }
 
     eprintln!("\n============ PRESET SWEEP ============");
-    eprintln!("ok: {}  blank: {}  error: {}", ok, blanks.len(), errors.len());
+    eprintln!(
+        "ok: {}  blank: {}  error: {}",
+        ok,
+        blanks.len(),
+        errors.len()
+    );
     if !blanks.is_empty() {
         eprintln!("\n--- BLANK ---");
         for b in &blanks {

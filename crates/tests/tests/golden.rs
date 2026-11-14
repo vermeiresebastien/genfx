@@ -69,7 +69,10 @@ fn golden_generator_project_exports_expected_media() {
         "video export must not leave a PNG sequence"
     );
     let video = res.video.as_ref().expect("video produced");
-    assert!(std::fs::metadata(video).unwrap().len() > 1000, "video non-trivial");
+    assert!(
+        std::fs::metadata(video).unwrap().len() > 1000,
+        "video non-trivial"
+    );
     // WAV exists.
     let wav = res.wav.as_ref().expect("wav");
     assert!(std::fs::metadata(wav).unwrap().len() > 1000);

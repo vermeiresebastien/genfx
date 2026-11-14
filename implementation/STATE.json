@@ -45,7 +45,7 @@
       "fixtures": "test_10s_60fps.mp4 212,405 B; test_2997.mp4 158,067 B; sine_1k_48k.wav 384,078 B",
       "benchmark": "ordinary profile: 30 generators at 1920x1080, median p95 4.98 ms; only gen.concentric (p95 21.49 ms) exceeds a 16.6 ms frame budget",
       "maxpat": "structural checks PASS (audio bridge, midi bridge, 52-byte OSC encoder)",
-      "fmt": "FAIL - 56 diffs in 12 files, 59,490 bytes of output, exit 1"
+      "fmt": "was FAIL at e84fe67 (56 diffs, 12 files, 59,490 bytes, exit 1); CLEARED - `cargo fmt --all` run, `cargo fmt --all -- --check` now exit 0, and the suite still reports 196/0"
     }
   },
   "models": {
@@ -116,14 +116,14 @@
     "frame_index in WGSL reads only counters.x as f32, losing integer precision past 2^24 frames; negative Int params are destroyed by .max(0.0) as u32"
   ],
   "ci_defects_found_2026_11_14": [
-    "HEAD DOES NOT PASS ITS OWN CI. `cargo fmt --all -- --check` is the first check step in ci.yml (line 29, 'Format check') and the first step of verify.ps1 (line 32); at e84fe67 it exits 1 with 56 diffs across 12 files (src-tauri build.rs + lib.rs, app/commands.rs, app/samples.rs, catalog/presets.rs, media/lib.rs, and tests export_formats/golden/node_editor/preset_sweep/preview_perf/sweep_catalog). The compact hand-formatted multi-item arrays and long assert! lines committed on 2026-11-10 (fe9e35e, ac73572, 8139007) were never rustfmt-ed. In GitHub Actions a failing step aborts the job, so every step after 'Format check' - including the whole workspace test suite - would not run.",
+    "HEAD DOES NOT PASS ITS OWN CI. `cargo fmt --all -- --check` is the first check step in ci.yml (line 29, 'Format check') and the first step of verify.ps1 (line 32); at e84fe67 it exits 1 with 56 diffs across 12 files (src-tauri build.rs + lib.rs, app/commands.rs, app/samples.rs, catalog/presets.rs, media/lib.rs, and tests export_formats/golden/node_editor/preset_sweep/preview_perf/sweep_catalog). The compact hand-formatted multi-item arrays and long assert! lines committed on 2026-11-10 (fe9e35e, ac73572, 8139007) were never rustfmt-ed. In GitHub Actions a failing step aborts the job, so every step after 'Format check' - including the whole workspace test suite - would not run. CLEARED by the commit that adds this note: `cargo fmt --all` was applied to the 12 files, `--check` exits 0, the citation anchors that moved were re-audited against the new tree, and `cargo test --workspace -- --test-threads=1` still reports 196 passed / 0 failed.",
     "verify.ps1:35 masks two of its three exit codes. The 'integration-tests' Step block runs three cargo tests separated by `;`, and Step only reads $LASTEXITCODE after the block - so the step's ok reflects dag_parallel (the last command) alone. Measured directly: a block containing a failing `cargo fmt` then a passing `doctor` records ok=True exit=0. A producer_tests or export_matrix regression is invisible in verify.json.",
     "verify.json records skipped gates as ok:true. link-integration and spout-enumeration write { ok = true; skipped = true } when their env vars are unset, which is exactly the AGENTS.md rule 'missing prerequisite is blocked_external, never passed' violated inside the verification harness itself. The aggregate ok can never reflect an unavailable SDK.",
     "The step name 'ndi-discovery' overpromises. It runs `cargo test -p flux-integrations --features ndi ndi::`, which selects exactly 2 tests (runtime_loads_and_initializes, discovery_returns_state_without_crash). crates/integrations/src/ndi.rs contains no other test. So the repeatable NDI evidence is 'the DLL loads and discovery does not crash' - the 'discovery of 5 live sources + live send/receive cross-process' claim came from an ad-hoc manual run that no test reproduces.",
     "clippy is neutered: ci.yml:31 runs `cargo clippy --workspace --all-targets -- -A warnings` (-A = allow), so it can only detect a compile failure, never a lint. The plain build already emits ~10 warnings, including dead fields in RuntimeGraph and a never-used flux_app_persistence_load.",
     "xtask benchmark lies about what it measured (crates/xtask/src/main.rs:299-382). (a) `--profile` is parsed and echoed into the JSON but never used - resolution is hardcoded 1920x1080 at :331/:355 and the sample set is `.take(30)` fragment generators at :324, so `--profile ordinary` and a hypothetical `--profile 4k` do identical work. (b) Each timed iteration includes a full 1920x1080 readback (:371), so p50/p95 are render + an ~8 MB GPU->CPU copy, not render cost, and are not comparable to a frame budget. (c) With 12 samples, `times[len*95/100]` = index 11 = the single worst sample, so 'p95' is really max and 'p50' is index 6. The headline 'gen.concentric p95 21.49 ms' is one outlier of twelve."
   ],
-  "current_task": "2026-11-14 orientation complete: docs reconciled (D014-D019), 919->334 tracked files, CI-parity re-measured at e84fe67 (VERIFY: FAIL on fmt only). Nothing is being built; the next decision belongs to the user.",
+  "current_task": "2026-11-14 orientation complete: docs reconciled (D014-D019), 919->334 tracked files, CI-parity re-measured at e84fe67 (VERIFY: FAIL on fmt only). The fmt gate has since been cleared and its moved citations refreshed, so verify.ps1 no longer has an excuse to fail on step 1 - re-running it at the new HEAD is the open item.",
   "delivered": [
     "Engine + GPU renderer + 217-entry catalog (all shaders compile on GPU, 0 failures)",
     "Tauri 2 desktop GUI over a vanilla ES-module node-graph editor (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
@@ -137,10 +137,10 @@
     "Live source/sink interfaces (NDI/Spout/Syphon contracts) - discovery and enumeration only",
     "Windows capture: real WASAPI endpoint + PnP camera enumeration (enumeration only, no capture)",
     "Redacted diagnostics report; docs (user guide, file/protocol formats, implementation architecture, performance readiness)",
-    "CI workflow + infrastructure/verify.ps1 - the pipeline exists and 13 of 15 steps pass, but at e84fe67 the run ends VERIFY: FAIL on the fmt step (see ci_defects_found_2026_11_14)"
+    "CI workflow + infrastructure/verify.ps1 - the pipeline exists and 13 of 15 steps pass. The run ended VERIFY: FAIL on the fmt step at e84fe67; that step now passes, but the full script has not been re-run since (see ci_defects_found_2026_11_14)"
   ],
   "known_gaps": [
-    "The tree is not rustfmt-clean, so the repo's own CI fails at its first check step. One `cargo fmt --all` would clear it, but that is a formatting-only commit across 12 files including the 25 preset tables - the user has not asked for it.",
+    "verify.ps1's 'integration-tests' Step still masks two of its three exit codes, and still records skipped gates as ok:true - both open in infrastructure/verify.ps1 (see ci_defects_found_2026_11_14 items 2 and 3).",
     "OSC receive is never routed into the LiveOsc command, and the desktop process opens no UDP listener — the two halves exist and are unconnected. This is the highest-value gap for live use, and it is a wiring job, not a missing subsystem.",
     "No wgpu->NDI/Spout frame path; the senders emit a test pattern",
     "No live audio input at all: crates/audio has no device dependency and crates/platform only enumerates. ASIO appears once in the tree, in Link's build script.",
@@ -162,7 +162,7 @@
     "cargo run -p xtask -- benchmark --profile ordinary",
     "cargo run -p xtask --bin export_shaders",
     "node apps/max-for-live/check-maxpat.cjs",
-    "infrastructure\\verify.ps1   (full, no -Quick; expect VERIFY: FAIL until the fmt gate is cleared)"
+    "infrastructure\\verify.ps1   (full, no -Quick; fmt no longer blocks it - expect VERIFY: PASS with link and spout skipped)"
   ],
   "further_reading": {
     "docs/IMPLEMENTATION-ARCHITECTURE.md": "how the code actually works, with a divergence register in section 8",

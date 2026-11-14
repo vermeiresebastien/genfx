@@ -144,7 +144,7 @@ The UI bundle is embedded at build time; `bundle.mjs` sha256s the bundle and rew
 is closed on the main window's `CloseRequested`, all webviews are closed on
 `ExitRequested`, and `taskkill /PID /T /F` reaps the WebView2 tree on `Exit`.
 
-**Defect found 2026-11-14, not yet fixed:** `src-tauri/build.rs:18-20` reports a failed
+**Defect found 2026-11-14, not yet fixed:** `src-tauri/build.rs:20-28` reports a failed
 bundle step as `cargo:warning=ui bundle not rebuilt (... os error 267); using committed
 bundle` and continues. The last build hit exactly that, so the cache-buster this decision
 exists to provide silently did not run, and `bundle.mjs:37` only rewrites a tag that
@@ -195,8 +195,8 @@ being read as proof.
 3. **14 GPU tests pass vacuously** by returning on `Err` ("no GPU; skipping"), and
    `golden.rs` asserts file sizes, not pixels (`bytes.len() > 1000`). "216 catalog
    shaders verified" is a compile check plus a 1 % non-black threshold
-   (`sweep_catalog.rs:152`), which also reclassifies `flux.feedback_read` Blank→Ok at
-   `:184`.
+   (`sweep_catalog.rs:158`), which also reclassifies `flux.feedback_read` Blank→Ok at
+   `:193`.
 4. **VRAM is unbounded and per-frame work is real.** One full-res target per live node
    with no pool or budget (4096 nodes = 32 GiB), bind groups and layouts rebuilt per pass
    per frame, while the eager `bind_groups` / `input_bind_groups` / `node_uniforms`
@@ -244,6 +244,16 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    CI. Locally they all pass; only the formatting is wrong. A single `cargo fmt --all` fixes
    it, but that is a formatting-only commit touching the 25-preset tables, so it is the
    user's call and was not made here.
+   **Discharged in the commit that adds this note.** `cargo fmt --all` was run, and
+   `cargo fmt --all -- --check` now exits 0. The reformat moved lines in 12 files, so every
+   `file:line` citation into those files was re-audited against the new tree, not carried
+   over. Proof that it changed no behaviour: `cargo test --workspace -- --test-threads=1`
+   afterwards is `196 passed, 0 failed` across 40 binaries — the same totals as the
+   pre-format run recorded in the table above. The two files where rustfmt did more than
+   reflow whitespace and add trailing commas (`crates/catalog/src/presets.rs`,
+   `crates/tests/tests/sweep_catalog.rs`) gained redundant `{ }` around multi-line closure
+   bodies, which is a token change, and the green suite is what makes it safe to call
+   inert.
 2. **`verify.ps1` can record a passing step for failing work.** `Step` reads `$LASTEXITCODE`
    once, after the whole scriptblock. Step `'integration-tests'` (`:35`) chains three
    `cargo test` invocations with `;`, so its verdict is `dag_parallel`'s alone and a

@@ -37,6 +37,9 @@ fn measure_preview_cost() {
             r.render_graph(g, &project, t, w, h).expect("render");
         }
         let ms = t0.elapsed().as_secs_f64() * 1000.0 / n as f64;
-        eprintln!("preview {w}x{h}: {ms:.1} ms/frame  ({:.0} fps)", 1000.0 / ms);
+        eprintln!(
+            "preview {w}x{h}: {ms:.1} ms/frame  ({:.0} fps)",
+            1000.0 / ms
+        );
     }
 }

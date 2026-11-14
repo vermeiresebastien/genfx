@@ -163,7 +163,10 @@ fn texture_to_mask_edge_is_allowed() {
         .filter(|i| format!("{:?}", i.code).contains("GraphTypeMismatch"))
         .map(|i| i.message.clone())
         .collect();
-    assert!(mismatches.is_empty(), "texture→mask should be legal: {mismatches:?}");
+    assert!(
+        mismatches.is_empty(),
+        "texture→mask should be legal: {mismatches:?}"
+    );
 }
 
 #[test]
@@ -184,7 +187,10 @@ fn every_preset_validates() {
             continue;
         }
 
-        let snap = host.handle(req(GuiCommand::Snapshot)).result.expect("snapshot");
+        let snap = host
+            .handle(req(GuiCommand::Snapshot))
+            .result
+            .expect("snapshot");
         let g: Graph = serde_json::from_value(snap["activeGraph"].clone()).expect("graph");
         for i in flux_engine::graph::validate(&g, &reg) {
             if format!("{:?}", i.code).contains("SdkMissing") {
@@ -194,7 +200,11 @@ fn every_preset_validates() {
         }
     }
 
-    assert!(failures.is_empty(), "invalid presets:\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "invalid presets:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -216,7 +226,10 @@ fn insert_preset_creates_wired_graph_with_params() {
     }));
     assert!(res.error.is_none(), "insert preset failed: {:?}", res.error);
 
-    let snap = host.handle(req(GuiCommand::Snapshot)).result.expect("snapshot");
+    let snap = host
+        .handle(req(GuiCommand::Snapshot))
+        .result
+        .expect("snapshot");
     let g = &snap["activeGraph"];
     let nodes = g["nodes"].as_array().expect("nodes");
     assert!(nodes.len() >= 4, "preset graph should have all nodes");
@@ -275,7 +288,9 @@ fn changing_a_param_changes_the_image() {
         None,
     )
     .unwrap();
-    let red = renderer.render(&d.project, rt(1), 64, 64).expect("render red");
+    let red = renderer
+        .render(&d.project, rt(1), 64, 64)
+        .expect("render red");
     let c = center(&red, 64, 64);
     assert!(c.0 > 100 && c.1 < 60 && c.2 < 60, "expected red, got {c:?}");
 
@@ -291,7 +306,9 @@ fn changing_a_param_changes_the_image() {
         None,
     )
     .unwrap();
-    let blue = renderer.render(&d.project, rt(1), 64, 64).expect("render blue");
+    let blue = renderer
+        .render(&d.project, rt(1), 64, 64)
+        .expect("render blue");
     let c2 = center(&blue, 64, 64);
     assert!(c2.2 > 100 && c2.0 < 60, "expected blue, got {c2:?}");
     let _ = catalog;
@@ -353,7 +370,9 @@ fn runtime_cache_is_size_aware() {
     let large = renderer.render(&p, rt(1), 640, 360).expect("large render");
     assert_eq!(large.len(), 640 * 360 * 4);
     // Back to the small size again (both entries must stay usable).
-    let small2 = renderer.render(&p, rt(1), 320, 180).expect("small render again");
+    let small2 = renderer
+        .render(&p, rt(1), 320, 180)
+        .expect("small render again");
     assert_eq!(small2.len(), 320 * 180 * 4);
 }
 
@@ -361,16 +380,16 @@ fn runtime_cache_is_size_aware() {
 fn master_graph_export_writes_video() {
     let _g = gpu_lock();
     let mut p = Project::new("export", 1);
-    p.settings.size = flux_domain::Size { width: 160, height: 90 };
+    p.settings.size = flux_domain::Size {
+        width: 160,
+        height: 90,
+    };
     let g = samples::chain_graph("gen.plasma", &["fx.bloom"]);
     p.timeline.master_graph_id = Some(g.id.clone());
     p.graphs.insert(g.id.clone(), g);
     p.timeline.range = TimeRange::new(RationalTime::ZERO, RationalTime::from_secs(1));
 
-    let out = std::env::temp_dir().join(format!(
-        "flux-export-test-{}",
-        std::process::id()
-    ));
+    let out = std::env::temp_dir().join(format!("flux-export-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).unwrap();
 
@@ -389,7 +408,9 @@ fn master_graph_export_writes_video() {
     )
     .expect("export");
 
-    let video = res.video.expect("a video file must be produced (not only PNGs)");
+    let video = res
+        .video
+        .expect("a video file must be produced (not only PNGs)");
     assert!(video.exists(), "video missing: {}", video.display());
     let meta = std::fs::metadata(&video).unwrap();
     assert!(meta.len() > 0, "video is empty");
@@ -410,8 +431,16 @@ fn create_project_snapshot_has_starter_graph() {
     let snap = res.result.expect("snapshot");
     let g = &snap["activeGraph"];
     assert!(g.is_object(), "activeGraph missing: {snap}");
-    assert_eq!(g["nodes"].as_array().unwrap().len(), 2, "starter graph nodes");
-    assert_eq!(g["edges"].as_array().unwrap().len(), 1, "starter graph edges");
+    assert_eq!(
+        g["nodes"].as_array().unwrap().len(),
+        2,
+        "starter graph nodes"
+    );
+    assert_eq!(
+        g["edges"].as_array().unwrap().len(),
+        1,
+        "starter graph edges"
+    );
     assert_eq!(
         snap["activeGraphId"].as_str().unwrap(),
         g["id"].as_str().unwrap()
@@ -521,14 +550,7 @@ fn keyframes_resolve_through_router() {
     p.graphs.insert(g.id.clone(), g.clone());
     let mut router = flux_engine::router::Router::default();
     let vals = router
-        .resolve_node(
-            &g,
-            &node.id,
-            rt(5),
-            &FeatureSnapshot::default(),
-            0.016,
-            &p,
-        )
+        .resolve_node(&g, &node.id, rt(5), &FeatureSnapshot::default(), 0.016, &p)
         .expect("resolve");
     let v = *vals.get(&decl.id).expect("param resolved");
     let mid = (lo + hi) / 2.0;
@@ -558,13 +580,19 @@ fn master_graph_precedes_topmost_clip() {
     let t = rt(1);
     let px = renderer.render(&p, t, 64, 64).expect("render");
     let (r, g, b, _) = center(&px, 64, 64);
-    assert!(r > 60 && b < 60, "master graph must win (got r={r} g={g} b={b})");
+    assert!(
+        r > 60 && b < 60,
+        "master graph must win (got r={r} g={g} b={b})"
+    );
 
     // Without a master graph the timeline's top-most clip drives the frame.
     p.timeline.master_graph_id = None;
     let px = renderer.render(&p, t, 64, 64).expect("render");
     let (r, g, b, _) = center(&px, 64, 64);
-    assert!(b > 60 && r < 60, "clip graph must win (got r={r} g={g} b={b})");
+    assert!(
+        b > 60 && r < 60,
+        "clip graph must win (got r={r} g={g} b={b})"
+    );
 }
 
 #[test]
@@ -578,7 +606,9 @@ fn bypass_copies_input() {
     let mut src_params = BTreeMap::new();
     src_params.insert(
         "color".to_string(),
-        ParamValue::Color { value: [1.0, 0.0, 0.0, 1.0] },
+        ParamValue::Color {
+            value: [1.0, 0.0, 0.0, 1.0],
+        },
     );
     let mut tone_params = BTreeMap::new();
     tone_params.insert("mode".to_string(), ParamValue::Int { value: 3 }); // invert

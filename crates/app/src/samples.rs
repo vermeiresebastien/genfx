@@ -228,7 +228,9 @@ fn json_param_value(
                 Some(ParamValue::Bool { value: b })
             } else if let Some(a) = json_array(v) {
                 match a.len() {
-                    2 => Some(ParamValue::Vec2 { value: [a[0], a[1]] }),
+                    2 => Some(ParamValue::Vec2 {
+                        value: [a[0], a[1]],
+                    }),
                     3 => Some(ParamValue::Vec3 {
                         value: [a[0], a[1], a[2]],
                     }),
@@ -313,7 +315,8 @@ pub fn merge_graph(dst: &mut Graph, src: &Graph, offset: [f32; 2]) {
     // normal editable node, so its Photoshop-style mode and opacity are
     // available in the inspector after the drop.
     if let Some(preset_provider) = mapped_src_output {
-        dst.edges.retain(|e| !(e.to_node == dst.output_node && e.to_port == "source"));
+        dst.edges
+            .retain(|e| !(e.to_node == dst.output_node && e.to_port == "source"));
         if let Some(existing) = existing_output {
             let blend_id = uuid::Uuid::new_v4().to_string();
             dst.nodes.push(GraphNode {

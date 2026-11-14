@@ -54,9 +54,11 @@ tool's exit status with the echo's. Check the exit code of the thing you are cla
 Measured on 2026-11-14 (D019). Do not trust these to tell you the truth without reading
 them first.
 
-- **`cargo fmt --all -- --check` fails at HEAD** (56 diffs, 12 files, since 2026-11-10).
-  It is the first check step in CI, so the CI job dies before the test suite runs. If you
-  "run CI locally" and see green, you did not run this step.
+- **`cargo fmt --all -- --check` was red at HEAD for four days** (56 diffs across 12
+  files, from `fe9e35e` 2026-11-10 until the commit that rewrites this bullet). It is the
+  first check step in CI, so while it is red the job dies before the test suite runs and
+  every later gate goes unreported — which is how "CI is green" survived next to a tree
+  that could not be merged. Re-run this step before repeating any CI claim.
 - **`verify.ps1` masks exit codes.** `Step` reads `$LASTEXITCODE` once, after the whole
   block. Step `'integration-tests'` chains three `cargo test` runs with `;`, so its verdict
   is the *last* command's. Never put two commands in one `Step` block; and treat a

@@ -52,7 +52,9 @@ fn toggle_monitor_fullscreen(app: tauri::AppHandle) -> Result<bool, String> {
         .get_webview_window("monitor")
         .ok_or_else(|| "monitor window is not open".to_string())?;
     let fullscreen = !window.is_fullscreen().map_err(|e| e.to_string())?;
-    window.set_fullscreen(fullscreen).map_err(|e| e.to_string())?;
+    window
+        .set_fullscreen(fullscreen)
+        .map_err(|e| e.to_string())?;
     Ok(fullscreen)
 }
 
@@ -181,9 +183,7 @@ fn export_project_cmd(
         if p.is_absolute() {
             p
         } else {
-            std::env::current_dir()
-                .map(|d| d.join(&p))
-                .unwrap_or(p)
+            std::env::current_dir().map(|d| d.join(&p)).unwrap_or(p)
         }
     };
     let codec = flux_app::export::codec_from_name(codec.as_deref().unwrap_or("h264"));
@@ -489,7 +489,10 @@ fn try_acquire_single_instance() -> bool {
         fn CloseHandle(h_object: *mut std::ffi::c_void) -> i32;
     }
 
-    let name: Vec<u16> = "Local\\dev.flux.desktop.single".encode_utf16().chain(std::iter::once(0)).collect();
+    let name: Vec<u16> = "Local\\dev.flux.desktop.single"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
     let handle = unsafe { CreateMutexW(null_mut(), 1, name.as_ptr()) };
     if handle.is_null() {
         return true; // cannot determine; never hard-block startup

@@ -65,12 +65,13 @@ commands above rather than reusing the committed evidence in
 `implementation/evidence/` — and note that a verification run rewrites those
 tracked evidence files, so a dirty tree afterwards is expected.
 
-One measured caveat, because it is the kind this section exists for: at
-2026-11-14 HEAD the repo does **not** pass its own first CI step
-(`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of
-it in `ci.yml` therefore never runs in GitHub Actions, even though all of it
-passes locally. See `AGENTS.md` § "Traps inside this repo's own verification
-harness".
+One measured caveat, because it is the kind this section exists for: from 2026-11-10
+until the commit that reformats the tree, HEAD did **not** pass its own first CI step
+(`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of it in
+`ci.yml` therefore never ran in GitHub Actions, even though all of it passed locally.
+It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is still
+green behind the reformat — 196 passed, 0 failed. See `AGENTS.md`
+§ "Traps inside this repo's own verification harness".
 
 ## Documentation
 

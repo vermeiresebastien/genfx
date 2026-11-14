@@ -346,7 +346,7 @@ Tests assert the counts and that every referenced `type_id` exists in the catalo
    be named **`b`** — the executor binds `b` to `aux_tex` and `mask` to `mask_tex`
    (`render/src/graph_exec.rs:361-389`). Generator rows must have **no** `source` input or
    they will be treated as needing an upstream image by the preset builder and the sweep
-   harness (`presets.rs:90-97`, `crates/tests/tests/sweep_catalog.rs:41-49`).
+   harness (`presets.rs:95-104`, `crates/tests/tests/sweep_catalog.rs:41-49`).
 5. **Override `time_model`** if the node is not `Analytic` (`FixedStep` for the
    simulation rows, `CanonicalFrame` for the feedback pair — `utility.rs:170,177`), and
    `loop_status`/`generator_id` for generators (`generators_b.rs:21-22`).
@@ -372,7 +372,7 @@ Tests assert the counts and that every referenced `type_id` exists in the catalo
     `uniform_layout_matches_expected_size` (asserts `byte_size() % 16 == 0`, ≤ 4096, and
     slot count == non-`Text` param count) — `crates/catalog/src/tests.rs:21-231`.
     If the node should appear in a preset, add the chain in `presets.rs` (§3.5); the
-    catalog-membership test is `presets.rs:511-525`.
+    catalog-membership test is `preset_types_exist_in_catalog` (`presets.rs:806-820`).
 11. **Then the GPU gates**: `cargo run -p xtask -- catalog` (duplicate ids + empty
     implementation paths, `xtask/src/main.rs:163-199`) and `cargo xtask test-gpu`
     (`xtask/src/main.rs:242-287`), plus `crates/render/src/tests.rs:17-33` which compiles
@@ -455,7 +455,7 @@ DIVERGENCE: `spec/ARCHITECTURE.md:66` describes the intended native readback cap
 max, 30 fps, binary channel, never base64 through reactive state). Partially realised: the
 binary channel exists (`render_preview_raw`) but base64 PNG data URLs are still returned by
 `render_preview`/`render_graph_preview` with a 4 MiB ceiling
-(`apps/desktop/src-tauri/src/lib.rs:95-98`), and there is no staging ring or reusable
+(`apps/desktop/src-tauri/src/lib.rs:95-100, 396-401`), and there is no staging ring or reusable
 pooled texture — a fresh bind group per pass per frame (§4.6).
 
 ### 4.5 The compile-time cost that is easy to miss
@@ -691,7 +691,7 @@ Windows x64 only" (`:40-45`). `flux caps` / `flux capture` surface this.
    params), `crates/engine` (notably the graph tests at `engine/src/graph.rs:560-698`),
    `crates/audio/src/tests.rs` (217 lines), `crates/media/src/tests.rs` (166),
    `crates/catalog/src/tests.rs` (231 — the catalog linter, §3.6 step 10) plus
-   `catalog/src/presets.rs:506-563`, `crates/integrations/src/tests.rs` (63 — **real UDP
+   `catalog/src/presets.rs:801-878`, `crates/integrations/src/tests.rs` (63 — **real UDP
    loopback** on hardcoded ports 19001/19002, `tests.rs:9,33`), `crates/app/src/control.rs`
    (`:224-240`).
 2. `crates/tests` (member `flux-tests`, `crates/tests/Cargo.toml`): 13 GPU/export
@@ -715,7 +715,7 @@ analytic generators.
 Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the suite:
 - `crates/tests/**` **skips**: every GPU test matches `Err(_) => { eprintln!("no GPU;
   skipping"); return; }` (e.g. `dag_parallel.rs:72-78`, `preview_render.rs:12-16`,
-  `sweep_catalog.rs:161`), so the suite goes green on a headless box while having tested
+  `sweep_catalog.rs:167`), so the suite goes green on a headless box while having tested
   nothing.
 - `crates/render/src/tests.rs:13-15` **panics** instead: `.expect("GPU available")`, and
   its headline test compiles all 217 catalog shaders on the device (`:17-33`). So
@@ -724,7 +724,7 @@ Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the 
   `UNAVAILABLE` in `implementation/evidence/` (`crates/xtask/src/main.rs:242-287`).
 - `crates/media/src/tests.rs` and `crates/tests/tests/golden.rs` require **FFmpeg**
   (`find_ffmpeg().expect("ffmpeg available")`, `media/src/tests.rs:16`; but skip in
-  `export_formats.rs:101,116`).
+  `export_formats.rs:98,113`).
 
 **What is serialised and what is not.** The documented reason is in
 `crates/tests/tests/dag_parallel.rs:10-17`: "GPU device creation is not safe concurrently
@@ -856,12 +856,12 @@ Divergences between code and the markdown, ordered by how much they will mislead
 |---|---|
 | `README.md:22` "graph execution with ping-pong targets"; `graph_exec.rs:2` module doc "ping-ponged" | True DAG, one texture per node (`graph_exec.rs:24-28, 327-330`); `DECISIONS.md:116` already records the migration |
 | `README.md:15`, `FINAL-REPORT.md` ×6 "216 entries" | 217 |
-| `spec/ARCHITECTURE.md:66` native 960×540 staging ring, binary channel, never base64 | No ring, no reuse, per-frame bind groups (`graph_exec.rs:391-443`); base64 PNG still returned (`src-tauri/src/lib.rs:95-98`) |
+| `spec/ARCHITECTURE.md:66` native 960×540 staging ring, binary channel, never base64 | No ring, no reuse, per-frame bind groups (`graph_exec.rs:391-443`); base64 PNG still returned (`src-tauri/src/lib.rs:95-100, 396-401`) |
 | `spec/ARCHITECTURE.md:199` texture pool keyed by size/format/usage, ping-pong for blur/fluid/feedback | No pool; targets are allocated per activation and keyed only on graph shape (`graph_exec.rs:82-91`) |
 | `implementation/COMPLETION_PLAN.md:95` "ping-pong execution" | Same as row 1 |
 | `main.rs:2-9` (7 commands) and `main.rs:140` (18 commands) | 27 subcommand names (`main.rs:31-133`) |
 | `apps/max-for-live/README.md` verification path `D:\Projects\skeer-audio\genfx\...` | **Fixed 2026-11-14** — patch `bootpath` and README now use `D:/Projects/visual/genfx`; `check-maxpat.cjs` PASSes |
-| `implementation/STATE.json` (Nov 9) "CI workflow + verify.ps1 (VERIFY: PASS)" | **`VERIFY: FAIL` at `e84fe67`, measured 2026-11-14.** `cargo fmt --all -- --check` (`ci.yml:29`, `verify.ps1:32`) exits 1 with 56 diffs in 12 files; every other executed step passes. Two harness defects compound it: `verify.ps1:35` records only the last of three `;`-chained `cargo test` exit codes, and skipped Link/Spout gates are stored as `ok: true`. See DECISIONS D019 and AGENTS.md "Traps inside this repo's own verification harness" |
+| `implementation/STATE.json` (Nov 9) "CI workflow + verify.ps1 (VERIFY: PASS)" | **`VERIFY: FAIL` at `e84fe67`, measured 2026-11-14.** `cargo fmt --all -- --check` (`ci.yml:29`, `verify.ps1:32`) exited 1 with 56 diffs in 12 files; every other executed step passed. That fmt step has since been cleared by `cargo fmt --all`, so the failure is no longer reproducible — the two harness defects are: `verify.ps1:35` records only the last of three `;`-chained `cargo test` exit codes, and skipped Link/Spout gates are stored as `ok: true`. See DECISIONS D019 and AGENTS.md "Traps inside this repo's own verification harness" |
 | `graph.rs:17-19` implying all three limits bind | `MAX_NESTING` is never enforced |
 | `commands.rs:679-692` naming a `validate_clip` guard | Stub; asset existence is not checked on edit |
 | `Track::blend_mode` (`document.rs:413-414`) + 9-variant `BlendMode` (`document.rs:381-391`) | Read nowhere in the engine or renderer; the real blend vocabulary is the 13-mode `flux.blend` enum (`utility.rs:70-89`) |

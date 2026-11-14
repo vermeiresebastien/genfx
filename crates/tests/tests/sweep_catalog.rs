@@ -46,7 +46,13 @@ pub fn build_probe_graph(type_id: &str) -> Option<Graph> {
     let image_input = m
         .inputs
         .iter()
-        .find(|p| matches!(p.port_type, flux_catalog::manifest::PortType::Texture2D | flux_catalog::manifest::PortType::Mask))
+        .find(|p| {
+            matches!(
+                p.port_type,
+                flux_catalog::manifest::PortType::Texture2D
+                    | flux_catalog::manifest::PortType::Mask
+            )
+        })
         .map(|p| p.id.clone());
 
     let needs_source = image_input.is_some() && type_id != "flux.source";
@@ -127,10 +133,7 @@ pub enum Verdict {
     Error,
 }
 
-pub fn classify(
-    r: &mut PreviewRenderer,
-    type_id: &str,
-) -> (Verdict, String) {
+pub fn classify(r: &mut PreviewRenderer, type_id: &str) -> (Verdict, String) {
     let Some(graph) = build_probe_graph(type_id) else {
         return (Verdict::Error, "not in catalog".into());
     };
@@ -139,7 +142,10 @@ pub fn classify(
     let mut last_err = String::new();
 
     // Two time points: some rows are legitimately empty at t=0.
-    for t in [RationalTime::new(1, 2).unwrap(), RationalTime::new(2, 1).unwrap()] {
+    for t in [
+        RationalTime::new(1, 2).unwrap(),
+        RationalTime::new(2, 1).unwrap(),
+    ] {
         match r.render_graph(&graph, &p, t, 64, 64) {
             Ok(px) => best = best.max(visible_fraction(&px)),
             Err(e) => last_err = format!("{:?}: {}", e.code, e.message),
@@ -171,7 +177,10 @@ fn sweep_all_generators_and_effects() {
         let id = &entry.manifest.id;
         let cat = entry.manifest.category.clone();
         // Sinks/sources have no image of their own.
-        if matches!(id.as_str(), "flux.output" | "flux.source" | "flux.mask_input" | "flux.reroute") {
+        if matches!(
+            id.as_str(),
+            "flux.output" | "flux.source" | "flux.mask_input" | "flux.reroute"
+        ) {
             continue;
         }
         let (v, detail) = classify(&mut r, id);
@@ -200,12 +209,18 @@ fn sweep_all_generators_and_effects() {
     let total_err: usize = by_cat.values().map(|v| v.2).sum();
 
     eprintln!("\n================ CATALOG SWEEP ================");
-    eprintln!("{:<22} {:>4} {:>7} {:>6}", "CATEGORY", "OK", "BLANK", "ERROR");
+    eprintln!(
+        "{:<22} {:>4} {:>7} {:>6}",
+        "CATEGORY", "OK", "BLANK", "ERROR"
+    );
     for (cat, (o, b, e)) in &by_cat {
         eprintln!("{:<22} {:>4} {:>7} {:>6}", cat, o, b, e);
     }
     eprintln!("{:-<42}", "");
-    eprintln!("{:<22} {:>4} {:>7} {:>6}", "TOTAL", total_ok, total_blank, total_err);
+    eprintln!(
+        "{:<22} {:>4} {:>7} {:>6}",
+        "TOTAL", total_ok, total_blank, total_err
+    );
     if !blanks.is_empty() {
         eprintln!("\n--- BLANK (renders nothing) ---");
         for (id, cat, d) in &blanks {

@@ -33,14 +33,17 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 > - **Not covered below at all**: the node-graph editor that replaced the clip timeline
 >   (D013), the slider/monitor-window work, the webview bundling, and the fact that
 >   feedback loops currently render black.
-> - **"CI workflow … VERIFY: PASS" no longer holds.** Re-measured 2026-11-14 at HEAD
->   `e84fe67`: `infrastructure/verify.ps1` exits 1 with `VERIFY: FAIL`, because
->   `cargo fmt --all -- --check` — the first check step in `ci.yml` — reports 56 diffs
->   across 12 files, all of it style written on 2026-11-10 and never rustfmt-ed. Every
->   other step that ran passed (149 lib tests, 16 integration, 3 golden, catalog 217,
->   doctor, 217 shader compiles with 0 failures, export_shaders, maxpat, fixtures, both
->   builds, NDI). In GitHub Actions the fmt failure aborts the job before the suite even
->   starts, which is why the green local result and the red CI result are both true.
+> - **"CI workflow … VERIFY: PASS" did not hold at `e84fe67`; the blocking step is now
+>   cleared.** Measured 2026-11-14 at HEAD `e84fe67`: `infrastructure/verify.ps1` exited 1
+>   with `VERIFY: FAIL`, because `cargo fmt --all -- --check` — the first check step in
+>   `ci.yml` — reported 56 diffs across 12 files, all of it style written on 2026-11-10 and
+>   never rustfmt-ed. Every other step that ran passed (149 lib tests, 16 integration, 3
+>   golden, catalog 217, doctor, 217 shader compiles with 0 failures, export_shaders,
+>   maxpat, fixtures, both builds, NDI). In GitHub Actions the fmt failure aborted the job
+>   before the suite even started, which is why the green local result and the red CI result
+>   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
+>   workspace suite behind the reformat still reports 196 passed / 0 failed; the full
+>   `verify.ps1` run has not been repeated since, so PASS is still not claimed here.
 >   See D019.
 
 ## 1. What works (verified on this host: Windows x64, RTX 2080 Ti, FFmpeg 9)

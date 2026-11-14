@@ -87,10 +87,7 @@ fn run(codec: flux_media::EncodeCodec, ext: &str, want_codec: &str) {
 
     let (codec_name, dur) = probe(video);
     assert_eq!(codec_name, want_codec, "{ext}: wrong codec");
-    assert!(
-        (dur - 1.0).abs() < 0.35,
-        "{ext}: duration {dur} not ~1s"
-    );
+    assert!((dur - 1.0).abs() < 0.35, "{ext}: duration {dur} not ~1s");
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -139,7 +136,10 @@ fn png_sequence_format_writes_frames_and_no_video() {
     )
     .expect("export");
 
-    assert!(res.video.is_none(), "png sequence should not produce a video");
+    assert!(
+        res.video.is_none(),
+        "png sequence should not produce a video"
+    );
     assert!(res.frames_dir.exists(), "png sequence must write frames");
     let count = std::fs::read_dir(&res.frames_dir).unwrap().count();
     assert!(count >= 50, "expected ~60 frames, got {count}");

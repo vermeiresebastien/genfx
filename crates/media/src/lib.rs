@@ -573,8 +573,10 @@ impl StreamingEncoder {
 
         // Mux audio: a second ffmpeg pass that copies the video stream.
         if let Some(wav) = audio_wav {
-            if matches!(self.codec, EncodeCodec::H264 | EncodeCodec::Hevc | EncodeCodec::ProRes)
-                && wav.exists()
+            if matches!(
+                self.codec,
+                EncodeCodec::H264 | EncodeCodec::Hevc | EncodeCodec::ProRes
+            ) && wav.exists()
             {
                 let tmp = self.out.with_extension("mux.mp4");
                 let status = Command::new(&self.ffmpeg)
