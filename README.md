@@ -71,12 +71,25 @@ until the commit that reformats the tree, HEAD did **not** pass its own first CI
 (`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of it in
 `ci.yml` therefore never ran in GitHub Actions, even though all of it passed locally.
 It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is still
-green behind the reformat — 196 passed, 0 failed. The harness that reported it was then
+green behind the reformat — 204 passed, 0 failed across 40 binaries, re-measured
+2026-11-15 on the tree that added the OSC receive bridge (D022); it was 196 before.
+The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
 a single exit-code read, and recorded skipped SDK gates as passes. Both are fixed (D020),
-and the full script measured `VERIFY: PASS` / exit 0 at `75da874` — 15 passed, 0 failed,
+and the full script measured `VERIFY: PASS` / exit 0 — 15 passed, 0 failed,
 2 `blocked_external`. See `AGENTS.md`
 § "Traps inside this repo's own verification harness".
+
+## Live control
+
+Flux Desktop listens for OSC on `127.0.0.1:9000` (`FLUX_OSC_PORT` moves it) and turns
+`/flux/v1/project/{id}/node/{node}/param/{param}` into an undoable `SetParameter` on the
+active graph, coalesced to one edit per parameter per 16 ms window. The listener is in the
+Rust process, not the webview. Only parameter addresses change anything: transport, trigger,
+preset and Max-bridge packets are counted with a reason, because there is no Rust-owned
+playhead and no analyser to feed them. The app never guesses — `osc_status` returns `bound`,
+`bindError` and every counter, and `flux osc <port>` is a 30-second diagnostic that competes
+with the app for the same port. Wire formats and the exact gaps: `docs/FILE-FORMATS.md`.
 
 ## Documentation
 

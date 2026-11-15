@@ -36,8 +36,11 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             id: "osc".into(),
             available: true,
             implemented: true,
-            verified: true, // encoded/decoded with rosc in tests
-            limitation: "loopback UDP only; feedback target configured explicitly".into(),
+            verified: true, // loopback UDP -> document, asserted in flux_app::control tests
+            limitation: "param addresses edit the document; transport/trigger/preset/bridge \
+                          are counted with a reason and change nothing; loopback UDP only, no \
+                          send path; the desktop app and `flux osc` compete for port 9000"
+                .into(),
         },
         IntegrationCapability {
             id: "midi".into(),

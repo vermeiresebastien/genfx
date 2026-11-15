@@ -61,3 +61,39 @@ fn decoder_handles_native_double() {
     assert!((args[0] - 1.25).abs() < 1e-9);
     assert!(parse_address("/flux/v1/project/p/node/n/param/x/native", &[1.0], false).is_some());
 }
+
+/// The documented seek packet cannot survive this decoder.
+///
+/// `docs/FILE-FORMATS.md` specifies `/transport/seek` as *string* seconds followed by
+/// *int* denominator. `decode_packet` flattens arguments to `f64` and keeps only the
+/// numeric ones, so the seconds are dropped and the denominator is read as the seconds,
+/// while `parse_address` hardcodes `denominator: 1_000_000`. This test pins the defect
+/// rather than the intent: if someone fixes the wire format, it fails and says so.
+#[test]
+fn a_seek_packet_cannot_carry_its_seconds() {
+    let msg = rosc::OscMessage {
+        addr: "/flux/v1/project/p/transport/seek".into(),
+        args: vec![
+            rosc::OscType::String("2.5".into()),
+            rosc::OscType::Int(1_000_000),
+        ],
+    };
+    let bytes = rosc::encoder::encode(&rosc::OscPacket::Message(msg)).unwrap();
+    let ctrl = crate::osc::decode_control(&bytes).expect("a seek control");
+    match ctrl {
+        OscControl::Seek {
+            seconds,
+            denominator,
+        } => {
+            assert_eq!(
+                seconds, "1000000.000000",
+                "the argument that arrives is the denominator, not the seconds"
+            );
+            assert_eq!(
+                denominator, 1_000_000,
+                "hardcoded, not read from the packet"
+            );
+        }
+        other => panic!("expected a seek, got {other:?}"),
+    }
+}

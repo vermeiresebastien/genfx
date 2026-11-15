@@ -22,12 +22,14 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   `blocked_external`) and `implementation/UPSTREAM.md:46-49` (which says no SDK
 >   headers are shipped). Reconciliation: vendored headers and discovery are real;
 >   live Flux output is not.
-> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-14: 196
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15: 204
 >   passed, 0 failed across 40 test binaries — and 14 of those passes are GPU tests that
 >   return early when no device is created. `golden.rs` asserts file sizes, not pixels.
-> - **"live control bridge -> engine commands" needs the nuance**: the apply command
->   exists (`GuiCommand::LiveOsc`, `crates/app/src/commands.rs:478`), the
->   transport→command wire does not, and no OSC output path exists at all.
+> - **"live control bridge -> engine commands" was the optimistic line, and it is now
+>   the accurate one — half of it.** Since D022 the Flux Desktop process binds the OSC
+>   port itself and applies `param` addresses to the document (measured by UDP loopback,
+>   not by watching a screen). Still not true: transport/trigger/preset/bridge controls
+>   change nothing, and there is no OSC output path at all.
 > - **"deterministic undo/redo" holds only for accepted inverses**: `undo`/`redo`
 >   re-enter `execute` without `apply`'s snapshot/rollback.
 > - **Not covered below at all**: the node-graph editor that replaced the clip timeline
@@ -75,7 +77,9 @@ is green. Verified suites:
   feedback; MIDI parsing; **Max bridge decode** (hello/features/transport/heartbeat, seq
   wrap, epoch, staleness); live source/sink contracts + truthful protocol status.
 - **app commands** (6, incl. GUI): full GUI acceptance flow (edit→save→reload).
-- **app control** (5): OSC/MIDI→engine command mapping, learn, coalescing, stale-binding.
+- **app control** (12): OSC/MIDI→engine command mapping, learn, coalescing, stale-binding,
+  plus 7 that send real UDP bytes through `control::OscBridge` and assert the document,
+  the revision, the coalescing and the counters moved (D022).
 - **diagnostics** (3): redacted capability report.
 - **recording** (2): frame-exact CFR bounded duration.
 - **maxpat structure** (Node): both source patches valid, passthrough wired, OSC encoder aligned.
@@ -93,7 +97,9 @@ Produced this run:
 - **WebGPU shader harness** (`apps/shader-harness`): static page + localhost server; loads
   the same WGSL; reports honestly if WebGPU is unavailable.
 - **Live control bridge** (`crates/app/src/control.rs`): OSC/MIDI → engine `Command`s with
-  learned bindings and frame coalescing; reachable from the GUI.
+  learned bindings and 16 ms coalescing. The desktop process starts an OSC listener on
+  `FLUX_OSC_PORT` or 9000 and reports it through `osc_status`; the webview is only told that
+  an external edit landed. Loopback-tested — nobody has watched a Live fader move a Flux pixel.
 - **Live source/sink interfaces** (`crates/integrations/src/live.rs`): NDI/Spout/Syphon
   contracts, frame validation, truthful protocol status.
 - **Real device enumeration** (`flux capture`): 5 mics, 6 loopback endpoints, 1 camera class.

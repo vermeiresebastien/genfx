@@ -33,32 +33,53 @@ disagreement is named.
 
 Established by reading the integration code, not the status files.
 
+> **Status note added 2026-11-15, supersedes the 2026-11-14 note below it.** The wire for
+> Live → Flux OSC now exists and runs *inside the shipping desktop binary*:
+> `flux_app::control::OscBridge` (`crates/app/src/control.rs:304`) owns an `OscReceiver`
+> plus a listener thread, coalesces parameters on a 16 ms window and applies them through
+> `CommandHost::apply_live_param` (`crates/app/src/commands.rs:250`) → `apply_to_dispatcher`
+> → `Command::SetParameter`. The desktop starts it in its `setup` hook
+> (`apps/desktop/src-tauri/src/lib.rs:474`) on `FLUX_OSC_PORT` or 9000, and reports it through
+> the `osc_status` command (`apps/desktop/src-tauri/src/lib.rs:320`). A `live-control` event
+> makes the webview re-pull the snapshot, so the inspector cannot disagree with the preview.
+> Measured by loopback: 7 tests in `crates/app/src/control.rs` send real UDP bytes and assert
+> the document, the revision and the counters move. **That is bytes → document. It is not
+> document → pixel, and it is not Live → Flux: A1 is `UNVERIFIED`, no longer `NOT WIRED`.**
+> Transport, seek, trigger, preset-recall and bridge features are decoded and counted with a
+> stated reason but still change nothing, for the reasons in `apply_live_control`
+> (`crates/app/src/commands.rs:284`).
+
 > **Precision note added 2026-11-14 after verification.** "Nothing applies OSC
 > controls" would be wrong. The apply half exists: `GuiCommand::LiveOsc`
-> (`crates/app/src/commands.rs:478`) calls `control::apply_to_dispatcher`, and
+> (`crates/app/src/commands.rs:556`) calls `control::apply_to_dispatcher`, and
 > `LiveMidi` does the same for CC. What is missing is the **wire** — no code turns a
 > received `OscControl` into a `LiveOsc` dispatch, and the desktop process opens no UDP
 > listener — plus the precondition that a `LearnBinding` has set
 > `control_map.graph_id`, or `LiveOsc` returns `changed: false`. Gate A items are
 > therefore wiring jobs, not missing subsystems. See `implementation/DECISIONS.md` D018
-> item 2 for the corrected wording.
+> item 2 for the corrected wording. **The first half of that sentence is now false: the
+> desktop does open a listener, and `LiveOsc` falls back to `active_graph` when nothing was
+> learned.**
 
-1. **The GUI has no control surface at all.** `apps/desktop/src-tauri/src/lib.rs` contains no
-   OSC, no MIDI, no Link, no bridge, no Spout, no NDI code (the only match for "link" in that
-   file is `#[link(name = "kernel32")]` at line 481). `apps/desktop/ui/*.js` contains no
-   reference to OSC. Every integration is reachable only through the `flux` CLI.
+1. **The GUI has an OSC listener and nothing else.** `apps/desktop/src-tauri/src/lib.rs`
+   contains OSC receive code and no MIDI, no Link, no bridge sender, no Spout and no NDI code
+   (the only match for "link" in that file is `#[link(name = "kernel32")]` at line 557).
+   `apps/desktop/ui/main.js` listens for the `live-control` event and nothing else
+   integration-shaped. Every other integration is reachable only through the `flux` CLI.
 2. **The CLI's integration commands send and receive synthetic test patterns, not Flux's
    render.** `flux ndi-send` broadcasts a `fill_gradient` at a hardcoded 640×360
    (`crates/app/src/main.rs:504`, `:516-520`); `flux spout-send-dx` does the same
    (`crates/app/src/main.rs:645`, `:652-661`). `live.rs:37-41` defines `trait LiveSink` and
    `live.rs:28-34` defines `trait LiveSource`; **neither trait has a single implementor in the
    tree.** So no code path exists that moves a rendered wgpu frame to NDI or Spout.
-3. **`flux osc <port>` is a 30-second print-only listener.** `crates/app/src/main.rs:865-883`:
-   it binds, prints each decoded `OscControl` to stdout, and exits at `as_secs() < 30`
-   (line 873). It never touches a `Dispatcher`, a project, or a frame. The function that *would*
-   convert controls into document edits, `apply_controls` (`crates/integrations/src/osc.rs:236`),
-   has **zero callers outside its own tests**, and it only handles `OscControl::Param` —
-   parsed `TransportPlay`/`Seek`/`Trigger` values are dropped on the floor.
+3. **`flux osc <port>` is still a 30-second print-only listener, and it is now the *second*
+   OSC listener.** `crates/app/src/main.rs:865-883`: it binds, prints each decoded `OscControl`
+   to stdout, and exits at `as_secs() < 30` (line 873). It never touches a `Dispatcher`, a
+   project, or a frame — the desktop process does that now (see the status note above), which
+   makes this command a diagnostic and not the feature. It shares `OscReceiver`, so it also
+   inherited bridge-packet decoding. The function that *was* supposed to convert controls into
+   edits, `apply_controls` (`crates/integrations/src/osc.rs:268`), still has **zero callers
+   outside its own tests**; the live path uses `control::OscBridge` instead.
 4. **Flux has no live audio input of any kind.** `crates/audio/Cargo.toml` depends on
    `rustfft`, `crossbeam-channel`, `serde`, `serde_json` and two workspace crates — no
    device/capture crate. `flux_audio::Analyser::push(&mut self, mono: &[f32])`
@@ -77,48 +98,60 @@ The hardware step is real, but it comes after a code step, and this document say
 
 ## 2. Gate A — Ableton Live 12 wiring (OSC send/receive, transport, SSL 2 ASIO)
 
-### A1 — Live → Flux OSC: nothing receives it. `NOT WIRED`. Owner: ALONE (code) then ALONE (test)
-- **Unproven.** That a parameter fader in Live changes a pixel in Flux. There is no receiving
-  process attached to a running engine. `flux osc 9000` prints and quits after 30 s
-  (`crates/app/src/main.rs:865-883`); the GUI has no OSC listener at all
-  (`apps/desktop/src-tauri/src/lib.rs` — no matches); `GuiCommand::LiveOsc`
-  (`crates/app/src/commands.rs:478-493`) does call `apply_to_dispatcher`, but no JS file in
-  `apps/desktop/ui/` ever sends that command, so it is unreachable from the app.
-  `docs/USER-GUIDE.md:56` states "OSC: `flux osc 9000` listens for
-  `/flux/v1/project/{id}/node/{node}/param/{param}`" — true as far as it goes, but it
-  describes listening, not effect. **The doc is the optimistic one; the code is authoritative:
-  it decodes and prints.**
-- **Shortest procedure.** (a) After the pending rebuild: open a project in
-  `target\release\flux-desktop.exe`, get the active graph's node id from the inspector.
-  (b) In a terminal: `target\release\flux.exe osc 9000`. (c) In Live's Max console, or with
-  any OSC sender, send `/flux/v1/project/<pid>/node/<node>/param/<param> 0.8`. (d) Watch the
-  terminal. Then (e) confirm whether anything changed on screen.
-- **Pass.** The preview image visibly changes on the same beat the packet arrives, *while the
-  editor stays open and unpaused* — not just a printed line.
-- **Failure looks like.** The terminal prints `Param { node: "…", param: "…", value: 0.8 }`
-  and the preview does not move. That is the expected outcome today and it is the 30 s listener,
-  not a hardware fault. Fix is code: attach `OscReceiver` to a `Dispatcher` in the desktop
-  process, or drive `LiveOsc` from the UI.
+### A1 — Live → Flux OSC: the listener is in the app, the pixel is still unwitnessed. `UNVERIFIED`. Owner: ALONE
+- **Proven by loopback, 2026-11-15.** Bytes on port 19011–19015 reach the authoritative
+  document. `flux_app::control::OscBridge` binds, decodes with `osc::decode_control`, coalesces
+  the latest value per parameter on a 16 ms window, and applies through
+  `CommandHost::apply_live_param` → `apply_to_dispatcher` → `Command::SetParameter`. The tests
+  assert the stored `ParamValue`, the revision bump (so the edit is undoable), one edit per
+  parameter per window for a 10-packet burst, and that an unknown node is counted `unmapped`
+  instead of vanishing.
+- **Still unproven.** That a fader in Live changes a *pixel* on screen while the editor is
+  open. No GPU frame was ever produced by this path in this session, and no Max device has
+  sent a packet to Flux. The preview reads the graph from Rust every frame, so it should
+  follow — that is a reasoned claim, not a measured one.
+- **Shortest procedure.** (a) Build and open `target\release\flux-desktop.exe` on a project
+  with a generator node; get the node id from the inspector. (b) Send
+  `/flux/v1/project/<pid>/node/<node>/param/<param> 0.8` from Live's Max device, or with any
+  OSC sender pointed at `127.0.0.1:9000`. (c) Watch the preview *and* the inspector.
+  (d) Ask the app what it counted: call the `osc_status` IPC command — `bound`, `port`,
+  `bindError` and every counter come back, so silence is distinguishable from a drop.
+- **Pass.** The preview image visibly changes on the same beat the packet arrives, the
+  inspector shows the new value without a click, and `osc_status.stats.applied` increments.
+- **Failure looks like.** Three different things, now separable by numbers instead of by
+  staring: `bound:false` + `bindError` naming `Address already in use` means something else
+  owns 9000 — the usual suspect is `flux osc 9000`, which binds the same default and holds it
+  for 30 s. `received` climbing with `unmapped` equal to it means the node id in the address is
+  not a node in the *active* graph. `notApplied` with a `lastReason` naming transport or bridge
+  is not a fault: those kinds have no engine target yet.
+- **What this replaced.** Until 2026-11-15 this item was `NOT WIRED`: the desktop opened no
+  socket, and `GuiCommand::LiveOsc` answered `changed:false` unless a `LearnBinding` had first
+  set `control_map.graph_id`. Both halves are gone — an unlearned surface now targets
+  `active_graph`.
 
-### A2 — Max bridge packets are silently discarded by the OSC receiver. `NOT WIRED`. Owner: ALONE
-- **Unproven.** That the audio/MIDI bridge wire format the app documents is the format the app
-  accepts. `crates/integrations/src/bridge.rs:38 decode_bridge_packet` has **zero callers**
-  anywhere in the tree (`grep -rn "bridge::" crates/ apps/` → nothing outside the crate).
-  Meanwhile `crates/integrations/src/osc.rs:44` rejects any address whose third path segment
-  is not `project` — and the bridge addresses are `/flux/v1/bridge/{id}/features`
-  (`apps/max-for-live/README.md:19-21`). So even if `flux osc 9000` receives a real bridge
-  packet from Max, `osc.rs:184-189` decodes it, `parse_address` returns `None`, and the packet
-  is dropped without a counter increment or a log line.
-- **Shortest procedure.** With the Max device loaded in Live (Gate B), run
-  `target\release\flux.exe osc 9000` and watch stdout for 30 s while audio plays.
-  Then run `node -e` or PowerShell to confirm the socket is actually receiving bytes.
-- **Pass.** A decoded `features`/`transport` line appears in Flux output.
-- **Failure looks like.** Silent nothing. This is the specific trap: *no output* here is
-  consistent with three different causes (device not sending, port/firewall, dropped-by-parser),
-  and only the last one is fixed by code. Disambiguate by pointing `bridge-osc.js`'s
-  `HOST`/`PORT` (`apps/max-for-live/bridge-osc.js:49-50`, currently `127.0.0.1` / `9000`) at a
-  third-party OSC monitor first. If the monitor sees packets and `flux osc` shows none, it is
-  `osc.rs:44`.
+### A2 — Max bridge packets are decoded and counted; their features still feed nothing. `UNVERIFIED`. Owner: ALONE
+- **Fixed in code, 2026-11-15.** The discard defect was real: `parse_address`
+  (`crates/integrations/src/osc.rs:65`) rejects any address whose third segment is not
+  `project`, and the bridge speaks `/flux/v1/bridge/{id}/features`
+  (`apps/max-for-live/README.md:19-21`), so a bridge packet decoded to `None` and vanished
+  without a counter or a log line. `decode_bridge_packet` had zero callers outside its crate.
+  There is now one entry point for every datagram, `osc::decode_control`
+  (`crates/integrations/src/osc.rs:47`), which tries the bridge grammar first and returns
+  `OscControl::Bridge(..)`; `OscReceiver` uses it, so both the CLI listener and the desktop
+  bridge see bridge packets. A test asserts a `features` datagram increments `bridge` and
+  leaves the document untouched.
+- **Still not true.** That those features do anything. They are counted with the reason
+  "the analyser is still handed `FeatureSnapshot::default()`" — see fact 4. The wire format is
+  also still only proven against a packet this repo generated itself; whether Max emits exactly
+  these bytes is a host question.
+- **Shortest procedure.** With the Max device loaded in Live (Gate B), open Flux Desktop and
+  call `osc_status`: `bridge` should climb once per heartbeat while audio plays. If it stays
+  at zero, the packets are not arriving at all, and `bridge-osc.js`'s `HOST`/`PORT`
+  (`apps/max-for-live/bridge-osc.js:49-50`, currently `127.0.0.1` / `9000`) is the first thing
+  to check against a third-party monitor.
+- **Pass.** `stats.bridge` increments while Live plays with the device loaded.
+- **Failure looks like.** `bridge` stays 0. Since 2026-11-15 that is no longer ambiguous with
+  "received but discarded": a received bridge packet is always counted.
 
 ### A3 — Flux → Live OSC output does not exist. `NOT WIRED`. Owner: ALONE
 - **Unproven.** The reverse direction, which `spec/START-HERE.md:45` (R014) requires as
@@ -135,15 +168,30 @@ The hardware step is real, but it comes after a code step, and this document say
   re-applies its own feedback and a parameter runs to a clamp.
 
 ### A4 — Ableton transport (play/seek) over OSC. `NOT WIRED`. Owner: ALONE
-- **Unproven.** That pressing Space in Live starts/stops Flux's clock.
-  `parse_address` does decode `/flux/v1/project/{id}/transport/play` and `/seek`
-  (`crates/integrations/src/osc.rs:70-81`) — but `apply_controls`
-  (`crates/integrations/src/osc.rs:236-248`) matches only `OscControl::Param`. Transport
-  messages are parsed, allocated, and thrown away.
-- **Shortest procedure.** Same rig as A1: send `/flux/v1/project/<pid>/transport/play 1` and
-  observe whether the playhead moves.
+- **Unproven.** That pressing Space in Live starts/stops Flux's clock. What changed on
+  2026-11-15 is the *reaching*, not the *acting*: `/transport/play` and `/transport/seek`
+  are decoded (`crates/integrations/src/osc.rs:86-98`) and now arrive at the desktop
+  listener, where they increment `notApplied` and record the reason
+  "no Rust-owned playhead — the preview clock is the webview's rAF loop, and the document
+  has no transport command" (`apply_live_control`, `crates/app/src/commands.rs:284`).
+  They still move nothing. `apply_controls` (`crates/integrations/src/osc.rs:268`) remains
+  dead code that matches only `OscControl::Param`.
+- **New defect, measured.** The documented `seek` packet cannot carry its own time.
+  `docs/FILE-FORMATS.md` specifies string seconds + int denominator; `decode_packet` keeps
+  only numeric arguments, so seconds are dropped, the denominator is read as the seconds,
+  and `parse_address` hardcodes `denominator: 1_000_000`. Pinned by
+  `a_seek_packet_cannot_carry_its_seconds` (`crates/integrations/src/tests.rs`). Any future
+  seek implementation must fix the wire format first, or it will seek to the wrong place
+  with total confidence.
+- **Shortest procedure.** Same rig as A1: send `/flux/v1/project/<pid>/transport/play 1`
+  and watch `osc_status`. `notApplied` climbing with that reason is the *expected* result
+  today — it proves the wire, not the feature.
 - **Pass.** Playhead starts/stops in step with Live within one frame.
-- **Failure looks like.** `flux osc` prints `TransportPlay(true)`; the preview stays frozen.
+- **Failure looks like.** Identical to the pass condition of the wire: the counter moves and
+  the preview stays frozen. Do not read a rising `notApplied` as transport working.
+- **What a fix needs.** Either a Rust-owned clock that the webview follows, or a typed
+  command the shell maps onto the existing rAF loop. Neither exists; this is design work,
+  not wiring.
 
 ### A5 — Live 12's own audio clock vs. Flux's frame clock. UNVERIFIED. Owner: ALONE
 - **Unproven.** That Flux's exact-rational time (`docs/USER-GUIDE.md:49-52`) tracks a Live
@@ -278,8 +326,8 @@ The hardware step is real, but it comes after a code step, and this document say
   set `@autoload 1` after copying `bridge-osc.js` next to the `.amxd`.
 
 ### B3 — The README's own verification command is broken in HEAD. Owner: ALONE (doc fix)
-- **Unproven/false-by-construction.** HEAD (`46cfd94`, 2026-11-13, "Repoint the Max patch at the
-  new tree") changed `apps/max-for-live/README.md:55` from the old
+- **Unproven/false-by-construction.** The tree at `46cfd94` (2026-11-13, "Repoint the Max patch
+  at the new tree") changed `apps/max-for-live/README.md:55` from the old
   `D:\CURSOR LOCAL PROJECTS\VIDEO - GENFX\...` to `D:\Projects\skeer-audio\genfx\apps\max-for-live\*.amxd`.
   That is a **third** path and it does not exist either. The commit message claims the old root
   was repaired and that the path "would have returned nothing and looked like a failed build" —
@@ -586,7 +634,8 @@ The hardware step is real, but it comes after a code step, and this document say
 ## 7. Gate F — Latency: preview fps, export timings, and what must be re-measured
 
 ### F1 — Every number in `implementation/evidence/` predates the current code. Owner: ALONE
-- **Measured facts (file mtimes vs. git).** HEAD is `46cfd94`, **2026-11-13 03:39**.
+- **Measured facts (file mtimes vs. git).** The tree measured was `46cfd94`, committed
+  **2026-11-13 03:39** — a dated snapshot, not the current tip.
   Binaries: `target\release\flux.exe` **Nov 9 04:24**; `target\debug\flux.exe` Nov 10 01:37;
   `target\debug\flux-desktop.exe` Nov 10 04:43; `target\release\flux-desktop.exe` Nov 10 10:40.
   Evidence directory: **all 26 files dated Nov 9** (`benchmark.json`, `test-gpu.json`,
@@ -922,13 +971,13 @@ The hardware step is real, but it comes after a code step, and this document say
 |---|---|---|---|
 | NDI | "**Fully working** — discovery, send, and receive verified. No remaining NDI blocker." | The only sender transmits a synthetic 640×360 gradient; `trait LiveSink` has no implementor; Flux's output never reaches a receiver. | `implementation/BLOCKERS.md:4-9`, `implementation/requirements.json:3743` vs `crates/app/src/main.rs:504`-`:520`, `crates/integrations/src/live.rs:37-41` |
 | Spout | "Spout2 works **send-side** … 83 frames sent" | Those 83 frames were a gradient, sent to no named or confirmed receiver, from a helper EXE outside the Flux process. | `implementation/BLOCKERS.md:10-16`, `implementation/evidence/spout-send-dx.txt` |
-| OSC | "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands" | The listener prints to stdout for 30 s and quits; `apply_controls` has zero callers; the desktop app contains no OSC code. | `implementation/STATE.json:64`, `docs/USER-GUIDE.md:56` vs `crates/app/src/main.rs:865-883`, `crates/integrations/src/osc.rs:236`, `apps/desktop/src-tauri/src/lib.rs:481` |
-| Max bridge | "bridge_max: verified (protocol decode + maxpat structure)" | `decode_bridge_packet` has zero callers and `parse_address` rejects `/flux/v1/bridge/…`. Structure verified ≠ traffic verified. | `implementation/STATE.json:29` vs `crates/integrations/src/bridge.rs:38`, `crates/integrations/src/osc.rs:44` |
+| OSC | "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands" | Half of it is now true, and the doc still describes the old half: `flux osc` prints for 30 s and quits, while the *desktop* is the thing that edits the document (`control::OscBridge`). `apply_controls` still has zero callers. Nobody has watched a Live fader move a Flux parameter. | `implementation/STATE.json:64`, `docs/USER-GUIDE.md:67-71` vs `crates/app/src/main.rs:865-883`, `crates/integrations/src/osc.rs:268`, `crates/app/src/control.rs:304` |
+| Max bridge | "bridge_max: verified (protocol decode + maxpat structure)" | Structure verified ≠ traffic verified. The discard defect is gone (`osc::decode_control` tries the bridge grammar first, and the desktop listener counts bridge packets), but every bridge packet is `notApplied`: no feature value reaches an analyser, and no real Max packet has ever been decoded. | `implementation/STATE.json:29` vs `crates/integrations/src/osc.rs:47`, `crates/app/src/commands.rs:284`-`:306` |
 | Ableton Link | AT063 `verified`; single-master arbitration both "verified" and "not yet asserted" | Feature off by default; `live.rs` reports availability from `cfg!(feature)`, so the shipping binary has no Link; no Link↔renderer connection exists. | `implementation/STATE.json:35` vs `:22-23`/`BLOCKERS.md:43`; `crates/integrations/Cargo.toml:25`, `crates/integrations/src/live.rs:82-90` |
 | Capture | "WASAPI endpoint + PnP camera enumeration is real and verified … live capture needs a device" | Enumeration is complete and **capture code does not exist**; AT054/055/056 have no subject. | `implementation/BLOCKERS.md:38-41`, `implementation/requirements.json:62` vs `crates/platform/src/lib.rs:163-184` |
 | GUI verified list | Seven behaviors "verified" incl. timeline, inspector, preview | That list predates the node-graph editor (`2688195`), the DAG executor (`7618d9e`), sliders + monitor window (`ac73572`) and the webview bundling (`fe9e35e`); the screenshots are Nov 9 10:33. | `implementation/STATE.json:46-54` vs `implementation/evidence/gui-release.png` mtime and the four commits |
-| Test totals | "167 passed, 0 failed" (Nov 9) | **Resolved 2026-11-14:** `cargo test --workspace -- --test-threads=1` at `e84fe67` = 196 passed / 0 failed / 0 ignored, 40 binaries, exit 0. `STATE.json` now reports 196. The vacuity caveat in §0 still applies. | `implementation/STATE.json` `test_totals` |
-| CI / `verify.ps1` | "CI workflow + infrastructure/verify.ps1 (VERIFY: PASS)" | **Was VERIFY: FAIL at `e84fe67` (measured 2026-11-14, full run, exit 1); the blocking step is now cleared.** `cargo fmt --all -- --check` — the first check step in `ci.yml:29` — exited 1 with 56 diffs across 12 files, and in Actions that aborted the job before the suite ran. All 13 other executed local steps passed. `cargo fmt --all` has since been applied and `--check` exits 0, so the full script should now reach PASS; it has not been re-run since, so that is still a claim, not a measurement. Two further harness defects remain open: `verify.ps1:35` chains three `cargo test` runs with `;` inside one `Step`, so only the last one's exit code is recorded; and skipped Link/Spout gates are written as `ok: true`. | `.github/workflows/ci.yml:29`, `infrastructure/verify.ps1:32`, `:35`, `:47-61` vs `implementation/evidence/verify.json`, `implementation/DECISIONS.md` D019 |
+| Test totals | "167 passed, 0 failed" (Nov 9) | **Resolved 2026-11-14, re-measured 2026-11-15:** `cargo test --workspace -- --test-threads=1` at `e84fe67` was 196 passed / 0 failed / 0 ignored, 40 binaries, exit 0; the same command on the tree that added the OSC receive bridge is **203 passed / 0 failed / 0 ignored, 40 binaries, exit 0** — the +7 are `crates/app/src/control.rs`'s loopback tests. The vacuity caveat in §0 still applies: 14 GPU integration tests return early on device-creation failure and count as passes. | `implementation/STATE.json` `test_totals` |
+| CI / `verify.ps1` | "CI workflow + infrastructure/verify.ps1 (VERIFY: PASS)" | **Was VERIFY: FAIL at `e84fe67` (measured 2026-11-14, full run, exit 1); the blocking step is now cleared.** `cargo fmt --all -- --check` — the first check step in `ci.yml:29` — exited 1 with 56 diffs across 12 files, and in Actions that aborted the job before the suite ran. All 13 other executed local steps passed. `cargo fmt --all` has since been applied and `--check` exits 0. Both harness defects are repaired (D020): the chained `integration-tests` step is three steps, `Step` clears `LASTEXITCODE` before running, the skipped Link/Spout gates record `ok=null` + `status='blocked_external'`, and `verify.json` is written without a BOM with `gitHash` and the step counts in it. | `.github/workflows/ci.yml:29`, `infrastructure/verify.ps1:32`, `:35`, `:47-61` vs `implementation/evidence/verify.json`, `implementation/DECISIONS.md` D019 |
 | `.amxd` | Honest: needs a Max host | — | `implementation/STATE.json:24`, `implementation/requirements.json:27` (still `pending`, correctly) |
 | Depth polarity | "higher = nearer", "near = bright" | Recorded output of a synthetic near-center square: `center=0.001 corner=0.991`; the test only asserts variance. | `crates/integrations/src/vision.rs:6-7`, `:204` vs `implementation/evidence/depth-inference.txt`, `implementation/evidence/vision-inference.txt:17-19`, `crates/integrations/src/vision.rs:246-276` |
 | Stale absolute paths | "Repoint the Max patch at the new tree" (`46cfd94`) | **Resolved 2026-11-14:** `flux-audio-bridge.maxpat:199` `bootpath` and `apps/max-for-live/README.md:55` now read `D:/Projects/visual/genfx/...`; `check-maxpat.cjs` still PASSes. The remaining `D:\Projects\skeer-audio\genfx` mentions in this document (§3, §4 of gate B) and in `IMPLEMENTATION-ARCHITECTURE.md:654`, `:863` are historical descriptions of the bug, not live paths. | `5fbfc1e`/`e84fe67` vs `apps/max-for-live/flux-audio-bridge.maxpat:199`, `apps/max-for-live/README.md:55` |

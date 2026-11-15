@@ -229,6 +229,84 @@ impl CommandHost {
         self.dispatcher.revision
     }
 
+    /// Which graph a live control edits: the one a `LearnBinding` named, or the
+    /// graph the editor is on when nothing has been learned. Both the UI's own
+    /// `LiveOsc` command and the UDP listener go through here so they cannot
+    /// disagree about where an incoming parameter lands.
+    fn live_target_graph(&self) -> String {
+        if self.control_map.graph_id.is_empty() {
+            self.active_graph.clone()
+        } else {
+            self.control_map.graph_id.clone()
+        }
+    }
+
+    /// Apply one live parameter control to the authoritative document.
+    ///
+    /// The parameter is written as an override whether or not the node's catalog
+    /// entry declares it (`Command::SetParameter` inserts without validating the
+    /// id), so a mistyped address produces an inert parameter and an undo entry
+    /// rather than an error. The learned binding table is the only whitelist.
+    pub fn apply_live_param(
+        &mut self,
+        node: &str,
+        param: &str,
+        value: f32,
+    ) -> crate::control::OscApplied {
+        use crate::control::OscApplied;
+        if !crate::control::is_allowed(&self.control_map, node, param) {
+            return OscApplied::Unmapped;
+        }
+        let graph_id = self.live_target_graph();
+        if graph_id.is_empty() {
+            return OscApplied::Unmapped;
+        }
+        match crate::control::apply_to_dispatcher(
+            &mut self.dispatcher,
+            &graph_id,
+            node,
+            param,
+            value,
+        ) {
+            Ok(true) => OscApplied::Parameter {
+                node: node.to_string(),
+                param: param.to_string(),
+                value,
+            },
+            Ok(false) => OscApplied::Unmapped,
+            Err(e) => OscApplied::Rejected(e.message.clone()),
+        }
+    }
+
+    /// Route one received OSC control. Parameters reach the document; everything
+    /// else is answered with the reason it cannot be, so the listener's counters
+    /// say what arrived rather than quietly discarding it.
+    pub fn apply_live_control(
+        &mut self,
+        ctrl: &flux_integrations::osc::OscControl,
+    ) -> crate::control::OscApplied {
+        use crate::control::OscApplied;
+        use flux_integrations::osc::OscControl as C;
+        match ctrl {
+            C::Param { node, param, value } => self.apply_live_param(node, param, *value as f32),
+            C::TransportPlay(_) => OscApplied::NotApplied(
+                "transport: no Rust-owned playhead — the preview clock is the webview's rAF loop, and the document has no transport command",
+            ),
+            C::Seek { .. } => OscApplied::NotApplied(
+                "seek: same as transport — there is no clock in the document to move",
+            ),
+            C::Trigger { .. } => {
+                OscApplied::NotApplied("trigger: node triggers have no Command variant yet")
+            }
+            C::PresetRecall(_) => OscApplied::NotApplied(
+                "preset recall: parse_address stores the whole address as the id and drops the argument that names the preset",
+            ),
+            C::Bridge(_) => OscApplied::NotApplied(
+                "bridge features: decoded and counted, but the analyser is still handed FeatureSnapshot::default()",
+            ),
+        }
+    }
+
     /// Handle a request, returning a response. Never panics on bad input.
     pub fn handle(&mut self, req: Request) -> Response {
         let id = req.request_id.clone();
@@ -476,18 +554,10 @@ impl CommandHost {
                 Ok(serde_json::json!({ "bindings": self.control_map.bindings.len() }))
             }
             GuiCommand::LiveOsc { node, param, value } => {
-                let graph_id = self.control_map.graph_id.clone();
-                let changed = if graph_id.is_empty() {
-                    false
-                } else {
-                    crate::control::apply_to_dispatcher(
-                        &mut self.dispatcher,
-                        &graph_id,
-                        &node,
-                        &param,
-                        value,
-                    )?
-                };
+                let changed = matches!(
+                    self.apply_live_param(&node, &param, value),
+                    crate::control::OscApplied::Parameter { .. }
+                );
                 Ok(serde_json::json!({ "changed": changed, "revision": self.revision() }))
             }
             GuiCommand::LiveMidi { channel, cc, value } => {

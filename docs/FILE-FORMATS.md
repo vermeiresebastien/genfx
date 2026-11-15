@@ -44,13 +44,30 @@ ABI bundle for the WebGPU harness and Naga-validates every shader.
 Decoding and the control model are implemented and tested
 (`crates/integrations/src/osc.rs`; `Seek { seconds: String, denominator: i64 }`).
 
-**Not yet true:** nothing connects this transport to that command. `apply_controls`
-and `control::apply_osc` have no caller outside their own unit tests, and Flux
-Desktop opens no UDP listener, so `flux osc <port>` is a 30-second print-only demo.
-The apply path itself exists (`GuiCommand::LiveOsc` → `control::apply_to_dispatcher`,
-`crates/app/src/commands.rs:478`) and is a no-op until a `LearnBinding` has set
-`control_map.graph_id`. There is no UDP **send** path at all — `encode_param_feedback`
-is called only by its own test and the feedback port constant (9001) is unused.
+**Connected in the desktop app since 2026-11-15, and still one-way.** Every datagram
+arrives through one entry point, `osc::decode_control`
+(`crates/integrations/src/osc.rs:47`), which the `OscReceiver` socket thread calls; the
+listener in `flux_app::control::OscBridge` coalesces `Param` controls per 16 ms window and
+applies them through `CommandHost::apply_live_param` → `control::apply_to_dispatcher`
+(`crates/app/src/commands.rs:250`) → `Command::SetParameter`. A `LearnBinding` is no longer
+a precondition: with an empty `control_map.graph_id` the edit targets `active_graph`, and
+with a non-empty binding table the table acts as a whitelist (`control::is_allowed`).
+
+Two things remain not true:
+
+- Only `param` moves the document. `transport`, `trigger`, `preset` and `bridge` controls
+  are counted and reported with the reason they changed nothing
+  (`apply_live_control`, `crates/app/src/commands.rs:284`) — there is no Rust-owned playhead
+  to receive transport, no `Command` variant for a node trigger, `PresetRecall` stores the
+  address rather than the preset id, and the analyser is handed `FeatureSnapshot::default()`.
+- `transport/seek` cannot round-trip as documented. `decode_packet` flattens arguments to
+  `f64` and drops everything that is not numeric, so the seconds *string* the spec puts
+  first is discarded and the first surviving number is the denominator. `parse_address`
+  also hardcodes `denominator: 1_000_000` instead of reading it. Measured by
+  `a_seek_packet_cannot_carry_its_seconds` (`crates/integrations/src/tests.rs`).
+
+There is still no UDP **send** path — `encode_param_feedback` is called only by its own
+test, and the feedback port constant (9001) is unused.
 
 ## Max bridge
 ```

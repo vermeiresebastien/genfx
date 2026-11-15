@@ -1,7 +1,7 @@
 {
   "spec_version": "2.0",
   "spec_date": "2026-11-09",
-  "state_updated": "2026-11-14",
+  "state_updated": "2026-11-15",
   "state_note": "Reconciled against HEAD 46cfd94 by a full-tree audit, then re-measured against HEAD e84fe67 on 2026-11-14 with a full CI-parity run. Where this file previously asserted verified for something the code cannot do, the claim is corrected here and the evidence is recorded in implementation/DECISIONS.md D014-D019.",
   "active_platform": "windows-x64",
   "host": {
@@ -15,11 +15,11 @@
   "catalog_entries": 217,
   "catalog_entries_note": "Authoritative: `flux list` prints Catalog (217 entries) and `flux doctor` reports 217. Every doc saying 216 is stale.",
   "test_totals": {
-    "passed": 196,
+    "passed": 204,
     "failed": 0,
     "ignored": 0,
     "test_binaries": 40,
-    "measured": "2026-11-14, `cargo test --workspace -- --test-threads=1`, exit 0, ~98.5s of binary time",
+    "measured": "2026-11-15, `cargo test --workspace -- --test-threads=1`, exit 0 - 204 passed / 0 failed / 0 ignored across 40 binaries. Was 196 on 2026-11-14; the +8 are the twelve tests in app/src/control.rs - seven new UDP loopback tests - plus the integrations seek wire-format test (D022).",
     "previous_claim": "167 passed / 0 failed (2026-11-09)",
     "caveat": "14 GPU integration tests pass vacuously by returning on device-creation error (no GPU; skipping), and golden.rs asserts file sizes rather than pixels. A green suite does not mean the GPU paths ran."
   },
@@ -37,7 +37,8 @@
       "passing_steps": "fmt, unit-tests (149 lib tests), integration-producer-tests (6), integration-export-matrix (6), integration-dag-parallel (4), golden (3), catalog, doctor, test-gpu, shaders-export, maxpat, fixtures, cli-build, gui-build, ndi-discovery",
       "skipped_steps": "link-integration (FLUX_ABLETON_LINK_LIB unset), spout-enumeration (FLUX_SPOUT_SHIM unset) - now recorded ok:null / status=blocked_external after the D020 harness repair",
       "evidence": "implementation/evidence/verify.json",
-      "re_run_at_head": "6d2130d (after D021) - bare run, same VERIFY: PASS / exit 0 / 15-0-2 counts; the committed file's gitHash is 6d2130d and only generatedAt + gitHash differ from the 75da874 run",
+      "re_run_at_head": "6d2130d (after D021) - bare run, same VERIFY: PASS / exit 0 / 15-0-2 counts",
+      "re_run_lane9": "3214caa + the uncommitted D022 working tree, 2026-11-15 - VERIFY: PASS / exit 0 / 15-0-2 counts, evidence/verify.json gitHash 3214caa. Preceded by one VERIFY: FAIL at 12-3-2: fmt (unformatted new Rust), unit-tests and ndi-discovery (both 101) from a nonexistent rosc::OscType::Str variant in the new integrations test. Both causes fixed; `cargo test -p flux-integrations --features ndi ndi::` then 2 passed / exit 0.",
       "history": "at e84fe67 the same script ended VERIFY: FAIL on the fmt step alone, with 15 steps; the two harness defects in ci_defects_found_2026_11_14 were repaired before this PASS (D020)"
     },
     "gates_measured": {
@@ -67,9 +68,9 @@
   },
   "integrations": {
     "default_features": "NONE - crates/app and crates/integrations both set default = []. link/ndi/spout/syphon/vision are compiled out of a plain build; check with `flux integrations`.",
-    "osc": "TRANSPORT AND APPLICATION BOTH EXIST, THEY ARE NOT CONNECTED. UDP receive is real (osc.rs, 127.0.0.1:9000) and OSC->engine application is real (GuiCommand::LiveOsc -> control::apply_to_dispatcher, app/src/commands.rs:478). What is missing is the wire between them: nothing converts a received OscControl into a LiveOsc dispatch, integrations::apply_controls and app::control::apply_osc have no non-test callers, and the desktop process never opens a receiver at all. `flux osc <port>` only prints. There is also no OSC output path (encode_param_feedback is test-only; port 9001 unused). Note LiveOsc is a no-op unless a LearnBinding set control_map.graph_id first.",
+    "osc": "WIRED 2026-11-15 (D022), HOST TEST STILL OPEN. One decode entry point (osc::decode_control, integrations/src/osc.rs:47) feeds control::OscBridge (app/src/control.rs:304), which the desktop process starts on FLUX_OSC_PORT or 9000 and which applies Param controls through CommandHost::apply_live_param -> apply_to_dispatcher -> Command::SetParameter with 16ms latest-wins coalescing. Measured by UDP loopback, 7 tests: bytes reach the document, a burst becomes one undoable edit per parameter, an unknown node counts as unmapped, a busy port returns AddrInUse. NOT measured: a frame rendered by this path, or a packet from Live - so this is implemented_unverified, not verified. Transport/seek/trigger/preset/bridge are counted with a reason and change nothing (no Rust-owned playhead, no trigger Command, PresetRecall drops the preset id, analyser gets FeatureSnapshot::default()). apply_controls (osc.rs:268) is still dead. There is still no OSC output path (encode_param_feedback test-only; port 9001 unused).",
     "midi": "verified (message parsing); device presence is host-dependent; no virtual ports on Windows",
-    "bridge_max": "protocol decoder tested in isolation, but the receiver rejects it: osc.rs:44 requires parts[2]==project, so every /flux/v1/bridge/... packet is discarded. decode_bridge_packet and BridgeState have no non-test callers. OSC bundles are dropped too, not just malformed packets.",
+    "bridge_max": "FIXED IN PART 2026-11-15 (D022): the silent discard is gone. osc::decode_control tries the bridge grammar first, so a /flux/v1/bridge/... packet now reaches OscControl::Bridge and increments the bridge counter in both the CLI listener and the desktop app; a test asserts it. What is still not true: no bridge feature value reaches an analyser (FeatureSnapshot::default()), BridgeState still has no non-test caller, and no real Max packet has ever been decoded - structure verified is not traffic verified. OSC bundles are dropped too, not just malformed packets.",
     "ableton_link": {
       "status": "supported + verified when built with feature link",
       "licensing": "resolved - product not sold; GPLv2+ acceptable (DECISIONS D012)",
@@ -95,6 +96,7 @@
       "node-graph canvas is the composition surface; the timeline strip drives duration and transport (the one-clip-per-scene model was replaced by D013)",
       "GUI-backend e2e test: create/catalog/add/edit/export passes"
     ],
+    "live_control": "The desktop process owns an OSC listener (apps/desktop/src-tauri/src/lib.rs:474 setup hook, osc_status at :320); the webview only re-pulls the snapshot on a live-control event. Library + loopback tested, never observed on screen: launching this GUI from the agent sandbox is not possible, so no screenshot or window evidence exists for this path.",
     "root_cause_fixed": "serde rename_all (tag only) vs rename_all_fields (fields) on GuiCommand/Command made all camelCase IPC payloads fail; GUI showed empty library + broken preview. Fixed + regression test.",
     "open_defects": [
       "src-tauri/build.rs reports a failed ui-bundle step as cargo:warning and continues, so the content-hash cache-buster silently did not run on the last build; bundle.mjs and package.json are missing from rerun-if-changed",
@@ -126,7 +128,7 @@
     "clippy is neutered: ci.yml:31 runs `cargo clippy --workspace --all-targets -- -A warnings` (-A = allow), so it can only detect a compile failure, never a lint. The plain build already emits ~10 warnings, including dead fields in RuntimeGraph and a never-used flux_app_persistence_load.",
     "REPAIRED (D021) xtask benchmark lied about what it measured. (a) `--profile` was parsed and echoed into the JSON but never used - resolution was hardcoded 1920x1080 and the set was `.take(30)` fragment generators, so `--profile ordinary` and `--profile 4k` did identical work. Now a BENCH_PROFILES table sets resolution, budget and graph, and an unknown profile exits 2 instead of silently benching. (b) Each timed iteration included the preview readback, so the number was render + a 2,073,600 B GPU->CPU copy (earlier notes said ~8 MB; wrong - preview_size() clamps to 960x540). Render and copy are now timed in separate windows, the render window ends in an explicit queue wait, and the gate times an 8-node merging graph rather than one node. (c) With 12 samples, `times[len*95/100]` = index 11 = the single worst sample, so 'p95' was really max. Now 15 warm-up frames are discarded, 120 are timed, and percentiles are nearest-rank with p95/p99 emitted only when n supports them; the per-generator sweep reports median/max explicitly. Consequence for the old headline: 'gen.concentric p95 21.49 ms' was the readback, not the node - on render alone all 30 swept generators are under budget."
   ],
-  "current_task": "2026-11-15, lane 8 done: 8a cleared the four-day fmt gate and refreshed the citations it moved; 8b repaired verify.ps1 (chained-step masking, a $LASTEXITCODE leak it exposed, skipped gates recorded as passes, a BOM that broke JSON.parse) and the full harness measured VERIFY: PASS at 75da874; 8d rebuilt xtask benchmark into a real frame-budget gate - profile table, 8-node merging graph, render and readback timed apart, 15 warm-up + 120 timed nearest-rank samples - passing at 1080p (p95 2.3-3.7 ms vs 16.67) and 4K (p95 5.09 ms vs 33.33). Next open: F2 (presentation misses needs a swapchain), the 120s soak, the four unbuilt spec profiles, and the unexplained ~6x run-to-run tail.",
+  "current_task": "2026-11-15, lane 8 done: 8a cleared the four-day fmt gate and refreshed the citations it moved; 8b repaired verify.ps1 (chained-step masking, a $LASTEXITCODE leak it exposed, skipped gates recorded as passes, a BOM that broke JSON.parse) and the full harness measured VERIFY: PASS at 75da874; 8d rebuilt xtask benchmark into a real frame-budget gate - profile table, 8-node merging graph, render and readback timed apart, 15 warm-up + 120 timed nearest-rank samples - passing at 1080p (p95 2.3-3.7 ms vs 16.67) and 4K (p95 5.09 ms vs 33.33). Next open: F2 (presentation misses needs a swapchain), the 120s soak, the four unbuilt spec profiles, and the unexplained ~6x run-to-run tail. 2026-11-15, lane 9 done: the OSC receive path moved into the desktop process (D022) - one decode entry point that also fixed A2's silent bridge discard, control::OscBridge with 16ms latest-wins coalescing and a counter per outcome, osc_status on the IPC surface, live-control -> snapshot re-pull in the shell, 7 UDP loopback tests + 1 seek wire-format test (196 -> 204). The listener flushed only after a successful recv, so a single fader move never landed; found by those tests, fixed, and the seek wire format defect they exposed is pinned rather than left latent. Next open: A1's host half (a Live fader moving a pixel, which needs the GUI launched outside this sandbox), and the same for every bridge packet.",
   "delivered": [
     "Engine + GPU renderer + 217-entry catalog (all shaders compile on GPU, 0 failures)",
     "Tauri 2 desktop GUI over a vanilla ES-module node-graph editor (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
@@ -155,7 +157,9 @@
     "Browser WebGPU conformance not run; native Naga+GPU verified",
     "SDF/particle CPU producers not realtime at 4K",
     "golden.rs asserts file sizes, not pixels; sweep_catalog reclassifies flux.feedback_read Blank->Ok",
-    "No signed installer"
+    "No signed installer",
+    "requirements.json AT061 (Max .maxpat + real OSC bytes interoperate) carries Spout evidence paths (apps/spout-bridge, evidence/spout-registry.txt): the record's evidence belongs to a different gate. No record in the ledger populates test_ids, so a test that proves a requirement cannot be linked to one.",
+    "OSC receive is loopback-proven only (D022): no frame was rendered by that path and no Max device has sent a packet. A1 in docs/PERFORMANCE-READINESS.md is UNVERIFIED, not verified."
   ],
   "commands_to_resume": [
     "cargo test --workspace -- --test-threads=1",

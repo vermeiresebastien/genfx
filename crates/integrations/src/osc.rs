@@ -32,6 +32,27 @@ pub enum OscControl {
     Seek { seconds: String, denominator: i64 },
     /// Preset recall by stable id.
     PresetRecall(String),
+    /// A Max-for-Live bridge packet (`/flux/v1/bridge/{instance}/…`). Kept
+    /// separate from the project controls: it carries features and transport for
+    /// the whole Live set, not one parameter.
+    Bridge(crate::bridge::BridgeEvent),
+}
+
+/// Decode one UDP datagram into a control.
+///
+/// Bridge packets are decoded from the raw bytes because they carry typed
+/// arguments — sequence numbers, an instance string, a playing flag — that
+/// [`decode_packet`] flattens to `f64`. `decode_bridge_packet` returns `None`
+/// for anything that is not a bridge address, so the two schemes cannot collide.
+pub fn decode_control(bytes: &[u8]) -> Option<OscControl> {
+    if bytes.len() > MAX_PAYLOAD {
+        return None;
+    }
+    if let Some(ev) = crate::bridge::decode_bridge_packet(bytes) {
+        return Some(OscControl::Bridge(ev));
+    }
+    let (addr, args) = decode_packet(bytes)?;
+    parse_address(&addr, &args, false)
 }
 
 /// Parse a canonical OSC address into a control, if it matches the v1 scheme.
@@ -181,11 +202,9 @@ impl OscReceiver {
                             dropped2.fetch_add(1, Ordering::Relaxed);
                             continue;
                         }
-                        if let Some((addr, args)) = decode_packet(&buf[..n]) {
-                            if let Some(ctrl) = parse_address(&addr, &args, false) {
-                                if tx.try_send(ctrl).is_err() {
-                                    dropped2.fetch_add(1, Ordering::Relaxed);
-                                }
+                        if let Some(ctrl) = decode_control(&buf[..n]) {
+                            if tx.try_send(ctrl).is_err() {
+                                dropped2.fetch_add(1, Ordering::Relaxed);
                             }
                         }
                     }
@@ -208,6 +227,19 @@ impl Drop for OscReceiver {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+/// Encode one OSC message to UDP-ready bytes, with float arguments only.
+///
+/// The receive tests build packets with this rather than hand-rolling the wire
+/// format, and `flux live` uses it for feedback: an encoder nobody sends through
+/// cannot prove the decoder is right.
+pub fn encode_message(addr: impl Into<String>, args: &[f32]) -> Vec<u8> {
+    let msg = rosc::OscMessage {
+        addr: addr.into(),
+        args: args.iter().copied().map(rosc::OscType::Float).collect(),
+    };
+    rosc::encoder::encode(&rosc::OscPacket::Message(msg)).unwrap_or_default()
 }
 
 /// Encode a feedback message (change-only) for a parameter.

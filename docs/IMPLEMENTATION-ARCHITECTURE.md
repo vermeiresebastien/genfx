@@ -585,14 +585,21 @@ Verified dead constant: `decode_packet` returns `None` for bundles (`osc.rs:112`
 
 Mapping into the document is `crates/app/src/control.rs`: `ControlBinding` =
 `Osc{address,node_id,param_id}` | `MidiCc{channel,cc,..}` | `MidiNote{channel,note,..}`,
-`ControlMap{graph_id, bindings}` (`:11-40`). `apply_osc` passes an unbound address through
-when the map is **empty** (`:92-96`) — "no bindings learned yet" means "everything is
-live", which is a deliberate but easy-to-trip-over rule. `apply_midi` requires an exact
-binding (`:105-132`). `apply_to_dispatcher` calls `dispatcher.apply(cmd, None)`
-(`:153-163`): **live control edits deliberately bypass `expected_revision`**, and each one
-is its own undo transaction; the `Coalescer` (`:169-193`) limits that to one edit per
-parameter per flush, which is what keeps a 60 Hz CC stream from filling the 200-deep undo
-ring in seconds.
+`ControlMap{graph_id, bindings}` (`:25-52`). `apply_osc` passes an unbound address through
+when the map is **empty** (`:98`, through `is_allowed` at `:116`) — "no bindings learned yet"
+means "everything is live", which is a deliberate but easy-to-trip-over rule; a table with one
+entry restricts the surface to exactly what was learned. `apply_midi` requires an exact
+binding (`:126`). `apply_to_dispatcher` calls `dispatcher.apply(cmd, None)`
+(`:160`): **live control edits deliberately bypass `expected_revision`**, and each one
+is its own undo transaction.
+
+Two things flush, and they are not the same thing. The `Coalescer` (`:193`) is the batch path.
+`OscBridge` (`:302`) is the one the desktop process has run since 2026-11-15 (D022): an
+`OscReceiver` socket thread, a bounded channel, and `run_listener` (`:374`) holding a
+latest-wins map it drains on a 16 ms window — including when the window merely *expires*,
+which the first version did not do and which meant a single fader move queued and never
+landed. Both limit one parameter to one edit per flush, which is what keeps a 60 Hz stream
+from filling the 200-deep undo ring in seconds.
 
 MIDI (`crates/integrations/src/midi.rs`) uses `midir`; note messages are normalised
 (`value = byte/127.0`, bend `(raw/8191.5)-1` — `:66-93`), real-time clock/transport are

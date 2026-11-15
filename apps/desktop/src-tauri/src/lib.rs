@@ -6,6 +6,7 @@
 //! simulation or renderer.
 
 use flux_app::commands::{CommandHost, GuiCommand, Request, Response};
+use flux_app::control::OscBridge;
 use flux_app::export::{export_project_with_frames, ExportOptions, PreviewRenderer};
 use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
@@ -14,13 +15,41 @@ use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 struct AppState {
-    host: Mutex<CommandHost>,
+    host: Arc<Mutex<CommandHost>>,
     /// Cached GPU preview renderer (created lazily on first preview so a missing
     /// GPU doesn't break app startup). Reusing it avoids recreating the device
     /// and recompiling shaders on every frame.
     preview: Mutex<Option<PreviewRenderer>>,
     /// True while a background export is running (prevents concurrent GPU work).
     exporting: Arc<AtomicBool>,
+    /// The live-control listener, and why it is not running if it is not.
+    osc: Mutex<OscRuntime>,
+}
+
+/// Owned by this process, not by the webview: a listener in the UI layer would
+/// put control authority on the wrong side of the IPC boundary.
+struct OscRuntime {
+    port: u16,
+    bridge: Option<OscBridge>,
+    bind_error: Option<String>,
+}
+
+/// The UDP port live control listens on.
+///
+/// `FLUX_OSC_PORT` moves it, which matters because the port has exactly one
+/// owner and `flux osc <port>` uses the same default of 9000.
+fn osc_port() -> u16 {
+    let default = flux_integrations::osc::DEFAULT_RECV_PORT;
+    match std::env::var("FLUX_OSC_PORT") {
+        Ok(raw) => raw.trim().parse::<u16>().unwrap_or_else(|_| {
+            eprintln!(
+                "FLUX_OSC_PORT={:?} is not a port number; listening on {default}",
+                raw
+            );
+            default
+        }),
+        Err(_) => default,
+    }
 }
 
 #[tauri::command]
@@ -282,6 +311,22 @@ fn capabilities() -> serde_json::Value {
     })
 }
 
+/// What the live-control listener knows. Every packet it accepts lands in one
+/// counter, so a fader that appears to do nothing is a number to read rather
+/// than a mystery: `unmapped` means the binding table or the node, `notApplied`
+/// means the engine has no target for that kind yet, `droppedByReceiver` means
+/// the stream outran the rate limiter.
+#[tauri::command]
+fn osc_status(state: tauri::State<AppState>) -> serde_json::Value {
+    let g = state.osc.lock().unwrap();
+    serde_json::json!({
+        "port": g.port,
+        "bound": g.bridge.is_some(),
+        "bindError": g.bind_error,
+        "stats": g.bridge.as_ref().map(|b| b.stats()).unwrap_or(serde_json::Value::Null),
+    })
+}
+
 #[tauri::command]
 fn produce_generator_frame(
     generator_id: String,
@@ -410,12 +455,42 @@ pub fn run() {
         std::process::exit(0);
     }
 
-    let host = CommandHost::new(Project::new("Untitled", 1));
+    let host = Arc::new(Mutex::new(CommandHost::new(Project::new("Untitled", 1))));
+    let port = osc_port();
     tauri::Builder::default()
         .manage(AppState {
-            host: Mutex::new(host),
+            host,
             preview: Mutex::new(None),
             exporting: Arc::new(AtomicBool::new(false)),
+            osc: Mutex::new(OscRuntime {
+                port,
+                bridge: None,
+                bind_error: None,
+            }),
+        })
+        // Start listening for Live. A failure here is recorded and reported by
+        // `osc_status`, never swallowed: an app that silently ignores the faders
+        // is indistinguishable from one that has no listener at all.
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            let state = app.state::<AppState>();
+            let runtime_port = state.osc.lock().unwrap().port;
+            let emit = move |params: &[String], revision: u64| {
+                let _ = app_handle.emit(
+                    "live-control",
+                    serde_json::json!({ "params": params, "revision": revision }),
+                );
+            };
+            match OscBridge::start(runtime_port, state.host.clone(), emit) {
+                Ok(bridge) => {
+                    state.osc.lock().unwrap().bridge = Some(bridge);
+                }
+                Err(e) => {
+                    eprintln!("flux-desktop: OSC listener could not bind port {runtime_port}: {e}");
+                    state.osc.lock().unwrap().bind_error = Some(e.to_string());
+                }
+            }
+            Ok(())
         })
         // The detached monitor is owned by the main editor window. Close it
         // before the editor exits so WebView2 does not leave a helper process
@@ -437,6 +512,7 @@ pub fn run() {
             build_info,
             export_project_cmd,
             capabilities,
+            osc_status,
             produce_generator_frame
         ])
         .build(tauri::generate_context!())

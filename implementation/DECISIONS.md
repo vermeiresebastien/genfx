@@ -448,3 +448,110 @@ Three things fall out of this, and they change the reading of the old evidence.
 - **The sweep got shallower on purpose.** 12 samples became 10 per generator with no percentile
   claim attached. The old rows were 12 samples labelled p50/p95; the label was the problem, not
   the count.
+
+
+## D022 — 2026-11-15 the OSC receive path moved inside the desktop process
+
+`docs/PERFORMANCE-READINESS.md` A1 carried the product's central claim — a fader on Live moves
+a pixel in Flux — as `NOT WIRED`: the desktop opened no socket, and the one command that would
+have applied a control answered `changed: false` unless a `LearnBinding` had first set
+`control_map.graph_id`. Gate A was therefore a wiring job with a hardware step after it, and the
+wiring is what this entry records. A2 (bridge packets silently discarded) closed on the way.
+
+### What was built
+
+One decode entry point. `osc::decode_control` (`crates/integrations/src/osc.rs:47`) tries the
+bridge grammar before the project grammar and returns `OscControl::Bridge(..)`; `OscReceiver`'s
+socket thread calls it, so the discard in A2 is gone for both the CLI and the app.
+`osc::encode_message` (`:237`) exists so a test sends real bytes instead of hand-rolling the
+wire format — an encoder nobody transmits through cannot prove a decoder.
+
+The bridge itself, `control::OscBridge` (`crates/app/src/control.rs:304`), owns an `OscReceiver`
+plus a worker thread. Parameters coalesce latest-wins per `(node, param)` on a 16 ms window, so
+a 1 kHz stream becomes at most ~60 document edits per second per parameter and one undo entry
+per flush; every other kind is applied the moment it arrives, because coalescing a trigger loses
+edges. `OscStats` counts every control that arrives into exactly one bucket, and a bind failure
+is returned rather than logged — the port has one owner and "something else holds 9000" has to
+be reportable.
+
+On the authority side, `CommandHost::apply_live_param` and `apply_live_control`
+(`crates/app/src/commands.rs:250`, `:284`) target `live_target_graph()`, which falls back to
+`active_graph` when nothing was learned, and `control::is_allowed` treats an empty binding table
+as an open surface and a populated one as a whitelist.
+
+The shell starts it in `setup` (`apps/desktop/src-tauri/src/lib.rs:474`) on `FLUX_OSC_PORT` or
+9000, publishes it through `osc_status` (`:320`), and emits `live-control` once per flush. The
+webview's whole participation is one listener that re-pulls the snapshot, at most one pull in
+flight.
+
+### The decision, and the rule it had to satisfy
+
+"Rust is the only authority" (`AGENTS.md`) rules out the obvious shape. A listener in the
+webview, or a `LiveOsc` dispatch triggered by JS on receipt, both put control authority on the
+wrong side of the IPC boundary and make the app a relay for its own document. What was chosen is
+(c): the listener lives in the library, is owned by the process that owns the document, and
+applies through the same `apply_to_dispatcher` path a click uses. The preview already re-reads
+the graph from Rust every frame, so this needed no new render path — only a snapshot re-pull so
+the inspector cannot disagree with the preview about a value that just changed.
+
+### What the tests found, measured
+
+The first version flushed only on the branch that had just received a control. A single fader
+move is a packet followed by silence, so it sat in `pending` forever: five of the seven receive
+tests timed out at their 5-second deadline, one deadlocked on a nested `host.lock()` inside the
+test itself, and only the port-contention test passed. Fixed by flushing on the timeout branch
+(`crates/app/src/control.rs:389`). The whole set now runs in 0.37 s.
+
+Two further failures were bugs in the assertions, and they are recorded because they describe
+behaviour rather than mistakes: the document stores the f32 that came off the wire widened, so
+`0.6f32 as f64 != 0.6`; and a bridge packet increments `notApplied` as well as `bridge`, because
+it genuinely is a control that changed nothing.
+
+Separately measured: `decode_packet` flattens arguments to `f64` and drops non-numerics, so the
+`/transport/seek` packet that `docs/FILE-FORMATS.md` specifies as string-seconds-then-int-denominator
+loses its seconds, reads the denominator as the seconds, and hardcodes `denominator: 1_000_000`.
+That would be a seek to the wrong place with total confidence, so it is pinned by
+`a_seek_packet_cannot_carry_its_seconds` (`crates/integrations/src/tests.rs`) instead of left
+latent.
+
+### Deliberately not claimed
+
+- **bytes → document is not document → pixel.** No frame was rendered by this path in this
+  session and no Max device has sent a packet. A1 moves from `NOT WIRED` to `UNVERIFIED`, which
+  is the honest distance: the code half is closed, the observation half is still a host task.
+- **Transport, seek, trigger, preset and bridge features are counted with a stated reason, not
+  implemented.** Implementing them here would have meant either a JS-owned playhead writing into
+  the document — the authority rule again — or a silent counter. `apply_live_control` names the
+  missing thing per kind and `osc_status.stats.lastReason` carries it to the operator.
+- **Two real gaps stayed gaps.** There is no `Command` variant for a node trigger, and
+  `parse_address` stores the whole address as a `PresetRecall` id while dropping the argument
+  that names the preset. Both are recorded rather than worked around.
+- **`Command::SetParameter` inserts any parameter id without catalog validation**, so a mistyped
+  address produces an inert override plus an undo entry instead of an error. The learned table is
+  the only whitelist. Changing that contract belongs to the domain crate, not to this wiring.
+- **`flux osc <port>` was not repurposed.** It is still a 30-second print-only diagnostic, and it
+  binds the same default port the desktop app now wants; that collision is a trap, so it is in
+  `AGENTS.md`.
+
+### Measured at this tree
+
+`cargo fmt --all -- --check` exit 0. `cargo test --workspace -- --test-threads=1` = **204 passed
+/ 0 failed / 0 ignored across 40 binaries, exit 0** (196 before this change; the +8 are the
+twelve tests in `app/src/control.rs` — seven new UDP loopback tests — plus the integrations seek
+test above, and the pre-existing 14 GPU tests still count a skipped device as a pass).
+`cargo build -p flux-desktop` exit 0, with `app.bundle.js` regenerated by `build.rs` and carrying
+the listener — the page loads the bundle, not `main.js`, so a `main.js`-only change would have
+shipped nothing.
+
+Full CI-parity harness `powershell -NoProfile -ExecutionPolicy Bypass -File
+infrastructure/verify.ps1`: **VERIFY: PASS, exit 0, 17 steps: passed=15 failed=0
+blocked_external=2**, evidence written to `implementation/evidence/verify.json`. The two
+`blocked_external` rows are `link-integration` and `spout-enumeration` (their env vars are unset on
+this host) and they exit 0 regardless — check the third number, not the verdict.
+
+That PASS was not immediate, and the first FAIL is the reason to re-run the harness rather than the
+suite. `fmt` and `unit-tests` were red because of two defects added after the earlier green
+measurements: `rosc::OscType::Str` does not exist (the variant is `String`), which failed the
+compile of the new integrations test and therefore both cargo-test steps, and the new Rust code was
+unformatted. Because `fmt` is the first step, the tree at that moment could not have been merged at
+all, exactly as D019 describes.

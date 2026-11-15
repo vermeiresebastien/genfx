@@ -850,6 +850,27 @@ async function boot() {
     requestPreviews();
   });
 
+  // Live control arrives from Rust, not from a click. Without this the preview
+  // moves (it re-reads the graph from Rust every frame) while the inspector keep
+  // showing the value the fader replaced, so the two halves of one edit disagree.
+  // Rust stays the authority: this only re-pulls the snapshot.
+  //
+  // One pull at a time: commands are serialised in the IPC layer, so a 60 Hz
+  // stream of external edits queued unbounded would put the operator's own
+  // clicks behind the fader that caused them.
+  let pulling = false;
+  const pullSnapshot = () => {
+    if (pulling) return;
+    pulling = true;
+    commands
+      .snapshot()
+      .catch(() => {})
+      .finally(() => {
+        pulling = false;
+      });
+  };
+  listen("live-control", pullSnapshot);
+
   const vp = document.getElementById("viewport");
   vp.addEventListener("contextmenu", onContextMenu);
 

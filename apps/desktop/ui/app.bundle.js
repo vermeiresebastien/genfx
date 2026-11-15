@@ -2748,6 +2748,16 @@
       setStatus("export error: " + (p.message || "unknown"), true);
       requestPreviews();
     });
+    let pulling = false;
+    const pullSnapshot = () => {
+      if (pulling) return;
+      pulling = true;
+      snapshot().catch(() => {
+      }).finally(() => {
+        pulling = false;
+      });
+    };
+    listen("live-control", pullSnapshot);
     const vp = document.getElementById("viewport");
     vp.addEventListener("contextmenu", onContextMenu);
     vp.addEventListener("dragover", (ev) => {

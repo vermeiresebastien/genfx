@@ -95,6 +95,18 @@ them first.
 
 - **Rust is the only authority.** The GUI is a thin `dispatch` client. Do not
   implement validation, rendering, timing or file I/O in `apps/desktop/ui/`.
+  Live control follows the same rule: the OSC listener runs in the Rust process and
+  edits the document through `CommandHost`, and the webview is only told an external
+  edit happened. Do not route received packets through JS, and do not add a second
+  state that the preview reads instead of the document.
+- **A tracked UDP port has exactly one owner.** Flux Desktop binds `9000` at startup
+  (`FLUX_OSC_PORT` moves it); `flux osc 9000` will then fail to bind, and "the fader
+  does nothing" is a port fight rather than a decoder bug. `osc_status` reports
+  `bound`, `bindError` and a counter per outcome.
+- **The webview ships `app.bundle.js`, not `main.js`.** `src-tauri/build.rs` runs
+  `node bundle.mjs` and rewrites the `?v=` hash in `index.html`, and it reports a
+  bundle failure as `cargo:warning` while continuing. A green `cargo build -p
+  flux-desktop` is not proof the UI change shipped: grep the bundle for the symbol.
 - **Exact rational time.** `RationalTime{i64 num, u32 den}`, always reduced,
   numerator serialized as a decimal string. No wall clock in deterministic kernels.
 - **The frame ABI is 96 bytes** and is currently hand-written in three places

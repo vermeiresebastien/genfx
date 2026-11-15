@@ -65,12 +65,19 @@ frame — no wall-clock in evaluation. This is why offline export matches previe
 
 ## Controls
 
-- **OSC**: the receive path (UDP 127.0.0.1:9000) and the apply path
-  (`LiveOsc` → `control::apply_to_dispatcher`) are both implemented, but **nothing
-  connects them**: no code turns a received packet into a `LiveOsc` dispatch, and
-  Flux Desktop opens no UDP listener at all. `flux osc 9000` therefore only prints
-  what it receives for 30 seconds. There is no OSC output path, so nothing is sent
-  back on 9001. See `docs/FILE-FORMATS.md`.
+- **OSC**: the receive path and the apply path are connected inside Flux Desktop since
+  2026-11-15. `flux_app::control::OscBridge` binds `127.0.0.1:9000` (override with
+  `FLUX_OSC_PORT`) when the app starts, coalesces parameter traffic to one document edit
+  per 16 ms window, and applies it as `Command::SetParameter` on the active graph — so a
+  fader on Live's controller is an undoable edit, not a parallel state. The webview never
+  hears the packets; it is told an external edit landed and re-pulls the snapshot. Ask the
+  app what it counted with the `osc_status` IPC command: `bound`, `bindError`, and
+  per-outcome counters (`applied`, `unmapped`, `notApplied`, `bridge`, `droppedByReceiver`).
+  Only `param` addresses change anything; `transport`, `trigger`, `preset` and `bridge`
+  packets are counted and explained, because there is no Rust-owned playhead and no
+  audio analyser to feed. `flux osc 9000` is still a 30-second print-only diagnostic and it
+  holds the same port the app wants — run one or the other, not both. There is no OSC
+  output path, so nothing is sent back on 9001. See `docs/FILE-FORMATS.md`.
 - **MIDI**: CC/note/pitch-bend/pressure/clock are parsed into normalized controls.
   Parsing is tested; no virtual ports exist on Windows, so a real device is needed.
 - **Ableton Link**: `flux link` joins a Link session (tempo, beat, phase, start/stop sync).
