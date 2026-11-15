@@ -1003,10 +1003,13 @@ The run that produced the table was `VERIFY: PASS`, exit 0, `steps: passed=15 fa
 blocked_external=2` — same verdict as D025's, same two blocked steps (`link-integration`,
 `spout-enumeration`).
 
-The table above is the only surviving proof of the defect, because the next refresh — at the commit
-carrying this change — is expected to report `gitDirty: false` for every writer on a tree whose
-`git status` still lists the evidence files it just wrote. That run is the end-to-end confirmation;
-this entry claims the mechanism, which was measured, and not the outcome, which was not.
+The refresh at the commit carrying this change confirms it end to end. `catalog`, `doctor`,
+`test-gpu`, `fixtures` and `verify` all wrote `gitDirty: false` with `gitDirtyScope` beside them,
+while `git status --porcelain` listed five modified files under `implementation/evidence/` — one
+commit, six writers counting the re-run `manifest`, and no disagreement where the old rule produced
+two answers. The table above is what the defect looked like from the inside. The manifest's own row
+still names the previous commit (`e110381` inside a file stamped `97d2ae2`), which is the limitation
+the new note describes rather than one the tool can compute away.
 
 ### Not changed here
 

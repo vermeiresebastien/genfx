@@ -1,7 +1,8 @@
 {
-    "generatedAt":  "2026-11-15T16:15:18.7851922Z",
-    "gitHash":  "e110381",
-    "gitDirty":  true,
+    "generatedAt":  "2026-11-15T16:29:24.5690811Z",
+    "gitHash":  "97d2ae2",
+    "gitDirty":  false,
+    "gitDirtyScope":  "working tree, excluding implementation/evidence/",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  false,
     "ok":  true,

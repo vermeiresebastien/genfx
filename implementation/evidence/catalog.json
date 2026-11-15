@@ -6,14 +6,15 @@
   "duplicates": [],
   "missingImplementation": [],
   "provenance": {
-    "gitHash": "e110381",
-    "gitHashFull": "e1103812c6f2d17d6f0d2b1a1dbe85d39ea43c97",
+    "gitHash": "97d2ae2",
+    "gitHashFull": "97d2ae2179aef83599466daa964b88777f918e79",
     "gitDirty": false,
-    "generatedAtUtc": "2026-11-15T16:14:48Z",
+    "gitDirtyScope": "working tree, excluding implementation/evidence/",
+    "generatedAtUtc": "2026-11-15T16:28:58Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
-      "mtimeUnix": 1794756755,
-      "mtimeUtc": "2026-11-15T15:32:35Z"
+      "mtimeUnix": 1794760137,
+      "mtimeUtc": "2026-11-15T16:28:57Z"
     },
     "host": {
       "os": "windows",
