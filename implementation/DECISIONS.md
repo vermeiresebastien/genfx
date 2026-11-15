@@ -1613,7 +1613,7 @@ owned elsewhere.
 | File | What moved |
 |---|---|
 | `crates/xtask/src/main.rs` | `header_git_hash`, `attribute`, the two-tier loop body, `provenanceSource` in each row, `header_named` in `counts`, the corrected `notes`, the new print line, and `mod evidence_provenance` (7 tests) |
-| `implementation/evidence/manifest.json` | regenerated: the false note is gone, four rows moved to the header tier |
+| `implementation/evidence/manifest.json` | regenerated: the false note is gone, four rows moved to the header tier (a follow-up, `142f7e8`, then tightened the surviving note: it still called the remaining unattributed files "transcripts" when four are PNG captures and one is `diagnostics.json`) |
 | `implementation/STATE.json` | `test_totals.measured` → 214 with the reason; `evidence_manifest` row carries the tier split; the lane-16 sentence about "cannot be credited" is marked superseded, not deleted |
 | `implementation/DECISIONS.md` | this record; D027's and D030's citations of the moved extraction qualified |
 | `docs/PERFORMANCE-READINESS.md` | the evidence row's attribution vocabulary, and a sixth entry in Test totals |
