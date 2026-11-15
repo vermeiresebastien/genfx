@@ -1891,10 +1891,14 @@ reached only when `specVersion`, `generatedBy` or `counts` moves, and nothing ha
 `counts` is the interesting one, since it summarises the very records the per-record loop already
 walks, so the two can disagree and only the top-level arm would say so. The `... and N more`
 truncation has never fired either, because no mutation here produced more than 20 drifts.
-`check_freshness`' exit 2 — the file missing entirely — has no test. All three are read off the
-code, which is what this record is supposed to stop doing. The gate still cannot compare the
-generator to reality: a confident wrong `at_status()` arm regenerates wrong bytes and passes, and
-that residue belongs to `mod evidence_routing`, not to this one.
+[done: D034 drove both — `a_hand_edited_counts_block_is_named` for the summary block, and
+`twenty_five_drifts_are_counted_record_by_record` for the cap, which turned out to report in sorted-id
+order rather than file order. `specVersion` and `generatedBy` reach the same two lines and are still
+unmeasured.] `check_freshness`' exit 2 — the file missing entirely — has no test; the module asserts
+only 0 and 1, which is re-confirmed by reading all eight `check_freshness` assertions in the module.
+Exit 2 is the shape still read off the code, which is what this record is supposed to stop doing. The
+gate still cannot compare the generator to reality: a confident wrong `at_status()` arm regenerates
+wrong bytes and passes, and that residue belongs to `mod evidence_routing`, not to this one.
 
 ### Files changed
 
@@ -2099,11 +2103,17 @@ it moves. The probe panics were reported at `:898` and `:944`, which are line nu
 longer exist; this record cites the `assert!`s at the committed `:897` and `:943` instead, re-read off
 the reverted tree — and `:943` is itself three lines below the `:940` that the probe ran against,
 because this lane's own doc comment landed between them. That is the churn rule biting inside a single
-lane rather than across two, and it is why the number in the paragraph is the one the file says. This record is written at DECISIONS.md `:1919` and below; the deepest line
-any other file cites into it is `:1267`, re-read after the edit. `FINAL-REPORT.md` stays at 290 lines
+lane rather than across two, and it is why the number in the paragraph is the one the file says. This
+record is written at DECISIONS.md `:1923` and below — it was `:1919` when this paragraph was written,
+and the +4 is this sweep's own `[done: D034 …]` annotation landing above it inside D033's record. The
+deepest line cited into this file anywhere in the tree is `:1267`, and it is cited from `:1780` inside
+this file; the only outside citation is `DECISIONS.md:116`, twice, from
+`docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869`, and both sit above every line this sweep edits.
+`FINAL-REPORT.md` stays at 290 lines
 and `docs/PERFORMANCE-READINESS.md` at 1076 — both forced by citations *above* the ones this lane
 edits (`FINAL-REPORT.md:22` → `:151-152`, `STATE.json:157`/`:163` ceilings), so their edits are
-in-place reflows rather than appends. `README.md` stays at 118. `STATE.json` goes 187 → 188: the crash
+in-place reflows rather than appends. `README.md` was 118 lines when this paragraph was written at
+`51bc077`, and is 119 in the follow-up commit below. `STATE.json` goes 187 → 188: the crash
 is a `known_gaps` element, which cannot be folded into a prose field without losing the pointer that
 `test_totals.caveat` now uses, and nothing in the tree cites a STATE.json line deeper than `:163`, so
 the +1 at `:166` re-points nothing — each of those five numbers was read back off the file, not
@@ -2112,3 +2122,38 @@ lane-20 handover are single JSON strings, so writing the `51bc077` run into them
 `test_run_2026_11_14.verify_ps1_full.counts` now says four 18-0-0 runs, and one number in that block
 corrected itself on measurement — `ndi-runtime-loads` filtered 29 tests out at this run, where the row
 had carried 28.
+
+### After the evidence
+
+`4d911c8` carries this lane's run and restamp, and it is not the last word the lane had: five files
+were still dirty behind it, all of them the discharged-claim sweep rather than new measurement.
+
+- D033's "What this does not close" is annotated `[done: D034 …]` in place, its residue kept in the
+  past tense rather than deleted — and one sentence in it corrected on the way. It said "All three are
+  read off the code", counting `check_freshness`'s exit 2 beside the two report branches D034 drove;
+  after the annotation that "all three" read as though the third had been measured too. It now names
+  exit 2 as the one shape still read off the code, backed by counting the module's eight
+  `check_freshness` assertions and finding no `2` among them.
+- `AGENTS.md`'s gate bullet described `--check` as exiting 1 "naming the record and field". After
+  D034 the report has two shapes — per-record `<id>.<field>` rows plus a `counts` row, or one
+  `first differing line is N` — and the bullet says both, plus the sorted-id ordering, because an
+  agent reading only `AGENTS.md` would otherwise expect one line per drift in file order.
+- `README.md:91-94` gained the `51bc077` run; that is its +1 line. The sentence could not stay
+  "each … with `gitDirty false`" once the third run reads `gitDirty true`.
+- `implementation/STATE.json`, twice, both times prose that had stopped matching the runs it lists.
+  The harness block said "In all three, `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` were removed
+  with `env -u`" while the sentence above it had just grown to list four runs; `a91ebda`, the second
+  of them, is the one whose shell is not recorded — no file in `implementation/evidence/` names it
+  (`grep -l a91ebda` there is empty) and `verify.json` keeps only the newest run — so that claim now
+  covers the three that do record a bare shell. And `test_totals.measured` called the 222 "the second
+  invocation", which was true when two runs existed and went stale-by-omission when a third printed
+  the same total; it now says second of three, which only re-reading the field against D034 caught.
+- `docs/PERFORMANCE-READINESS.md`'s CI row carries the fourth **18-0-0** at `51bc077` with the
+  `gitDirty true` cause. `FINAL-REPORT.md` gained nothing here: §0 states totals, not runs.
+
+Measured after those edits, un-piped: `cargo fmt --all -- --check` exit 0, and `cargo run -q -p xtask
+--bin requirements -- --check` exit 0 printing `is fresh` — the gate holding on a tree whose only
+changes are prose. `implementation/STATE.json` parses at 188 lines, `README.md` is 119 with its
+deepest inbound citation at `:60`, `FINAL-REPORT.md` at 290 and `docs/PERFORMANCE-READINESS.md` at
+1 076, and this file is 2 159 lines with the D034 heading at `:1923`, which is the number the churn
+paragraph above now carries rather than the `:1919` it was written with.

@@ -122,8 +122,13 @@ them first.
   rows the strings come from `at_status()` and `at_blocker()`; `blocker_for()` serves the
   requirement and generator rows. Since D032 both harnesses run
   `cargo run -q -p xtask --bin requirements -- --check`: it compares the committed bytes with what
-  the generator would produce and exits 1 naming the record and field, so a hand-edit — or a status
-  that drifted from the arm that is supposed to derive it — reddens CI instead of surviving
+  the generator would produce and exits 1 with up to 20 named rows — `<id>.<field>` for a record,
+  `counts` for the derived summary block (which the per-record loop cannot see, because a
+  summary-only edit changes no id), or one `first differing line is N` when the two sides mean the
+  same thing in different bytes. Rows come out in sorted-id order, not file order, because
+  `records_by_id` is a `BTreeMap`, so a truncation drops the sort-order tail of the drift set rather
+  than the last records in the ledger — D034 measured both shapes. A hand-edit, or a status that
+  drifted from the arm that is supposed to derive it, therefore reddens CI instead of surviving
   silently. Line endings are normalized on both sides for a reason: `core.autocrlf=true` comes from
   the *system* gitconfig on the verifying host, so a fresh clone checks this file out as CRLF while
   the generator emits LF, and an unnormalized byte-compare would report drift on a clean checkout.

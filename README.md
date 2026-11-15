@@ -88,9 +88,10 @@ Link gate looked for the library *inside the directory that variable names*. It 
 vendored candidates and exports the directory it finds, and the run at `7235afd` — clean tree,
 variable removed from the environment — is `17 passed / 0 failed / 0 blocked_external` again. D032's
 18th step, `requirements-freshness`, compares the generated ledger against what its generator
-produces, and the runs at `a91ebda` (D032) and `7adb5e6` (D033) are each `18 passed / 0 failed / 0
-blocked_external` with `gitDirty false`. The two SDK files are gitignored, so a fresh clone — and
-CI — still record 2 blocked steps. See
+produces; `a91ebda` (D032), `7adb5e6` (D033) and `51bc077` (D034) are each `18 passed / 0 failed / 0
+`blocked_external`, the first two with `gitDirty false` and the third true, because D034's own
+decision record was still being written while its gates ran. The two SDK files are gitignored, so a
+fresh clone — and CI — still record 2 blocked steps. See
 `AGENTS.md` § "Traps inside this repo's own verification harness".
 
 ## Live control
