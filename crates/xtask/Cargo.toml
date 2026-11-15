@@ -20,6 +20,8 @@ path = "src/bin/export_shaders.rs"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Only `xtask evidence` uses this, to hash the build artifacts it reports on.
+sha2 = "0.10"
 flux-domain = { path = "../domain" }
 flux-engine = { path = "../engine" }
 flux-catalog = { path = "../catalog" }
@@ -31,4 +33,13 @@ wgpu = { workspace = true }
 [dependencies.naga]
 version = "27"
 features = ["wgsl-in"]
+
+# Only `xtask soak` uses this: peak working set of the process under test. Same version
+# flux-platform already pins, so no new crate enters the lockfile.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Threading",
+] }
 

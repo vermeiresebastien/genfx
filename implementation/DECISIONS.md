@@ -352,13 +352,18 @@ The committed `verify.json` names a later tree: after D021 the harness was re-ru
 `6d2130d`, and the only fields that moved were `generatedAt` and `gitHash` — same
 `VERIFY: PASS`, exit 0, and 15/0/2 counts. That diff is itself the point of recording the
 hash: the file says which tree it speaks for, so a later reader can tell a re-run from a
-stale verdict.
+stale verdict. Two more re-runs have since overwritten it, at `3214caa` (lane 9) and `90d9e59`
+(lanes 10–11), both with the same 15/0/2 verdict — so the field is the only thing that
+distinguishes four different measurements of the same PASS, and the table above is read as
+D020's run, not as today's file.
 
 ### Not changed here
 
 - **`ndi-discovery` still overpromises its name.** It runs `ndi::`, which selects the 2
   tests that prove the DLL loads and discovery does not crash. Renaming the step is a
-  docs-and-labelling job, not a harness-correctness one, so it is left open.
+  docs-and-labelling job, not a harness-correctness one, so it is left open. Left open by
+  this commit, closed by D023 — and the labelling job turned out to have a real defect
+  under it: those 2 tests assert nothing at all when the runtime is absent.
 - **`xtask benchmark --profile X` ignored X** (D019 conclusion 4) — left open by this commit and
   closed by the next one, D021. Nothing in the harness repair changed what the benchmark measured.
 - CI does not consume `verify.json`. `.github/workflows/ci.yml` runs its own steps and
@@ -440,7 +445,7 @@ Three things fall out of this, and they change the reading of the old evidence.
   critical-path render, not frames on glass; that is gate F2 and it is still unmeasured.
 - **Four of the six spec profiles do not exist.** `particles`, `sdf`, `fluid` and `recording`
   (`spec/VERIFICATION.md:139-142`) are not in the table, so naming them is a refusal rather than
-  a measurement. The `BLOCKERS.md:46-47` CPU-producer ceiling is untouched by this change.
+  a measurement. The `BLOCKERS.md:58-59` CPU-producer ceiling is untouched by this change.
 - **`benchmark.json` holds one profile at a time.** Each run overwrites the file, so the 4K row
   above was read from a copy taken before the next run replaced it. Unchanged, because making the
   evidence filename profile-specific is a separate call about what `implementation/evidence/`
@@ -555,3 +560,392 @@ measurements: `rosc::OscType::Str` does not exist (the variant is `String`), whi
 compile of the new integrations test and therefore both cargo-test steps, and the new Rust code was
 unformatted. Because `fmt` is the first step, the tree at that moment could not have been merged at
 all, exactly as D019 describes.
+
+
+## D023 — 2026-11-15 what the NDI step proved, and the command that had never worked
+
+The third lane was a sentence about labelling: *ndi-discovery still names more than its 2
+tests prove, deliberately left open by D020*. Closing it meant measuring what the step
+actually asserts, and under the label were two live defects.
+
+### Measured
+
+All five rows below ran against `target/debug/flux.exe`, 10,262,016 bytes, mtime
+2026-11-15T15:12:19Z, sha256 `db1d915f2e0c9f325f9fba9cc864b35c9aedd3b3172f7fc6cb407f60d6b9f9cf`,
+built with `cargo build -p flux-app --features ndi` — **not** the default-feature build, which
+compiles `ndi` out entirely.
+
+| command | output | exit |
+|---|---|---|
+| `flux ndi` | `0 NDI source(s) found:` | 0 |
+| `flux ndi-loopback` | `resolved advertised source: DESKTOP-MLIF3MV (Flux Loopback 4044)`, `NDI loopback OK: sent 640x360 RGBA, received 640x360 (921600 bytes, nonzero=true)` | 0 |
+| `flux ndi-send FluxE2E12 16` (process A) | `NDI sender 'FluxE2E12' broadcasting 640x360 for 16s` | 0 |
+| `flux ndi-recv FluxE2E12 tmp_ndi` (process B, 6 s later) | `connecting to: DESKTOP-MLIF3MV (FluxE2E12)`, `received 640x360 NDI frame -> tmp_ndi\ndi_frame.png` | 0 |
+| `flux ndi-recv BogusNameHere` while A broadcast | `No source matched …` + `SdkMissing` | **1** |
+| `flux ndi-recv FluxE2E12` after A stopped | `0 NDI sources discovered; nothing to connect to` | **1** |
+
+The received PNG was 108,601 bytes, sha256 `dcccc4401e21c13b8bbc75c45b3fb79cb7ee0e8cece3bb5e6199542db19e9818`.
+Sampled pixels: (0,0) R162 G0 B128 A255, (0,359) R161 G254 B127 A255, (320,180) R33 G127 B127 A255,
+836 distinct colours over a 17-px stride. G ramps top to bottom and B sits at 128 — the gradient
+`cmd_ndi_send` generates, arriving intact. The R values are not reproducible: the sender adds
+`t/8` to R, so this hash dates the run instead of identifying it. Full transcript:
+`implementation/evidence/ndi-2026-11-15.txt`.
+
+### Defect 1 — the gate could pass by being absent
+
+`crates/integrations/src/ndi.rs` contains exactly two tests, and both open with
+
+```rust
+let Some(rt) = NdiRuntime::load() else { return; };
+```
+
+so `Step 'ndi-discovery' { cargo test -p flux-integrations --features ndi ndi:: }` recorded
+`ok: true` on a machine with no NDI runtime while executing **zero assertions**. That is the
+repo's own "a missing prerequisite is `blocked_external`, never a pass" rule broken in a second
+place — D020 fixed how steps are *judged* and never looked at what a step *selects*.
+
+verify.ps1 gained `Test-NdiRuntime`, which walks the same candidate list `ndi.rs` walks
+(`FLUX_NDI_LIB`, NDI 6 Tools, Resolume Arena, then the bare name — `Test-Path` cannot answer a
+PATH-relative lookup, so PATH is walked explicitly) and branches:
+
+- runtime present → `Step 'ndi-runtime-loads'` with the same filter, under a name that says what
+  it proves;
+- runtime absent → `Step 'ndi-feature-compiles'` (`--no-run`), then `Blocked 'ndi-runtime-loads'`
+  with the four candidates named in the reason.
+
+The compile-only step is not decoration: `crates/integrations` sets `default = []`, so on a
+machine without NDI nothing else in CI would ever type-check the `ndi` feature again. Checked
+before running anything: the PowerShell parser reports no errors, and `Test-NdiRuntime` returns
+`True` on this host (`C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll`,
+29,863,120 bytes).
+
+### Defect 2 — `flux ndi-loopback` had never once worked
+
+It called `shim.receiver(&name)` with the **sender's own** name. `ndi_shim_recv_create` forwards
+that straight to `NDIlib_recv_create_v3` as `p_ndi_name`, and NDI advertises sources as
+`{machine} ({sender})`, so the subscription could never match; the receive loop expired after
+40 × 150 ms, the command printed `NDI loopback: no frame received within timeout`, and returned
+`Ok(())`. Every run of that command since it was written failed and reported success.
+
+Fixed by resolving the advertised name through discovery first and subscribing to *that* — the
+sequence `cmd_ndi_recv` already had right, which is what located the bug. The unused `NdiRuntime`
+import inside `cmd_ndi_loopback` was the fingerprint: a same-process receiver needs a runtime
+handle, and this function had imported one and never used it. Then the exit statuses: every
+unfulfilled purpose in `ndi-loopback`, `ndi-send`, `ndi-recv` and `ndi` became
+`ErrorCode::SdkMissing`, which exits 1. `flux ndi` printing an empty list stays exit 0 on
+purpose — finding nothing is an answer; failing to connect is not. The two `1`s in the table
+above are the point of that change: the same two invocations returned `0` before it.
+
+### Documentation corrected against the measurement
+
+Five documents asserted NDI states these runs do not support, all of them phrased in the past
+tense as if they were permanent properties of the product:
+
+- `implementation/BLOCKERS.md:4` said **"Fully working — discovery, send, and receive verified"**
+  and "discovery found **5 live sources**". Today the same command finds 0; that count was the
+  LAN's state on 2026-11-09 (Premiere, the NVIDIA sender, Test Patterns were open). Rewritten to
+  separate what reproduces from what was environmental, and to name the two absent halves: no
+  wgpu→NDI producer, no third-party consumer.
+- `implementation/FINAL-REPORT.md` §6b carried the same headline, and §6 listed the NDI SDK as
+  `blocked_external` when it is installed. Both rewritten. The line deleted from §6b — "2 shim
+  tests pass (load→init→create sender)" — was wrong on its own terms: `ndi_io.rs` has **1** test.
+- `apps/ndi-bridge/README.md:31` claimed cross-process verification with no date and no scope;
+  it now states the fresh result, the advertised-name matching rule (the trap behind defect 2) and
+  what is not proven.
+- `docs/PERFORMANCE-READINESS.md` C4 was already honest — labelled UNVERIFIED, owner EXTERNAL — and
+  only needed its 5-source reading dated and pointed at the new transcript.
+- `crates/integrations/src/lib.rs` set `verified: cfg!(feature = "ndi")` with the limitation
+  "discovery + live send/receive verified (cross-process, **real frame**)", which is what a reader
+  takes as *a Flux frame* — the frame was real NDI video and synthetic content. Now a measured
+  constant with its basis and date in a comment. `live::protocol_status()` said "NDI SDK linked"
+  for a field documented as "availability … on this host"; it now says it answers the build half
+  and points at `flux ndi` for the runtime half.
+- `AGENTS.md` traps section: the overpromise bullet records the repair and generalises the lesson —
+  a CLI that prints a failure and exits 0 is the same defect as a skipped gate counting as a pass.
+
+### Not changed here
+
+- `spout` and `link` still derive `verified` from `cfg!` (`crates/integrations/src/lib.rs:86`,
+  `:114`), the same pattern this entry calls a defect for ndi. Left open deliberately: replacing
+  those booleans means asserting a fresh verdict about paths this lane did not re-measure, and the
+  spout row's own limitation already says the send path fails on this host. Recorded in
+  `implementation/STATE.json` `ci_defects_found_2026_11_14`.
+- `apps/ndi-bridge/ndi_shim.dll` was not rebuilt — 24,064 bytes, mtime 2026-11-09 — so the shim
+  half of these runs is evidence about a six-day-old binary that happens to still be on disk.
+- The `ndi::` filter still excludes `ndi_io::tests::shim_loads_and_initializes`; the shim path is
+  exercised by the CLI commands, not by the harness.
+- `live::discover()` is still a stub, and there is still no wgpu→NDI producer.
+
+
+## D024 — 2026-11-15 provenance moved from prose into the writer, and the soak exists
+
+The second lane was "finish the F-series evidence — the 120 s soak with peak RAM/VRAM, plus
+F1's unfinished half (binary mtime, and the other 25 evidence files naming their commit SHA)".
+Its stated risk profile was "measurement only, can't break anything". The measurement half ran
+against existing code; the F1 half needed a writer change, because the remaining evidence files
+were not *missing* a SHA someone had forgotten to add — most of them have no writer at all that
+adds one.
+
+### F1: provenance is now injected, not remembered
+
+`implementation/FINAL-REPORT.md:146` and `docs/PERFORMANCE-READINESS.md` F1 both rested on the
+same observation: the release CLI every document credited was built on Nov 9, before the
+preview and export paths it was credited with were written. F1's pass criterion — "each evidence
+file names the commit SHA and the binary's mtime" — had been discharged for prose (D019/D020
+recorded hashes in decision text) and not for data.
+
+Doing it per file would have meant editing eight independent `serde_json::json!` payloads in
+`crates/xtask/src/main.rs`. Instead one function does it: `write_evidence()` now merges a
+`provenance` object into every JSON before writing — `gitHash`, `gitHashFull`, `gitDirty`,
+`generatedAtUtc`, and the running binary's own `path`/`mtimeUnix`/`mtimeUtc`, plus host os/arch —
+so all eight xtask writers inherited it from one edit (`crates/domain/src/document.rs` gained
+`utc_from_unix_pub` for the calendar, reusing the existing days-from-civil arithmetic rather than
+adding a chrono dependency).
+
+`gitDirty` is load-bearing, not decoration. A gate that runs *before* its own tree is committed
+names its **parent** commit, which is exactly what happened here: the `verify.json` that run wrote
+carried `gitHash: 3214caa` while HEAD was already `90d9e59`. Without the dirty flag that reads as
+tampering; with it, it reads as a re-run of the harness against the tree it started from. (The file
+has been rewritten since and now names `90d9e59` + `gitDirty: true` — the same shape one commit
+later, because this session keeps verifying before it keeps committing.)
+
+`cargo run -p xtask -- evidence` then audits the directory and writes `manifest.json`: every file
+with bytes, mtime, the SHA it names, a `producer` and an `attribution` of `stamped_current` /
+`stamped_other_commit` / `no_provenance` / `unattributed`, plus sha256 and mtime for the four
+binaries, the rustc version, and `recheckCommand` so the next session can re-ask the question in
+one line. Exit code is nonzero only for a file **xtask owns** that lacks provenance. That scoping
+was found by being wrong first: the initial rule ("any JSON without provenance is a defect")
+flagged `diagnostics.json`, which has no writer in the tree at all — `flux diagnostics` only
+prints — so the tool was demanding that a hand-saved transcript name a commit it never came from.
+The 19 hand-captured `*.txt`/`*.png` files then on disk (20 now, and 29 files in the directory
+rather than 28, because D023's `ndi-2026-11-15.txt` was saved by hand the same way) are therefore
+reported `unattributed`, which is a
+statement about the tool's reach, not a pass.
+
+F1's original wording said "with the git SHA stamped **in the filename**". Superseded: a filename
+can be renamed while the bytes inside stay silent, so the SHA lives in the payload and the
+manifest cross-checks it. F1's *criterion* is met for every file that has a writer; F2 and F4 stay
+open because they need a swapchain and a device, not a stamp.
+
+### The 120 s soak: `xtask soak`
+
+Windows APIs were already vendored for `flux-platform`, so `K32GetProcessMemoryInfo` came from
+the `windows` crate at the version the workspace already resolves (0.62 — no new lockfile entry),
+and GPU memory from `nvidia-smi --query-gpu=memory.used`. The loop runs the same 8-node merging
+chain as `xtask benchmark`, on a wall-clock deadline, discarding 15 warm-up frames, and it keeps
+the memory probes **outside** the per-frame timing windows so a 500 ms Working-Set sample cannot
+appear as frame-time noise.
+
+Two runs of 120 s at `ordinary` (1920×1080, budget 16.67 ms):
+
+| run | timed frames | render median / p95 / p99 / max | frames > budget | WS first → last → peak | device GPU peak |
+|---|---|---|---|---|---|
+| 1 | 24,591 | 1.51 / 3.75 / 4.90 / **17.44** ms | **1** | 207.83 → 219.28 → 221 MiB | 1,248 MiB |
+| 2 | 23,673 | 1.63 / 3.51 / 4.92 / 8.21 ms | 0 | 207.23 → 219.48 → 221.46 MiB | 1,247 MiB |
+
+Growth 11 MiB (5.51 %) and 12 MiB (5.91 %) against `spec/VERIFICATION.md:145`'s 10 % / 64 MiB.
+Three things this says that the run-2 file alone would not:
+
+1. **Run 1's hitch did not reproduce**, and D021's "~6× run-to-run tail" is now confirmed at
+   24,000-frame scale rather than 120-sample scale. Recorded anyway because run 2 *overwrote*
+   run 1's evidence file — a single-name evidence path is a single-slot memory, and the honest
+   fix is to keep both sets in prose, which is what this entry and F5 do.
+2. **120 s cannot settle the leak question.** Both runs ramp ~10.6 MiB in the first 30 s and then
+   add ≈1.1 MiB/min for the remaining 90 s; both end within 0.2 MiB of each other. Two runs of
+   identical duration look like that whether the curve is plateauing near 220 MiB or creeping — the
+   experiment is too short to tell, and if it is a creep, 64 MiB is spent near the 58-minute mark.
+   AT081 asks for 2 h. That is now one command, not a plan.
+3. **The two numbers people will quote are not per-process.** `peakDeviceUsedMiB` is device-wide
+   from `nvidia-smi`, which does not attribute a Vulkan renderer's allocations to Flux; per-process
+   VRAM is written as `{"measured": false, "reason": "no Vulkan-memory telemetry in this build;
+   NVAPI not linked"}`. `presentationMisses` and `audio` are the same shape — the soak opens no
+   device and creates no swapchain, so `dropped()` is never populated and there is no miss counter
+   to read. All three are stated inside the evidence file so a reader cannot meet them as results.
+
+The GPU probe had a live bug in its first version: the `nvidia-smi` check was nested inside the
+500 ms Working-Set block that reset the same timer, so `elapsed()` could never reach 10 s and the
+first smoke run reported `peak: None` for a GPU that was measurably busy. Fixed with independent
+`last_rss` / `last_gpu` clocks; `gpu_probes` now counts *attempts*, so a missing `nvidia-smi` is
+not spawned 24,000 times.
+
+### Measured at this tree
+
+`cargo fmt --all -- --check` exit 0 after this change. The four binaries were rebuilt
+(release CLI + release GUI, debug CLI + debug GUI); sizes, mtimes and sha256 are in
+`implementation/evidence/manifest.json` — the F1 conclusion "the release CLI predates the export
+path" is no longer true of the tree on disk, and is now checkable rather than asserted.
+`soak-ordinary.json` carries the run-2 numbers above with its own provenance block.
+
+### Not changed here
+
+- The four unbuilt spec profiles (`particles`, `sdf`, `fluid`, `recording`) are absent from
+  `BENCH_PROFILES`, so `xtask soak --profile particles` exits 2. Adding a table row would be
+  naming a measurement that has not happened.
+- No 2 h run, no device-bound half of AT081: `dropped()`, scene switches, repeated edits and the
+  external panel are still `blocked_external` in the sense that they need a live session.
+- Evidence files still lack per-run history: writing `soak-ordinary.json` over the previous run is
+  how run 1 was lost. A timestamped filename or an append log would fix it; left open because the
+  manifest already records *when* each file was written, and inventing a second naming scheme for
+  one command is not obviously better than saying so in the decision.
+- `xtask evidence` reports, it does not repair. The hand-captured transcripts — 19 in that entry's
+  own run, 20 now, because `ndi-2026-11-15.txt` was saved the same way — stay `unattributed` until
+  someone re-runs the thing that produced them. Note that a transcript *naming* its commit in prose
+  (this one does: gitHash, binary size, mtime and sha256 in its header) is still `unattributed` to
+  the tool, because `attribution` asks whether the payload carries machine-readable provenance.
+
+## D025 — 2026-11-15 the ledger's `verified` rows were fixed where they are decided: the generator
+
+Lane 3's leftover was stated as "ndi-discovery still names more than its 2 tests prove", and D023
+fixed that inside the harness. Following the same thread one level up found the identical defect
+shape in the status ledger: `implementation/requirements.json` is **generated** (`generatedBy:
+"cargo xtask report (requirements)"`, writer `crates/xtask/src/bin/requirements.rs:174`), and its
+AT060 row asserted `verified` because a `match` arm three hundred lines earlier says so.
+
+### Why editing the JSON would have been the wrong repair
+
+Two acceptance records claimed more than their evidence, in the same way the NDI step did:
+
+| record | at HEAD | after | the gap |
+|---|---|---|---|
+| AT060 — "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior" | `verified` | `implemented_unverified` + blocker | one of four clauses is measured (loopback, re-measured today); release counts, stride/timestamps and the missing-runtime path on a host without NDI are not, and there is still no wgpu→NDI producer |
+| AT063 — "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion" | `verified` | `implemented_unverified` + blocker | `crates/integrations/src/link.rs:249` does assert single-master arbitration, but only inside a `--features link` build, and the AC's Max-transport and seek/loop clauses are asserted by nothing — which is exactly what `BLOCKERS.md:26-35` and `:54-55` had already said. The ledger was the outlier, not the blockers file. |
+
+A hand-edit would have survived until the next `cargo run -p xtask --bin requirements`, i.e. until
+the next gate run. The generator now produces the claim its own evidence supports, and the
+regenerated file diff is **exactly these two records** — every other line byte-identical, which is
+also the only available proof that the generator is deterministic on this tree.
+
+### The `blocker` field got a second job
+
+`record()` already took `blocker: Option<&str>`, but the acceptance loop always passed `None`, so an
+AC could never say *why* it was not verified. `at_blocker(id)` (`crates/xtask/src/bin/requirements.rs:441`)
+is now wired into that loop and carries the missing clause list for both rows. `blocker_for()`
+(product requirements) is untouched.
+
+### The citation blast radius, measured rather than eyeballed
+
+Adding one evidence line to AT060 shifted every citation into `requirements.json` below line 3743 by
++1 — ten of them in `docs/PERFORMANCE-READINESS.md`. Two more (`:3655` for AT050, `:3729` for AT059)
+were already pointing one line above their record when they were written. Rewriting `BLOCKERS.md`'s
+Link entry shifted sixteen more citation instances across `PERFORMANCE-READINESS.md`,
+`DECISIONS.md` and `STATE.json`, and the Rust edits from D022/D023 had already moved four `live.rs`
+ranges.
+
+So a throwaway checker resolved every `path:line` citation across the status docs against the current
+tree and printed the target text — 81 of them at the final check, every one landing on the record or
+key it names (the checker prints `UNRESOLVED`, `OUT OF RANGE` and `BLANK TARGET`, and printed none).
+That is the mechanical part; it does not prove the *sentence* around a citation is still true, which
+is what the next section is for. Line-number citations are cheap to write and expensive to maintain
+in a repo whose status docs are rewritten every session; switching to heading anchors would be the
+fix, and is deliberately not done here so that it stays a decision rather than a side effect.
+
+The same cost decided the *shape* of the `STATE.json` refresh: `verify_ps1_full` was re-measured by
+rewriting single-line string values — `at_head`, `passing_steps`, `current_task`, two
+`commands_to_resume` entries — and renaming one key (`re_run_lane9` → `re_run_lanes`) instead of
+adding keys. `STATE.json` is cited by line from three documents, so a fresh line anywhere in the top
+half would have shifted the dozen citations below it for the second time in one session.
+
+The same sweep was then run against the *code* and *spec* citations in those documents, plus
+`docs/IMPLEMENTATION-ARCHITECTURE.md` and the user guide — 161 of them at the final check — and it
+found wrong ones that predate this session entirely. The leak trip wire was cited three times against
+`spec/VERIFICATION.md` at line 144, and line 144 is **blank**; the 10 % / 64 MiB sentence is `:145`.
+The "Record exact adapter/driver and actual path" requirement was cited as `:134` and `:136` where it
+lives on `:132`. And `IMPLEMENTATION-ARCHITECTURE.md` §3.6 pointed the "a generator must have no
+`source` input" rule at `crates/tests/tests/sweep_catalog.rs`, lines 41–49 — a range that opens on a
+blank line and cuts the predicate in half; the detection and the `needs_source` branch are `:45-62`.
+All of them resolve now, and the checker refuses any citation whose target line is empty, which is
+exactly how the `:144` family would have been caught the day it was written.
+
+Neither checker is committed — they were scratch, and a second unenforced tool would just create a
+new way to look verified. Re-deriving them is two regexes over the six status docs:
+`(?:BLOCKERS|STATE|requirements|FINAL-REPORT|DECISIONS|PERFORMANCE-READINESS)\.(?:md|json):(\d+)(?:-(\d+))?`
+for the internal ones and
+`((?:crates|apps|spec|infrastructure)/[\w./-]+\.(?:rs|md|json|ps1|cjs|toml)):(\d+)(?:-(\d+))?`
+for the code ones, each resolved against the current file, with failure prints for an unresolved
+path, an out-of-range line and a blank target. What makes the check worth re-running is not the
+totals: it is that a record edit in `requirements.json`, `STATE.json` or `BLOCKERS.md` silently
+invalidates every citation below it, and nothing in CI notices.
+
+### Documents that were wrong for reasons the ledger change exposed
+
+- `docs/PERFORMANCE-READINESS.md` **C1** argued that BLOCKERS.md:4 "says NDI Fully working". D023 had
+  already retired that sentence, so the row was attacking a document that no longer said it. Rewritten
+  against current lines (`main.rs:703`/`:558`/`:439`, `live.rs:37-41`, `STATE.json:85-86`,
+  `requirements.json:3743`) and it now says what changed since: the docs, not the code.
+- **A6 "Doc conflict"** used to be a conflict *between* files (BLOCKERS vs requirements vs STATE). The
+  ledger is no longer in the disagreement, so the remaining conflict is inside one object:
+  `STATE.json:77` "supported + verified when built with feature link" against `STATE.json:82`, which
+  already names itself as contradicting :77.
+- **§11 drift rows** for Max bridge, Ableton Link, GUI verified list and `.amxd` re-cited. The GUI
+  row's complaint — "that list predates the node-graph editor" — is no longer true of
+  `STATE.json:93-100`, and the row now says so and points at the residue instead: the only screenshot
+  is `gui-release.png` at 2026-11-09T09:33:05Z, 398,725 bytes, `unattributed`.
+- `FINAL-REPORT.md` **§6a** headline "Ableton Link — supported and verified" → "supported; verified
+  inside a feature build", with a paragraph stating that `link-integration` was `blocked_external` in
+  the current run and the cross-process artifact is from 2026-11-09.
+- `BLOCKERS.md` **Link entry** stopped flattening "single-master is not covered": it *is* covered by a
+  test; a plain build just does not compile it. That distinction is the whole difference between an
+  unverified claim and an unbuildable one.
+- `STATE.json`: `gui_status.release_binary` still said "stale: built 2026-11-10, predates HEAD", which
+  the D024 rebuild overtook — it now defers to `evidence/manifest.json` instead of restating a
+  timestamp; `ableton_link.not_covered` rewritten to name which voice disagrees.
+- `STATE.json` **`verify_ps1_full`**: `at_head` named `75da874` and `passing_steps` credited that run
+  with 149 lib tests. Re-measured at `90d9e59`: 157, and each integration step's count re-taken rather
+  than inherited (producer 6, export_matrix 6, dag_parallel 4, golden 3, `ndi::` 2 of 30).
+- `FINAL-REPORT.md` **§1 and §3** disagreed with the tree in opposite directions. §1 announced a
+  "216-entry catalog" — `flux doctor` says 217, and AGENTS.md has a whole line about every doc that
+  says 216 being stale — so §1 is now explicitly labelled the 2026-11-09 inventory it is, with the
+  current counts next to it. §3 claimed to be the verification commands and listed
+  `cargo test --workspace` with no `--test-threads=1`, `test-gpu` with no profile, and no `fmt` step
+  at all, which is not the CI-parity set: a reader copying that block runs a racy suite and never
+  sees the gate that aborts the real job. It now lists what `verify.ps1` runs.
+
+### Measured at this tree
+
+The ledger rows are prose about tests, so the repair is only honest if the tests were run at the
+tree that carries the repair. All of the following is from this session, at HEAD `90d9e59`:
+
+- `cargo fmt --all -- --check` — exit 0 (`requirements.rs` is the last Rust file touched).
+- `cargo test --workspace -- --test-threads=1` — **204 passed / 0 failed / 0 ignored across 40 test
+  binaries**, exit 0. `docs/PERFORMANCE-READINESS.md` F1 claims that measurement in words, so it had
+  to be re-taken rather than inherited.
+- `infrastructure/verify.ps1` (no `-Quick`) — 17 steps, **passed=15 failed=0 blocked_external=2**,
+  `VERIFY: PASS`, exit 0; `evidence/verify.json` carries `gitHash: 90d9e59`, `gitDirty: true`. The two
+  blocked steps are `link-integration` (`FLUX_ABLETON_LINK_LIB` unset) and `spout-enumeration`
+  (`FLUX_SPOUT_SHIM` unset) — the feature build that AT063's six tests live in is precisely the one
+  this host could not run today, which is what the new `blocker` string says instead of "verified".
+- The per-step counts were re-counted at this head rather than copied from the `75da874` capture:
+  unit-tests **157** (app 34, integrations 27, domain 30, engine 22, catalog 16, audio 14, render 8,
+  media 6 — the +8 over 149 is D022's), producer 6, export_matrix 6, dag_parallel 4, golden 3, and
+  `cargo test -p flux-integrations --features ndi ndi::` **2 passed / 28 filtered out**. Every one of
+  those numbers is an exit-0 run, and `ndi::` selecting 2 of 30 is the whole reason D023 renamed the
+  step.
+- `cargo run -q -p xtask -- evidence` — exit 0: "29 files, 9 name their commit, 20 unattributed, 0
+  missing provenance". 29 and 20, not D024's 28 and 19: `ndi-2026-11-15.txt` is a hand-saved
+  transcript from D023's run, so it joins the `unattributed` group rather than the stamped one.
+- The three read-only gates, re-run for the catalog count because `FINAL-REPORT.md` §1 and §3 still
+  printed **216**: `xtask doctor` → `catalog entries: 217`, `xtask test-gpu --profile baseline` →
+  "test-gpu: compiled 217 shaders, 0 failures", `xtask bin export_shaders` → "wrote 217 shaders …
+  (0 naga failures)". All exit 0. §1's number is now framed as the 2026-11-09 inventory it is, and
+  §3's block was rewritten to the commands CI actually runs (`--test-threads=1`, `--profile
+  baseline`, and `fmt` as the step whose red aborts the rest).
+
+None of that moves a row toward *stronger* evidence. The tree is as CI-green as it was at D024; what
+changed is that two of its ledger rows now claim less, and say which clause is missing.
+
+### Not changed here
+
+- **AT049/AT050 (OSC) stay `verified` on the generator's word.** The AC wants "all declared types" and
+  "scheduled bundle order"; the tree has 7 UDP loopback tests and I did not measure whether they cover
+  those two clauses, so there is no basis to move them in either direction. Recorded so the two
+  changes above are not mistaken for a completed sweep of the ledger.
+- `implementation_paths` and `test_ids` are still empty for every acceptance record, so no claim can be
+  linked to the test that proves it — already a `STATE.json` known gap, still true.
+- `product_paths()` and `blocker_for()` hardcode paths and blockers for the R-rows: the same
+  "generator asserts the claim" shape, not swept.
+- `crates/integrations/src/lib.rs:86` and `:114` still set `verified: cfg!(feature = "spout")` /
+  `cfg!(feature = "link")`, against that function's own documented rule that presence is not
+  verification. Left alone on purpose: those two lines are what `flux integrations` prints, so fixing
+  them is a decision about the command's contract, not a documentation repair.
+- The spec's acceptance text stays one human sentence per AC with one status field, so a four-clause
+  AC can only ever be as verified as its weakest clause. Nothing in the schema expresses partials.

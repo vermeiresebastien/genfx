@@ -11,5 +11,20 @@
     "maxTexture2D": 8192,
     "supportsRgba16fFilter": true,
     "maxUniformBindingSize": 65536
+  },
+  "provenance": {
+    "gitHash": "90d9e59",
+    "gitHashFull": "90d9e597982da4a97159c41a6ba653d0a0c66245",
+    "gitDirty": true,
+    "generatedAtUtc": "2026-11-15T15:56:24Z",
+    "binary": {
+      "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
+      "mtimeUnix": 1794756755,
+      "mtimeUtc": "2026-11-15T15:32:35Z"
+    },
+    "host": {
+      "os": "windows",
+      "arch": "x86_64"
+    }
   }
 }

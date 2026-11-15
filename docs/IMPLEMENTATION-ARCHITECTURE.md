@@ -346,7 +346,7 @@ Tests assert the counts and that every referenced `type_id` exists in the catalo
    be named **`b`** — the executor binds `b` to `aux_tex` and `mask` to `mask_tex`
    (`render/src/graph_exec.rs:361-389`). Generator rows must have **no** `source` input or
    they will be treated as needing an upstream image by the preset builder and the sweep
-   harness (`presets.rs:95-104`, `crates/tests/tests/sweep_catalog.rs:41-49`).
+   harness (`presets.rs:95-104`, `crates/tests/tests/sweep_catalog.rs:45-62`).
 5. **Override `time_model`** if the node is not `Analytic` (`FixedStep` for the
    simulation rows, `CanonicalFrame` for the feedback pair — `utility.rs:170,177`), and
    `loop_status`/`generator_id` for generators (`generators_b.rs:21-22`).

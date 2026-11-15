@@ -25,27 +25,27 @@
   },
   "render_ms": {
     "samples": 120,
-    "median_ms": 1.5926,
-    "mean_ms": 1.7065866666666667,
-    "max_ms": 2.9639,
-    "p95_ms": 2.5864,
-    "p99_ms": 2.777
+    "median_ms": 1.5003,
+    "mean_ms": 1.7392216666666669,
+    "max_ms": 5.313199999999999,
+    "p95_ms": 3.1556,
+    "p99_ms": 5.2357000000000005
   },
   "preview_copy_ms": {
     "samples": 120,
-    "median_ms": 2.5090999999999997,
-    "mean_ms": 2.608847500000001,
-    "max_ms": 4.0465,
-    "p95_ms": 3.3318000000000003,
-    "p99_ms": 3.8299
+    "median_ms": 2.5821,
+    "mean_ms": 2.7533575,
+    "max_ms": 4.5295,
+    "p95_ms": 3.6343,
+    "p99_ms": 4.0858
   },
   "render_plus_copy_ms": {
     "samples": 120,
-    "median_ms": 4.2067,
-    "mean_ms": 4.315434166666667,
-    "max_ms": 6.03,
-    "p95_ms": 5.3505,
-    "p99_ms": 5.7318999999999996
+    "median_ms": 4.1739,
+    "mean_ms": 4.492579166666666,
+    "max_ms": 8.1252,
+    "p95_ms": 6.0974,
+    "p99_ms": 8.055299999999999
   },
   "tail_over_budget": false,
   "execute_errors": 0,
@@ -59,15 +59,15 @@
       "id": "gen.clouds",
       "render": {
         "samples": 10,
-        "median_ms": 0.49779999999999996,
-        "mean_ms": 0.5748499999999999,
-        "max_ms": 0.9711000000000001
+        "median_ms": 0.4526,
+        "mean_ms": 0.5268499999999999,
+        "max_ms": 0.7119
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8496000000000006,
-        "mean_ms": 3.06895,
-        "max_ms": 3.6595000000000004
+        "median_ms": 2.9486999999999997,
+        "mean_ms": 3.0042400000000002,
+        "max_ms": 3.8504
       },
       "execute_errors": 0
     },
@@ -75,15 +75,15 @@
       "id": "gen.concentric",
       "render": {
         "samples": 10,
-        "median_ms": 0.33080000000000004,
-        "mean_ms": 0.37316,
-        "max_ms": 0.5611
+        "median_ms": 0.307,
+        "mean_ms": 0.4457000000000001,
+        "max_ms": 1.1640000000000001
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.6774000000000004,
-        "mean_ms": 2.6947,
-        "max_ms": 3.1614999999999998
+        "median_ms": 2.5656,
+        "mean_ms": 2.86015,
+        "max_ms": 3.678
       },
       "execute_errors": 0
     },
@@ -91,15 +91,15 @@
       "id": "gen.fractal_noise",
       "render": {
         "samples": 10,
-        "median_ms": 0.4536,
-        "mean_ms": 0.46468,
-        "max_ms": 0.5218999999999999
+        "median_ms": 0.4481,
+        "mean_ms": 0.6277900000000001,
+        "max_ms": 1.8721
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8897,
-        "mean_ms": 3.0098599999999998,
-        "max_ms": 4.0155
+        "median_ms": 2.7284,
+        "mean_ms": 3.0317300000000005,
+        "max_ms": 4.7075
       },
       "execute_errors": 0
     },
@@ -107,15 +107,15 @@
       "id": "gen.glowing_wave",
       "render": {
         "samples": 10,
-        "median_ms": 0.3992,
-        "mean_ms": 0.47515999999999997,
-        "max_ms": 0.7755000000000001
+        "median_ms": 0.3033,
+        "mean_ms": 0.42252999999999996,
+        "max_ms": 0.9246
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.1100000000000003,
-        "mean_ms": 3.18089,
-        "max_ms": 3.9931
+        "median_ms": 2.7077,
+        "mean_ms": 2.93264,
+        "max_ms": 3.8228999999999997
       },
       "execute_errors": 0
     },
@@ -123,15 +123,15 @@
       "id": "gen.mesh_gradient",
       "render": {
         "samples": 10,
-        "median_ms": 0.3635,
-        "mean_ms": 0.42998000000000003,
-        "max_ms": 0.6904
+        "median_ms": 0.3382,
+        "mean_ms": 0.63186,
+        "max_ms": 1.8729
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.857,
-        "mean_ms": 2.9635599999999998,
-        "max_ms": 3.7142999999999997
+        "median_ms": 2.9600000000000004,
+        "mean_ms": 3.21759,
+        "max_ms": 4.8435999999999995
       },
       "execute_errors": 0
     },
@@ -139,15 +139,15 @@
       "id": "gen.moire",
       "render": {
         "samples": 10,
-        "median_ms": 0.33799999999999997,
-        "mean_ms": 0.37918,
-        "max_ms": 0.6103000000000001
+        "median_ms": 0.3196,
+        "mean_ms": 0.50279,
+        "max_ms": 1.6907
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.6358,
-        "mean_ms": 2.79868,
-        "max_ms": 3.572
+        "median_ms": 2.6972,
+        "mean_ms": 3.15248,
+        "max_ms": 4.8047
       },
       "execute_errors": 0
     },
@@ -155,15 +155,15 @@
       "id": "gen.nebula",
       "render": {
         "samples": 10,
-        "median_ms": 0.8034,
-        "mean_ms": 0.88777,
-        "max_ms": 1.8029000000000002
+        "median_ms": 0.6702,
+        "mean_ms": 0.8755,
+        "max_ms": 2.2681
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.2561,
-        "mean_ms": 3.5194599999999996,
-        "max_ms": 4.9273
+        "median_ms": 3.0074,
+        "mean_ms": 3.50407,
+        "max_ms": 5.2573
       },
       "execute_errors": 0
     },
@@ -171,15 +171,15 @@
       "id": "gen.pattern_grid",
       "render": {
         "samples": 10,
-        "median_ms": 0.3622,
-        "mean_ms": 0.43894,
-        "max_ms": 0.7451
+        "median_ms": 0.3884,
+        "mean_ms": 0.41556999999999994,
+        "max_ms": 0.6267
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8509,
-        "mean_ms": 3.0191500000000007,
-        "max_ms": 3.689
+        "median_ms": 3.0822000000000003,
+        "mean_ms": 3.2268,
+        "max_ms": 4.4007000000000005
       },
       "execute_errors": 0
     },
@@ -187,15 +187,15 @@
       "id": "gen.water_caustic",
       "render": {
         "samples": 10,
-        "median_ms": 0.4018,
-        "mean_ms": 0.44903999999999994,
-        "max_ms": 0.632
+        "median_ms": 0.32220000000000004,
+        "mean_ms": 0.45901999999999993,
+        "max_ms": 1.4613
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.1484000000000005,
-        "mean_ms": 3.2417000000000002,
-        "max_ms": 4.0461
+        "median_ms": 2.7658000000000005,
+        "mean_ms": 3.00922,
+        "max_ms": 4.0535
       },
       "execute_errors": 0
     },
@@ -203,15 +203,15 @@
       "id": "gen.solid",
       "render": {
         "samples": 10,
-        "median_ms": 0.3567,
-        "mean_ms": 0.47722999999999993,
-        "max_ms": 1.1499
+        "median_ms": 0.3212,
+        "mean_ms": 0.51595,
+        "max_ms": 1.8638000000000001
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8413,
-        "mean_ms": 3.09513,
-        "max_ms": 4.039
+        "median_ms": 2.6032,
+        "mean_ms": 3.0149,
+        "max_ms": 4.4261
       },
       "execute_errors": 0
     },
@@ -219,15 +219,15 @@
       "id": "gen.gradient",
       "render": {
         "samples": 10,
-        "median_ms": 0.3309,
-        "mean_ms": 0.44828,
-        "max_ms": 1.3169
+        "median_ms": 0.3235,
+        "mean_ms": 0.55179,
+        "max_ms": 2.0261
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.6931000000000003,
-        "mean_ms": 2.92357,
-        "max_ms": 3.9228
+        "median_ms": 2.8579,
+        "mean_ms": 3.2481999999999998,
+        "max_ms": 4.8219
       },
       "execute_errors": 0
     },
@@ -235,15 +235,15 @@
       "id": "gen.mesh_gradient_fill",
       "render": {
         "samples": 10,
-        "median_ms": 0.5132,
-        "mean_ms": 0.6469499999999999,
-        "max_ms": 1.2581
+        "median_ms": 0.4086,
+        "mean_ms": 0.42788000000000004,
+        "max_ms": 0.597
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.1132999999999997,
-        "mean_ms": 3.42622,
-        "max_ms": 4.4533
+        "median_ms": 2.7145,
+        "mean_ms": 2.8816,
+        "max_ms": 3.7516
       },
       "execute_errors": 0
     },
@@ -251,15 +251,15 @@
       "id": "gen.noise",
       "render": {
         "samples": 10,
-        "median_ms": 0.4588,
-        "mean_ms": 0.54712,
-        "max_ms": 0.7937000000000001
+        "median_ms": 0.4331,
+        "mean_ms": 0.74335,
+        "max_ms": 2.0542999999999996
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.0468,
-        "mean_ms": 3.325240000000001,
-        "max_ms": 4.6937
+        "median_ms": 2.6766999999999994,
+        "mean_ms": 3.22157,
+        "max_ms": 4.9919
       },
       "execute_errors": 0
     },
@@ -267,15 +267,15 @@
       "id": "gen.voronoi",
       "render": {
         "samples": 10,
-        "median_ms": 0.4929,
-        "mean_ms": 0.55317,
-        "max_ms": 0.8194
+        "median_ms": 0.45849999999999996,
+        "mean_ms": 0.6167399999999998,
+        "max_ms": 1.9375
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.119,
-        "mean_ms": 3.3288799999999994,
-        "max_ms": 4.3103
+        "median_ms": 2.7735,
+        "mean_ms": 3.0133199999999998,
+        "max_ms": 4.626799999999999
       },
       "execute_errors": 0
     },
@@ -283,15 +283,15 @@
       "id": "gen.plasma",
       "render": {
         "samples": 10,
-        "median_ms": 0.3344,
-        "mean_ms": 0.40515999999999996,
-        "max_ms": 0.6005999999999999
+        "median_ms": 0.2883,
+        "mean_ms": 0.34021,
+        "max_ms": 0.5559000000000001
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.028,
-        "mean_ms": 3.07053,
-        "max_ms": 3.7401
+        "median_ms": 2.5154,
+        "mean_ms": 2.76511,
+        "max_ms": 3.5711
       },
       "execute_errors": 0
     },
@@ -299,15 +299,15 @@
       "id": "gen.grid",
       "render": {
         "samples": 10,
-        "median_ms": 0.4551,
-        "mean_ms": 0.48766,
-        "max_ms": 1.0777
+        "median_ms": 0.3227,
+        "mean_ms": 0.5743199999999999,
+        "max_ms": 2.0159000000000002
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8057,
-        "mean_ms": 3.0876799999999998,
-        "max_ms": 3.748
+        "median_ms": 2.9909999999999997,
+        "mean_ms": 3.1788599999999994,
+        "max_ms": 4.7859
       },
       "execute_errors": 0
     },
@@ -315,15 +315,15 @@
       "id": "gen.radial_rays",
       "render": {
         "samples": 10,
-        "median_ms": 0.3586,
-        "mean_ms": 0.37804000000000004,
-        "max_ms": 0.45820000000000005
+        "median_ms": 0.30219999999999997,
+        "mean_ms": 0.36479,
+        "max_ms": 0.7404999999999999
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8879,
-        "mean_ms": 3.00955,
-        "max_ms": 4.1731
+        "median_ms": 2.4974,
+        "mean_ms": 2.7529100000000004,
+        "max_ms": 3.6141
       },
       "execute_errors": 0
     },
@@ -331,15 +331,15 @@
       "id": "gen.interference",
       "render": {
         "samples": 10,
-        "median_ms": 0.3316,
-        "mean_ms": 0.5142,
-        "max_ms": 1.591
+        "median_ms": 0.3071,
+        "mean_ms": 0.33475999999999995,
+        "max_ms": 0.6077
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8445,
-        "mean_ms": 3.15319,
-        "max_ms": 4.4015
+        "median_ms": 2.5374,
+        "mean_ms": 2.6885199999999996,
+        "max_ms": 3.5738
       },
       "execute_errors": 0
     },
@@ -347,15 +347,15 @@
       "id": "gen.pattern_fill",
       "render": {
         "samples": 10,
-        "median_ms": 0.4092,
-        "mean_ms": 0.6006400000000001,
-        "max_ms": 1.9616
+        "median_ms": 0.34650000000000003,
+        "mean_ms": 0.6616299999999999,
+        "max_ms": 1.9621
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.1996,
-        "mean_ms": 3.38369,
-        "max_ms": 4.9562
+        "median_ms": 2.9079,
+        "mean_ms": 3.2877099999999997,
+        "max_ms": 4.7337
       },
       "execute_errors": 0
     },
@@ -363,15 +363,15 @@
       "id": "gen.topographic",
       "render": {
         "samples": 10,
-        "median_ms": 0.6091,
-        "mean_ms": 0.63232,
-        "max_ms": 0.8629
+        "median_ms": 0.4686,
+        "mean_ms": 0.7776399999999999,
+        "max_ms": 2.0513
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.3374,
-        "mean_ms": 3.5327100000000002,
-        "max_ms": 4.665
+        "median_ms": 3.2224,
+        "mean_ms": 3.4427600000000007,
+        "max_ms": 5.1144
       },
       "execute_errors": 0
     },
@@ -379,15 +379,15 @@
       "id": "gen.aurora",
       "render": {
         "samples": 10,
-        "median_ms": 0.6612,
-        "mean_ms": 0.77768,
-        "max_ms": 1.4441
+        "median_ms": 0.6214000000000001,
+        "mean_ms": 0.76655,
+        "max_ms": 1.7787
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.2142,
-        "mean_ms": 3.44739,
-        "max_ms": 4.4992
+        "median_ms": 3.0004,
+        "mean_ms": 3.2375299999999996,
+        "max_ms": 4.1537
       },
       "execute_errors": 0
     },
@@ -395,15 +395,15 @@
       "id": "gen.oscilloscope",
       "render": {
         "samples": 10,
-        "median_ms": 0.38230000000000003,
-        "mean_ms": 0.45908,
-        "max_ms": 0.9389
+        "median_ms": 0.3137,
+        "mean_ms": 0.4844899999999999,
+        "max_ms": 1.3378999999999999
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.0254,
-        "mean_ms": 3.2505700000000006,
-        "max_ms": 4.1356
+        "median_ms": 2.6459,
+        "mean_ms": 2.9010400000000005,
+        "max_ms": 3.9949999999999997
       },
       "execute_errors": 0
     },
@@ -411,15 +411,15 @@
       "id": "gen.caustics",
       "render": {
         "samples": 10,
-        "median_ms": 0.3412,
-        "mean_ms": 0.3956,
-        "max_ms": 0.6957000000000001
+        "median_ms": 0.3271,
+        "mean_ms": 0.5448700000000001,
+        "max_ms": 1.9742000000000002
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.7722,
-        "mean_ms": 2.93597,
-        "max_ms": 3.8153
+        "median_ms": 2.7031,
+        "mean_ms": 3.099990000000001,
+        "max_ms": 4.786300000000001
       },
       "execute_errors": 0
     },
@@ -427,15 +427,15 @@
       "id": "gen.fractal",
       "render": {
         "samples": 10,
-        "median_ms": 0.5246,
-        "mean_ms": 0.53935,
-        "max_ms": 0.7324
+        "median_ms": 0.4531,
+        "mean_ms": 0.75976,
+        "max_ms": 1.997
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.1056999999999997,
-        "mean_ms": 3.23842,
-        "max_ms": 4.1612
+        "median_ms": 2.963,
+        "mean_ms": 3.27954,
+        "max_ms": 4.9047
       },
       "execute_errors": 0
     },
@@ -443,15 +443,15 @@
       "id": "gen.lissajous",
       "render": {
         "samples": 10,
-        "median_ms": 2.0293,
-        "mean_ms": 2.34233,
-        "max_ms": 3.2973999999999997
+        "median_ms": 1.8278,
+        "mean_ms": 1.96874,
+        "max_ms": 2.7807
       },
       "frame": {
         "samples": 10,
-        "median_ms": 5.1998,
-        "mean_ms": 5.35907,
-        "max_ms": 6.753
+        "median_ms": 4.468500000000001,
+        "mean_ms": 4.73078,
+        "max_ms": 5.8022
       },
       "execute_errors": 0
     },
@@ -459,15 +459,15 @@
       "id": "gen.superformula",
       "render": {
         "samples": 10,
-        "median_ms": 0.38939999999999997,
-        "mean_ms": 0.52655,
-        "max_ms": 1.7906
+        "median_ms": 0.29819999999999997,
+        "mean_ms": 0.4671099999999999,
+        "max_ms": 1.7734999999999999
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.8198999999999996,
-        "mean_ms": 3.0822099999999995,
-        "max_ms": 4.6431000000000004
+        "median_ms": 2.5488000000000004,
+        "mean_ms": 2.7807100000000005,
+        "max_ms": 4.1488
       },
       "execute_errors": 0
     },
@@ -475,15 +475,15 @@
       "id": "gen.truchet",
       "render": {
         "samples": 10,
-        "median_ms": 0.39740000000000003,
-        "mean_ms": 0.41669999999999996,
-        "max_ms": 0.6234
+        "median_ms": 0.3473,
+        "mean_ms": 0.5337,
+        "max_ms": 1.8722999999999999
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.0447,
-        "mean_ms": 3.36357,
-        "max_ms": 4.4984
+        "median_ms": 2.9135,
+        "mean_ms": 3.10346,
+        "max_ms": 4.8717
       },
       "execute_errors": 0
     },
@@ -491,15 +491,15 @@
       "id": "gen.texture_field",
       "render": {
         "samples": 10,
-        "median_ms": 0.4133,
-        "mean_ms": 0.4665100000000001,
-        "max_ms": 0.6840999999999999
+        "median_ms": 0.4638,
+        "mean_ms": 0.54277,
+        "max_ms": 0.9491999999999999
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.7781000000000002,
-        "mean_ms": 3.06818,
-        "max_ms": 3.7580999999999998
+        "median_ms": 3.1332999999999998,
+        "mean_ms": 3.40745,
+        "max_ms": 4.4121
       },
       "execute_errors": 0
     },
@@ -507,15 +507,15 @@
       "id": "gen.starfield",
       "render": {
         "samples": 10,
-        "median_ms": 0.3622,
-        "mean_ms": 0.43328000000000005,
-        "max_ms": 0.695
+        "median_ms": 0.3431,
+        "mean_ms": 0.66019,
+        "max_ms": 1.9876999999999998
       },
       "frame": {
         "samples": 10,
-        "median_ms": 2.9154,
-        "mean_ms": 3.2047399999999997,
-        "max_ms": 4.2174
+        "median_ms": 2.8326000000000002,
+        "mean_ms": 3.26176,
+        "max_ms": 4.8938999999999995
       },
       "execute_errors": 0
     },
@@ -523,15 +523,15 @@
       "id": "gen.test_signal",
       "render": {
         "samples": 10,
-        "median_ms": 0.39649999999999996,
-        "mean_ms": 0.46519000000000005,
-        "max_ms": 0.7129000000000001
+        "median_ms": 0.3501,
+        "mean_ms": 0.5366299999999999,
+        "max_ms": 1.4043
       },
       "frame": {
         "samples": 10,
-        "median_ms": 3.0604,
-        "mean_ms": 3.07096,
-        "max_ms": 3.7323999999999997
+        "median_ms": 2.92,
+        "mean_ms": 3.1019799999999997,
+        "max_ms": 4.2829
       },
       "execute_errors": 0
     }
@@ -544,5 +544,20 @@
     "maxTexture2D": 8192,
     "supportsRgba16fFilter": true,
     "maxUniformBindingSize": 65536
+  },
+  "provenance": {
+    "gitHash": "90d9e59",
+    "gitHashFull": "90d9e597982da4a97159c41a6ba653d0a0c66245",
+    "gitDirty": true,
+    "generatedAtUtc": "2026-11-15T14:28:42Z",
+    "binary": {
+      "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
+      "mtimeUnix": 1794752869,
+      "mtimeUtc": "2026-11-15T14:27:49Z"
+    },
+    "host": {
+      "os": "windows",
+      "arch": "x86_64"
+    }
   }
 }

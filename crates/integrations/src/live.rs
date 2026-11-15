@@ -40,7 +40,10 @@ pub trait LiveSink: Send {
     fn stop(&mut self);
 }
 
-/// Availability of a protocol runtime on this host.
+/// Availability of a protocol *in this binary*. `available` answers the build-feature
+/// half only — it is not a runtime probe, so `available: true` next to a machine with no
+/// SDK installed is a statement about compilation. `flux ndi` / `flux integrations` are the
+/// commands that ask the runtime.
 #[derive(Debug, Clone, Serialize)]
 pub struct ProtocolStatus {
     pub protocol: String,
@@ -48,15 +51,16 @@ pub struct ProtocolStatus {
     pub reason: String,
 }
 
-/// Which external protocol runtimes are present. Determined by build features
-/// and, at runtime, by probing the SDK; here we report the compiled-in truth.
+/// Which external protocol runtimes are compiled in. Determined by build features; the
+/// runtime SDK is a separate question this function deliberately does not answer.
 pub fn protocol_status() -> Vec<ProtocolStatus> {
     vec![
         ProtocolStatus {
             protocol: "ndi".into(),
             available: cfg!(feature = "ndi"),
             reason: if cfg!(feature = "ndi") {
-                "NDI SDK linked".into()
+                "feature `ndi` compiled in; the runtime DLL is probed separately by `flux ndi`"
+                    .into()
             } else {
                 "NDI SDK not present at build (feature `ndi` off)".into()
             },

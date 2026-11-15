@@ -1,12 +1,20 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **NDI** (R006, AT060): **Fully working — discovery, send, and receive verified.**
-  NDI Tools v6.3.2 runtime auto-detected. `apps/ndi-bridge/ndi_shim.cpp` is compiled
-  against the official NDI SDK headers (vendored via `ndi-sdk`), so structs are
-  correct. Verified: discovery found 5 live sources; cross-process `flux ndi-send` →
-  `flux ndi-recv` received a real 640×360 frame (`evidence/ndi-io.txt`,
-  `ndi-received-frame.png`). No remaining NDI blocker.
+- **NDI** (R006, AT060): **transport works; the product path does not.** Re-measured
+  2026-11-15 (`evidence/ndi-2026-11-15.txt`): the NDI 6 Tools runtime loads and
+  `NDIlib_initialize` succeeds, `flux ndi` runs discovery, and synthetic 640×360 RGBA
+  frames come back both through a same-process loopback and across two processes
+  (`ndi-send` → `ndi-recv`, 108,601-byte PNG whose sampled pixels match the sent gradient).
+  The 2026-11-09 line here read "**Fully working — discovery, send, and receive verified**"
+  and "discovery found **5 live sources**"; that count was the network's state that
+  afternoon (Premiere, the NVIDIA sender, Test Patterns), not a capability — today the same
+  command finds **0** sources. Two things are still missing and no blocker list should hide
+  them: there is **no wgpu→NDI producer**, so a Flux render is never what gets sent, and no
+  third-party consumer has ever received from Flux (the peer in every run above is Flux's
+  own receiver). `apps/ndi-bridge/ndi_shim.cpp` is compiled against the official NDI SDK
+  headers (vendored via `ndi-sdk`), so structs are correct; `ndi_shim.dll` itself dates from
+  2026-11-09 and was not rebuilt for these runs.
 - **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 (BSD-2) works **send-side**:
   `flux spout-send-dx` broadcasts real frames via a SpoutDX D3D11 sender — 83 frames sent
   (`evidence/spout-send-dx.txt`). Because the SpoutDX DLL form fails to load on this host
@@ -19,8 +27,12 @@
   verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
   evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not
   sold/distributed commercially, so the GPLv2-or-later terms are acceptable (DECISIONS
-  D012). No blocker remains; only "single-master" arbitration and seek/loop assertions are
-  still not covered (AT063 stays `implemented_unverified`).
+  D012). No blocker remains, but the assertions are not all the same strength: single-master
+  arbitration is asserted only by a feature-gated test (`crates/integrations/src/link.rs:249`
+  `single_master_tempo_wins_across_peers`) that a plain build never compiles, and the acceptance
+  test's Max/conditional-transport and seek/loop clauses are asserted by nothing at all. AT063 is
+  therefore `implemented_unverified` in the generated ledger, which the generator itself now says
+  (DECISIONS D025).
 - **Max for Live**: source `.maxpat` devices are now **fully pre-wired** (node.script
   bridge-osc.js + loadbang + all connections) and structural checks pass. Remaining step:
   save each as `.amxd` via Max's GUI *Save As → Max Audio/MIDI Effect* (Max is

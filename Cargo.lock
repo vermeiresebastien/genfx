@@ -5561,7 +5561,9 @@ dependencies = [
  "naga",
  "serde",
  "serde_json",
+ "sha2",
  "wgpu",
+ "windows 0.62.2",
 ]
 
 [[package]]

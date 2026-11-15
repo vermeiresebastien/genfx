@@ -613,6 +613,13 @@ pub fn now_utc_pub() -> String {
     now_utc()
 }
 
+/// RFC3339 UTC for an arbitrary Unix second, so tooling can stamp a file's own
+/// modification time with the same calendar the document uses.
+pub fn utc_from_unix_pub(secs: u64) -> String {
+    let (y, mo, d, h, mi, s) = civil_from_unix(secs as i64);
+    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
+}
+
 fn now_utc() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
@@ -620,8 +627,7 @@ fn now_utc() -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     // RFC3339 UTC without pulling a date library: fixed-epoch fallback if absurd.
-    let (y, mo, d, h, mi, s) = civil_from_unix(secs as i64);
-    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}Z")
+    utc_from_unix_pub(secs)
 }
 
 /// Days-from-civil algorithm (Howard Hinnant), public domain.

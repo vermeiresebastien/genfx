@@ -77,8 +77,26 @@ them first.
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
   D020, which is also when `gitHash` and `counts` were added to it.
-- **Step names overpromise.** `ndi-discovery` runs `ndi::`, which selects 2 tests that only
-  prove the DLL loads and discovery does not crash.
+- **Step names overpromise.** `ndi-discovery` used to run `ndi::`, which selects 2 tests that
+  only prove the DLL loads and discovery does not crash — and both tests `return` early when
+  the runtime cannot be dlopened, so a machine with no NDI recorded that as a *pass*. Renamed
+  to `ndi-runtime-loads` and gated on the runtime DLL's presence 2026-11-15 (D023); the
+  Blocked branch compiles the feature instead of testing it, so `ndi` stays type-checked.
+  The same overpromise is live in `crates/integrations/src/lib.rs`: `spout` and `link` still
+  set `verified: cfg!(feature = …)`, which is exactly what that function's own doc comment
+  forbids. Read the `limitation` string, not the boolean.
+- **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting
+  as a pass.** `flux ndi-loopback` did that for its whole life: it subscribed with the bare
+  sender name, NDI advertises `{machine} ({sender})`, so the match could never happen, the
+  receive loop timed out, and the exit status said success. `ndi-send`/`ndi-recv`/`ndi`
+  behaved the same on a missing runtime. Nonzero now means "this did not happen"; an empty
+  discovery list is still exit 0 because finding nothing is an answer.
+- **`implementation/requirements.json` is generated, so its statuses are code.** The
+  `verified` / `implemented_unverified` strings come from `at_status()` and `blocker_for()` in
+  `crates/xtask/src/bin/requirements.rs`; a hand-edit of the JSON is undone by the next
+  `cargo run -q -p xtask --bin requirements`. When a status overpromises, fix the generator arm
+  (D025 did AT060 and AT063) and expect every line-number citation below the changed record to shift
+  by the number of lines the record grew — re-resolve them rather than eyeballing.
 - **`xtask benchmark` numbers need their labels read.** The three harness defects D019 found were
   fixed 2026-11-15 (D021): `--profile` now selects resolution/budget/graph (`ordinary`, `4k`;
   anything else exits 2), render and preview-copy are timed in separate windows, warm-up is

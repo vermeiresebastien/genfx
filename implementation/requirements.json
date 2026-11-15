@@ -3743,14 +3743,15 @@
       "id": "AT060",
       "title": "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior.",
       "class": "required",
-      "status": "verified",
+      "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
         "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io",
-        "implementation/evidence/ndi-io.txt + ndi-received-frame.png (cross-process send/receive)"
+        "implementation/evidence/ndi-2026-11-15.txt (this run: in-process loopback, cross-process send->recv, negative-case exit codes)",
+        "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)"
       ],
-      "blocker": null
+      "blocker": "loopback clause verified on synthetic frames; release counts, stride/timestamps and missing-runtime behavior unmeasured, and there is no wgpu->NDI path so a Flux render is never what is sent"
     },
     {
       "id": "AT061",
@@ -3782,14 +3783,14 @@
       "id": "AT063",
       "title": "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion.",
       "class": "required",
-      "status": "verified",
+      "status": "implemented_unverified",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable)",
-        "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1)"
+        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` only",
+        "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build)"
       ],
-      "blocker": null
+      "blocker": "peer/tempo/phase/start-stop asserted by feature-gated tests only (no FLUX_ABLETON_LINK_LIB build on this host today); Max transport and seek/loop asserted by nothing, and no real Link host has ever joined"
     },
     {
       "id": "AT064",

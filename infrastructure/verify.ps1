@@ -54,6 +54,23 @@ function Blocked($name, $reason) {
     }
 }
 
+# Does the NDI runtime exist where crates/integrations/src/ndi.rs would look for it?
+# The bare-name candidate is resolved by LoadLibraryW, whose search starts at the test
+# binary's directory (target/debug) and then PATH -- Test-Path cannot answer that, so
+# PATH is walked the same way.
+function Test-NdiRuntime {
+    if ($env:FLUX_NDI_LIB -and (Test-Path -LiteralPath $env:FLUX_NDI_LIB -PathType Leaf)) { return $true }
+    foreach ($p in @(
+            'C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll',
+            'C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll')) {
+        if (Test-Path -LiteralPath $p -PathType Leaf) { return $true }
+    }
+    foreach ($dir in ($env:PATH -split ';' | Where-Object { $_ })) {
+        if (Test-Path -LiteralPath (Join-Path $dir 'Processing.NDI.Lib.x64.dll') -PathType Leaf) { return $true }
+    }
+    return $false
+}
+
 Step 'fmt' { cargo fmt --all -- --check }
 Step 'unit-tests' { cargo test -p flux-domain -p flux-catalog -p flux-engine -p flux-media -p flux-audio -p flux-render -p flux-integrations -p flux-app --lib -- --test-threads=1 }
 if (-not $Quick) {
@@ -78,10 +95,22 @@ if ($env:FLUX_ABLETON_LINK_LIB) {
 } else {
     Blocked 'link-integration' 'FLUX_ABLETON_LINK_LIB unset'
 }
-# NDI discovery — runs when the runtime is discoverable; tests skip cleanly otherwise.
-# Name kept, but it proves only that the DLL loads and discovery does not crash: the
-# ndi:: filter selects 2 tests, nothing more.
-Step 'ndi-discovery' { cargo test -p flux-integrations --features ndi ndi:: }
+# NDI. Renamed 2026-11-15 (D023): it used to be called 'ndi-discovery', which is what the
+# two tests *do*, not what they *prove*. The ndi:: filter selects exactly
+# runtime_loads_and_initializes + discovery_returns_state_without_crash, and both return
+# early when the runtime cannot be dlopened -- so without this gate a machine with no NDI
+# recorded ok:true for a step that ran zero assertions. It also excludes
+# ndi_io::tests::shim_loads_and_initializes, which needs apps/ndi-bridge/ndi_shim.dll, and
+# proves nothing about interop: a discovery count is whatever the network happens to be
+# broadcasting at that minute.
+if (Test-NdiRuntime) {
+    Step 'ndi-runtime-loads' { cargo test -p flux-integrations --features ndi ndi:: }
+} else {
+    # Compile-only, so the feature flag stays type-checked even on a machine that cannot
+    # run it -- a plain build sets default = [] and would otherwise never build ndi at all.
+    Step 'ndi-feature-compiles' { cargo test -p flux-integrations --features ndi --no-run }
+    Blocked 'ndi-runtime-loads' 'NDI runtime DLL absent (FLUX_NDI_LIB unset, no NDI 6 Tools or Resolume Arena install, bare name not on PATH)'
+}
 # Spout2 — runs when the C++ shim DLL is available; test skips cleanly otherwise.
 if ($env:FLUX_SPOUT_SHIM) {
     Step 'spout-enumeration' { cargo test -p flux-integrations --features spout spout:: }
@@ -97,12 +126,18 @@ $blocked = @($results.GetEnumerator() | Where-Object { $_.Value.status -eq 'bloc
 $sha = ''
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($git) { $sha = (& git rev-parse --short HEAD | Select-Object -First 1) }
+# A gate that runs before its own tree is committed names its parent commit, which is how
+# `xtask evidence` came to report a fresh run as stamped_other_commit. Record the state of
+# the working tree so the SHA can be read correctly instead of trusted.
+$dirty = $null
+if ($git) { $dirty = (@(& git status --porcelain).Count -gt 0) }
 
 $evidence = Join-Path $root 'implementation/evidence'
 New-Item -ItemType Directory -Force -Path $evidence | Out-Null
 $payload = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString('o')
     gitHash = $sha
+    gitDirty = $dirty
     rustc = (& rustc --version)
     quick = [bool]$Quick
     ok = $ok

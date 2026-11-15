@@ -1,6 +1,7 @@
 {
-    "generatedAt":  "2026-11-15T14:07:45.7491541Z",
-    "gitHash":  "3214caa",
+    "generatedAt":  "2026-11-15T15:45:24.4051050Z",
+    "gitHash":  "90d9e59",
+    "gitDirty":  true,
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  false,
     "ok":  true,
@@ -72,10 +73,10 @@
                                            "status":  "blocked_external",
                                            "reason":  "FLUX_ABLETON_LINK_LIB unset"
                                        },
-                  "ndi-discovery":  {
-                                        "exit":  0,
-                                        "ok":  true
-                                    },
+                  "ndi-runtime-loads":  {
+                                            "exit":  0,
+                                            "ok":  true
+                                        },
                   "spout-enumeration":  {
                                             "ok":  null,
                                             "skipped":  true,

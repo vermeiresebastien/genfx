@@ -1,0 +1,330 @@
+{
+  "ok": true,
+  "headAtRun": "90d9e59",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "recheckCommand": "cargo run -q -p xtask -- evidence",
+  "counts": {
+    "files": 29,
+    "stamped": 9,
+    "unattributed": 20,
+    "missing_provenance": 0
+  },
+  "missingProvenance": [],
+  "notes": [
+    "mtimeUtc is a date, not a proof of provenance: a copy preserves it and a rebuild changes it for reasons unrelated to the source. The sha256 identifies the file on disk; two compiles of identical source will not hash equal on MSVC, so neither alone names a commit.",
+    "attribution=unattributed means nothing inside the file names a commit. These are hand-saved transcripts with no writer in the tree, including diagnostics.json, which `flux diagnostics` only prints.",
+    "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it."
+  ],
+  "binaries": [
+    {
+      "path": "target/release/flux.exe",
+      "exists": true,
+      "bytes": 8542208,
+      "mtimeUnix": 1794752994,
+      "mtimeUtc": "2026-11-15T14:29:54Z",
+      "sha256": "c856c07fd3818699d16d2960da064087bd5120673251f57344b46bc2cfb24b7b"
+    },
+    {
+      "path": "target/debug/flux.exe",
+      "exists": true,
+      "bytes": 10214400,
+      "mtimeUnix": 1794756765,
+      "mtimeUtc": "2026-11-15T15:32:45Z",
+      "sha256": "25e7f09520f4c293693f077450f09bc589873d414d1f7d0edd5a4031516e395a"
+    },
+    {
+      "path": "target/release/flux-desktop.exe",
+      "exists": true,
+      "bytes": 22444032,
+      "mtimeUnix": 1794753181,
+      "mtimeUtc": "2026-11-15T14:33:01Z",
+      "sha256": "3518a5f8b60059ea970da62f6a78d8fb09c8f6d50e9641c4dc6427cfa23fbf87"
+    },
+    {
+      "path": "target/debug/flux-desktop.exe",
+      "exists": true,
+      "bytes": 23891456,
+      "mtimeUnix": 1794757521,
+      "mtimeUtc": "2026-11-15T15:45:21Z",
+      "sha256": "89797b99d7fe52ae03ed1c2577a2ca1684a9dfd499021be949f630c71d54defe"
+    }
+  ],
+  "files": [
+    {
+      "file": "benchmark.json",
+      "bytes": 12906,
+      "mtimeUnix": 1794752922,
+      "mtimeUtc": "2026-11-15T14:28:42Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "capture.txt",
+      "bytes": 1152,
+      "mtimeUnix": 1794193154,
+      "mtimeUtc": "2026-11-09T02:59:14Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "catalog.json",
+      "bytes": 547,
+      "mtimeUnix": 1794757500,
+      "mtimeUtc": "2026-11-15T15:45:00Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "depth-demo/depth.png",
+      "bytes": 36005,
+      "mtimeUnix": 1794246070,
+      "mtimeUtc": "2026-11-09T17:41:10Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "depth-inference.txt",
+      "bytes": 99,
+      "mtimeUnix": 1794246070,
+      "mtimeUtc": "2026-11-09T17:41:10Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "diagnostics.json",
+      "bytes": 2847,
+      "mtimeUnix": 1794193153,
+      "mtimeUtc": "2026-11-09T02:59:13Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "doctor.json",
+      "bytes": 1331,
+      "mtimeUnix": 1794758165,
+      "mtimeUtc": "2026-11-15T15:56:05Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "effects_contact_sheet.png",
+      "bytes": 55125,
+      "mtimeUnix": 1794188400,
+      "mtimeUtc": "2026-11-09T01:40:00Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "fixtures.json",
+      "bytes": 575,
+      "mtimeUnix": 1794757505,
+      "mtimeUtc": "2026-11-15T15:45:05Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "gui-release.png",
+      "bytes": 398725,
+      "mtimeUnix": 1794216785,
+      "mtimeUtc": "2026-11-09T09:33:05Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "link-a.txt",
+      "bytes": 421,
+      "mtimeUnix": 1794225253,
+      "mtimeUtc": "2026-11-09T11:54:13Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "link-b.txt",
+      "bytes": 421,
+      "mtimeUnix": 1794225254,
+      "mtimeUtc": "2026-11-09T11:54:14Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "manifest.json",
+      "bytes": 9705,
+      "mtimeUnix": 1794757537,
+      "mtimeUtc": "2026-11-15T15:45:37Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "media-export.txt",
+      "bytes": 255,
+      "mtimeUnix": 1794188575,
+      "mtimeUtc": "2026-11-09T01:42:55Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "ndi-2026-11-15.txt",
+      "bytes": 6758,
+      "mtimeUnix": 1794755616,
+      "mtimeUtc": "2026-11-15T15:13:36Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "ndi-discovery-live.txt",
+      "bytes": 403,
+      "mtimeUnix": 1794236151,
+      "mtimeUtc": "2026-11-09T14:55:51Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "ndi-discovery.txt",
+      "bytes": 76,
+      "mtimeUnix": 1794232789,
+      "mtimeUtc": "2026-11-09T13:59:49Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "ndi-io.txt",
+      "bytes": 1350,
+      "mtimeUnix": 1794237732,
+      "mtimeUtc": "2026-11-09T15:22:12Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "ndi-received-frame.png",
+      "bytes": 108905,
+      "mtimeUnix": 1794237707,
+      "mtimeUtc": "2026-11-09T15:21:47Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "package.json",
+      "bytes": 511,
+      "mtimeUnix": 1794752995,
+      "mtimeUtc": "2026-11-15T14:29:55Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "soak-ordinary.json",
+      "bytes": 6653,
+      "mtimeUnix": 1794754077,
+      "mtimeUtc": "2026-11-15T14:47:57Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "spout-registry.txt",
+      "bytes": 1286,
+      "mtimeUnix": 1794238100,
+      "mtimeUtc": "2026-11-09T15:28:20Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "spout-send-dx.txt",
+      "bytes": 167,
+      "mtimeUnix": 1794239258,
+      "mtimeUtc": "2026-11-09T15:47:38Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "spout2-status.txt",
+      "bytes": 1973,
+      "mtimeUnix": 1794239175,
+      "mtimeUtc": "2026-11-09T15:46:15Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "spoutdx-device.txt",
+      "bytes": 36,
+      "mtimeUnix": 1794239158,
+      "mtimeUtc": "2026-11-09T15:45:58Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "test-gpu.json",
+      "bytes": 733,
+      "mtimeUnix": 1794758184,
+      "mtimeUtc": "2026-11-15T15:56:24Z",
+      "gitHash": "90d9e59",
+      "producer": "xtask",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "verify.json",
+      "bytes": 3820,
+      "mtimeUnix": 1794757524,
+      "mtimeUtc": "2026-11-15T15:45:24Z",
+      "gitHash": "90d9e59",
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "stamped_current"
+    },
+    {
+      "file": "vision-inference.txt",
+      "bytes": 1278,
+      "mtimeUnix": 1794246079,
+      "mtimeUtc": "2026-11-09T17:41:19Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "workspace-tests.txt",
+      "bytes": 29768,
+      "mtimeUnix": 1794188543,
+      "mtimeUtc": "2026-11-09T01:42:23Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    }
+  ],
+  "provenance": {
+    "gitHash": "90d9e59",
+    "gitHashFull": "90d9e597982da4a97159c41a6ba653d0a0c66245",
+    "gitDirty": true,
+    "generatedAtUtc": "2026-11-15T16:01:19Z",
+    "binary": {
+      "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
+      "mtimeUnix": 1794756755,
+      "mtimeUtc": "2026-11-15T15:32:35Z"
+    },
+    "host": {
+      "os": "windows",
+      "arch": "x86_64"
+    }
+  }
+}

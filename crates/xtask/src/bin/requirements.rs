@@ -151,7 +151,7 @@ fn main() {
                 "required",
                 status,
                 vec![],
-                None,
+                at_blocker(id),
             );
             rec["evidence_paths"] = json!(ev);
             records.push(rec);
@@ -372,10 +372,11 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             ],
         ),
         "AT060" => (
-            "verified",
+            "implemented_unverified",
             vec![
                 "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io".into(),
-                "implementation/evidence/ndi-io.txt + ndi-received-frame.png (cross-process send/receive)".into(),
+                "implementation/evidence/ndi-2026-11-15.txt (this run: in-process loopback, cross-process send->recv, negative-case exit codes)".into(),
+                "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)".into(),
             ],
         ),
         "AT061" | "AT062" => (
@@ -387,13 +388,16 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         ),
         // Ableton Link: adapter built from upstream; tempo/beat/phase/peer
         // discovery, single-master tempo arbitration, and start/stop propagation
-        // verified across two sessions and two processes. Licensing resolved
-        // (product not sold; DECISIONS D012).
+        // asserted by 6 tests that only exist inside a `link` feature build, which
+        // this host cannot run without FLUX_ABLETON_LINK_LIB. Licensing resolved
+        // (product not sold; DECISIONS D012). The AC's Max-integration and seek/loop
+        // clauses are asserted by nothing, so the record cannot read `verified` —
+        // which is also what implementation/BLOCKERS.md:26-31 already says.
         "AT063" => (
-            "verified",
+            "implemented_unverified",
             vec![
-                "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable)".into(),
-                "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1)".into(),
+                "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` only".into(),
+                "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build)".into(),
             ],
         ),
         "AT052" | "AT053" => (
@@ -428,5 +432,29 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             vec!["crates/tests producer tests (deterministic animated content)".into()],
         ),
         _ => ("implemented_unverified", vec![]),
+    }
+}
+
+/// Which clause of an acceptance test keeps it from `verified`. Only named for
+/// records whose status would otherwise read as a bare `implemented_unverified`
+/// with no explanation; `blocked_external` belongs in `blocker_for` instead.
+fn at_blocker(id: &str) -> Option<&'static str> {
+    match id {
+        // Four clauses in this AC; only the first is measured. The rest need a
+        // host without the NDI runtime, and a consumer that is not our own CLI.
+        "AT060" => Some(
+            "loopback clause verified on synthetic frames; release counts, stride/timestamps and \
+             missing-runtime behavior unmeasured, and there is no wgpu->NDI path so a Flux render \
+             is never what is sent",
+        ),
+        // The 6 link tests do assert single-master arbitration and phase, but only
+        // inside a feature build this host does not run, and no test or evidence
+        // file touches the AC's Max-transport or seek/loop clauses.
+        "AT063" => Some(
+            "peer/tempo/phase/start-stop asserted by feature-gated tests only (no FLUX_ABLETON_LINK_LIB \
+             build on this host today); Max transport and seek/loop asserted by nothing, and no real \
+             Link host has ever joined",
+        ),
+        _ => None,
     }
 }

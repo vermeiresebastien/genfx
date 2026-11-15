@@ -1,0 +1,107 @@
+# provenance (F1): gitHash 90d9e59, working tree DIRTY (17 paths, lane 10/11 work in progress)
+# binary: target/debug/flux.exe, 10,262,016 bytes, mtime 2026-11-15T15:12:19Z,
+#         sha256 db1d915f2e0c9f325f9fba9cc864b35c9aedd3b3172f7fc6cb407f60d6b9f9cf
+# built with: cargo build -p flux-app --features ndi   (NOT the default-feature build)
+# host: Windows 10 19045, RTX 2080 Ti, NDI runtime resolved by crates/integrations/src/ndi.rs
+#       (C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll, 29,863,120 bytes)
+# shim: apps/ndi-bridge/ndi_shim.dll, 24,064 bytes, mtime 2026-11-09 (NOT rebuilt this session)
+# measured: 2026-11-15T15:10Z - 15:13Z, replacing the 2026-11-09 ndi-io.txt hand transcript
+
+--------------------------------------------------------------------------------
+1. Discovery (all four commands below were run against the binary named above)
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi
+NDI runtime initialized; discovering sources (1s)...
+0 NDI source(s) found:
+exit 0
+
+--------------------------------------------------------------------------------
+2. Same-process loopback (sender + receiver in one process)
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi-loopback
+resolved advertised source: DESKTOP-MLIF3MV (Flux Loopback 4044)
+NDI loopback OK: sent 640x360 RGBA, received 640x360 (921600 bytes, nonzero=true)
+exit 0
+
+--------------------------------------------------------------------------------
+3. Cross-process: ndi-send in one process, ndi-recv in a second
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi-send FluxE2E12 16          # process A
+NDI sender 'FluxE2E12' broadcasting 640x360 for 16s
+NDI sender stopped.
+exit 0
+
+$ target/debug/flux.exe ndi-recv FluxE2E12 tmp_ndi     # process B, started ~6s later
+connecting to: DESKTOP-MLIF3MV (FluxE2E12)
+received 640x360 NDI frame -> tmp_ndi\ndi_frame.png
+exit 0
+   # png 108,601 bytes, sha256 dcccc4401e21c13b8bbc75c45b3fb79cb7ee0e8cece3bb5e6199542db19e9818
+   # pixels sampled from the received file: (0,0)=R162 G0   B128 A255
+   #                                       (639,0)=R158 G0   B125 A255
+   #                                       (0,359)=R161 G254 B127 A255
+   #                                       (320,180)=R33 G127 B127 A255
+   # 836 distinct colours over a 17px stride, G ramps 0 -> 254 top to bottom, B ~ 128:
+   # the gradient the sender generates, received intact. The exact R values are NOT
+   # reproducible - the sender adds `t/8` to R, so the hash of this PNG is a date stamp.
+
+--------------------------------------------------------------------------------
+4. Negative cases, which are the point of the exit-code change
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi-recv BogusNameHere tmp_ndi     # while A was broadcasting
+No source matched Some("BogusNameHere"). Available:
+  DESKTOP-MLIF3MV (FluxE2E12)
+flux: FluxError { code: SdkMissing, subsystem: "ndi", message: "ndi-recv: no discovered
+      source matched the requested name" ... }
+exit 1
+
+$ target/debug/flux.exe ndi-recv FluxE2E12 tmp_ndi          # after A had stopped
+flux: FluxError { code: SdkMissing, subsystem: "ndi", message: "ndi-recv: 0 NDI sources
+      discovered; nothing to connect to (start NDI Test Patterns or another sender)" ... }
+exit 1
+
+Before 2026-11-15 both of these printed the failure text and exited 0. `flux ndi` with an
+empty list stays exit 0 on purpose: finding nothing is a result, whereas `ndi-recv` was
+asked to connect and did not.
+
+--------------------------------------------------------------------------------
+What this proves, measured on the current tree
+--------------------------------------------------------------------------------
+- The NDI runtime loads and `NDIlib_initialize` succeeds on this host, and a discovery
+  query runs and returns a list. Today that list contains no third-party sender, so the
+  2026-11-09 record of "5 live sources" (evidence/ndi-discovery-live.txt) was an
+  environment state - Premiere, the NVIDIA sender and the Test Patterns app were open -
+  not a capability, and it does not reproduce unattended.
+- Send and receive reproduce BOTH ways: same-process loopback (921,600 bytes = 640*360*4
+  back with non-zero content) and cross-process (`ndi-send` -> `ndi-recv` into a PNG whose
+  sampled pixels are the sent gradient). So the 2026-11-09 cross-process claim stands; it
+  is no longer the only evidence of it.
+- The harness step formerly named `ndi-discovery` runs `cargo test -p flux-integrations
+  --features ndi ndi::`, which selects exactly two tests
+  (`runtime_loads_and_initializes`, `discovery_returns_state_without_crash`) and asserts
+  nothing more. Both return early when the runtime cannot be dlopened, so on a machine
+  without NDI they used to record ok:true for zero assertions. verify.ps1 now probes the
+  same candidate list ndi.rs walks and writes blocked_external when it finds no DLL, under
+  the honest name `ndi-runtime-loads`. The `ndi::` filter does NOT select
+  `ndi_io::tests::shim_loads_and_initializes`, which is the only harness test touching the
+  shim.
+- The fix that made the loopback work: `cmd_ndi_loopback` used to hand the sender's own
+  name to `ndi_shim_recv_create`, which passes it to `NDIlib_recv_create_v3` as
+  `p_ndi_name`. NDI advertises "{machine} ({sender})", so the subscription could never
+  match; the loop timed out after 40 x 150 ms and the command still exited 0. Every run of
+  that command before 2026-11-15 printed a failure and reported success to whatever watched
+  the exit code. `cmd_ndi_recv` never had the bug - it subscribes to the discovered name -
+  which is what located it.
+
+--------------------------------------------------------------------------------
+What this does NOT prove
+--------------------------------------------------------------------------------
+- No Flux engine frame ever crossed this path. Both patterns are generated in
+  `cmd_ndi_loopback` / `cmd_ndi_send` in crates/app/src/main.rs. There is still no
+  wgpu -> NDI producer, so the product cannot broadcast a render. Listed in
+  implementation/STATE.json known_gaps.
+- Interoperability with a named third-party consumer (Resolume, TouchDesigner, an NDI
+  receiver app) is not shown: the peer here is Flux's own receiver, on one machine, over
+  loopback.
+- Nothing here is a performance result. 30 fps was the sender's own sleep, not a budget,
+  and `ndi_shim.dll` was not rebuilt since 2026-11-09, so the shim half of these paths is
+  evidence about a 6-day-old binary that happens to still be on disk.

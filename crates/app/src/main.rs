@@ -408,13 +408,32 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
         // End-to-end NDI video pipeline proof: create a sender AND a receiver in
         // one process, send a known RGBA gradient, receive it back, and confirm
         // dimensions + non-empty content. Self-contained (no third-party sender).
+        //
+        // The runtime is loaded and initialised first so that the shim's dependency on
+        // `Processing.NDI.Lib.x64.dll` resolves to the module already in the process
+        // rather than a second copy — same order `flux ndi-recv` uses.
+        let missing = |what: &str| {
+            FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "ndi",
+                format!("ndi-loopback: {what}"),
+            )
+        };
+        let Some(rt) = NdiRuntime::load() else {
+            println!("NDI runtime not found.");
+            return Err(missing("NDI runtime absent"));
+        };
+        if !rt.initialize() {
+            println!("NDI runtime failed to initialize.");
+            return Err(missing("NDIlib_initialize failed"));
+        }
         let Some(shim) = NdiShim::load() else {
             println!("ndi_shim.dll not found (build apps/ndi-bridge).");
-            return Ok(());
+            return Err(missing("ndi_shim.dll absent"));
         };
         if !shim.initialize() {
             println!("NDI shim failed to initialize.");
-            return Ok(());
+            return Err(missing("shim initialize failed"));
         }
         let name = format!("Flux Loopback {}", std::process::id());
         let (w, h) = (640u32, 360u32);
@@ -431,15 +450,39 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
         let Some(sender) = shim.sender(&name, w, h) else {
             println!("failed to create NDI sender");
             shim.shutdown();
-            return Ok(());
+            return Err(missing("NDI sender creation failed"));
         };
-        // Give the sender a moment to advertise, then connect a receiver to it.
+        // Give the sender a moment to advertise, then resolve the name the runtime
+        // actually publishes. NDI advertises `{machine} ({sender})` and
+        // `ndi_shim_recv_create` hands its argument straight to
+        // `NDIlib_recv_create_v3` as `p_ndi_name` with no lookup, so subscribing with
+        // the sender's own name can never match — which is why this command could only
+        // ever report "no frame received". `flux ndi-recv` resolves by discovery; this
+        // now does the same.
         std::thread::sleep(std::time::Duration::from_millis(800));
-        let Some(recv) = shim.receiver(&name) else {
+        let sources = rt.discover(true, 1500);
+        let Some(advertised) = sources
+            .iter()
+            .find(|s| s.name.contains(name.as_str()))
+            .map(|s| s.name.clone())
+        else {
+            println!(
+                "NDI loopback: own sender {name:?} did not appear in discovery ({} source(s) seen)",
+                sources.len()
+            );
+            for s in &sources {
+                println!("  {}", s.name);
+            }
+            drop(sender);
+            shim.shutdown();
+            return Err(missing("own sender not discovered"));
+        };
+        println!("resolved advertised source: {advertised}");
+        let Some(recv) = shim.receiver(&advertised) else {
             println!("failed to create NDI receiver for own sender");
             drop(sender);
             shim.shutdown();
-            return Ok(());
+            return Err(missing("NDI receiver creation failed"));
         };
         // Pump frames (sender must keep sending while the receiver waits).
         let mut got = None;
@@ -460,6 +503,9 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
         drop(recv);
         drop(sender);
         shim.shutdown();
+        // `rt.shutdown()` is deliberately not called: it would run `NDIlib_destroy` on
+        // the one runtime instance shared with the shim, and the shim has already
+        // finalized. A second destroy is not something to rely on being harmless.
         match got {
             Some(f) => {
                 let nonzero = f.rgba.iter().any(|&b| b != 0);
@@ -473,7 +519,10 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
                     nonzero
                 );
             }
-            None => println!("NDI loopback: no frame received within timeout"),
+            None => {
+                println!("NDI loopback: no frame received within timeout");
+                return Err(missing("no frame reached the receiver"));
+            }
         }
         Ok(())
     }
@@ -488,24 +537,28 @@ fn cmd_ndi_send(args: &[String]) -> FluxResult<()> {
     #[cfg(feature = "ndi")]
     {
         use flux_integrations::ndi_io::NdiShim;
+        let missing = |what: &str| {
+            FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "ndi",
+                format!("ndi-send: {what}"),
+            )
+        };
         let name = args
             .get(1)
             .cloned()
             .unwrap_or_else(|| "Flux Test Sender".into());
         let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(10);
         let Some(shim) = NdiShim::load() else {
-            println!("ndi_shim.dll not found (build apps/ndi-bridge).");
-            return Ok(());
+            return Err(missing("ndi_shim.dll not found (build apps/ndi-bridge)"));
         };
         if !shim.initialize() {
-            println!("NDI shim failed to initialize.");
-            return Ok(());
+            return Err(missing("NDI shim failed to initialize"));
         }
         let (w, h) = (640u32, 360u32);
         let Some(sender) = shim.sender(&name, w, h) else {
-            println!("failed to create NDI sender");
             shim.shutdown();
-            return Ok(());
+            return Err(missing("failed to create NDI sender"));
         };
         println!(
             "NDI sender '{}' broadcasting {}x{} for {}s",
@@ -546,21 +599,27 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
     {
         use flux_integrations::ndi::NdiRuntime;
         use flux_integrations::ndi_io::NdiShim;
+        let missing = |what: &str| {
+            FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "ndi",
+                format!("ndi-recv: {what}"),
+            )
+        };
         // Discover sources, connect to one (by name substring or index), grab a
         // frame, and write it as PNG. Proves real NDI receive end-to-end.
         let Some(rt) = NdiRuntime::load() else {
-            println!("NDI runtime not found.");
-            return Ok(());
+            return Err(missing("NDI runtime not found"));
         };
         if !rt.initialize() {
-            println!("NDI runtime failed to initialize.");
-            return Ok(());
+            return Err(missing("NDI runtime failed to initialize"));
         }
         let sources = rt.discover(true, 1500);
         rt.shutdown();
         if sources.is_empty() {
-            println!("No NDI sources found. Start NDI Test Patterns or another sender.");
-            return Ok(());
+            return Err(missing(
+                "0 NDI sources discovered; nothing to connect to (start NDI Test Patterns or another sender)",
+            ));
         }
         let want = args.get(1).cloned();
         let chosen = match &want {
@@ -575,21 +634,18 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
             for s in &sources {
                 println!("  {}", s.name);
             }
-            return Ok(());
+            return Err(missing("no discovered source matched the requested name"));
         };
         println!("connecting to: {}", src.name);
         let Some(shim) = NdiShim::load() else {
-            println!("ndi_shim.dll not found (build apps/ndi-bridge).");
-            return Ok(());
+            return Err(missing("ndi_shim.dll not found (build apps/ndi-bridge)"));
         };
         if !shim.initialize() {
-            println!("NDI shim failed to initialize.");
-            return Ok(());
+            return Err(missing("NDI shim failed to initialize"));
         }
         let Some(recv) = shim.receiver(&src.name) else {
-            println!("failed to create NDI receiver");
             shim.shutdown();
-            return Ok(());
+            return Err(missing("failed to create NDI receiver"));
         };
         // Wait up to ~5s for the first frame.
         let mut frame = None;
@@ -621,7 +677,9 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
                     path.display()
                 );
             }
-            None => println!("no frame received within timeout (source may be idle)"),
+            None => {
+                return Err(missing("no frame received within 5s (source may be idle)"));
+            }
         }
         Ok(())
     }
@@ -786,13 +844,22 @@ fn cmd_ndi() -> FluxResult<()> {
     #[cfg(feature = "ndi")]
     {
         use flux_integrations::ndi::NdiRuntime;
+        // A runtime that cannot be loaded or initialized is a missing prerequisite, not a
+        // result: exit nonzero so `flux ndi` cannot be read as "NDI works here, it just
+        // found nothing". An empty source list *is* a result and still exits 0.
         let Some(rt) = NdiRuntime::load() else {
-            println!("NDI runtime not found (set FLUX_NDI_LIB to Processing.NDI.Lib.x64.dll).");
-            return Ok(());
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "ndi",
+                "ndi: NDI runtime not found (set FLUX_NDI_LIB to Processing.NDI.Lib.x64.dll)",
+            ));
         };
         if !rt.initialize() {
-            println!("NDI runtime present but failed to initialize.");
-            return Ok(());
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "ndi",
+                "ndi: runtime present but NDIlib_initialize failed",
+            ));
         }
         println!("NDI runtime initialized; discovering sources (1s)...");
         let sources = rt.discover(true, 1000);

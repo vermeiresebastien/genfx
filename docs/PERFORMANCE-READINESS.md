@@ -67,14 +67,16 @@ Established by reading the integration code, not the status files.
    `apps/desktop/ui/main.js` listens for the `live-control` event and nothing else
    integration-shaped. Every other integration is reachable only through the `flux` CLI.
 2. **The CLI's integration commands send and receive synthetic test patterns, not Flux's
-   render.** `flux ndi-send` broadcasts a `fill_gradient` at a hardcoded 640×360
-   (`crates/app/src/main.rs:504`, `:516-520`); `flux spout-send-dx` does the same
-   (`crates/app/src/main.rs:645`, `:652-661`). `live.rs:37-41` defines `trait LiveSink` and
+   render.** `flux ndi-send` broadcasts an inline 640×360 animated gradient
+   (`crates/app/src/main.rs:536`, loop at `:568`-`:578`); `flux ndi-loopback` builds the same
+   pattern in the same way (`:403`, `:440`); `flux spout-send-dx` calls `fill_gradient` at the
+   same hardcoded size (`crates/app/src/main.rs:694`, `:710` and `:716`).
+   `live.rs:37-41` defines `trait LiveSink` and
    `live.rs:28-34` defines `trait LiveSource`; **neither trait has a single implementor in the
    tree.** So no code path exists that moves a rendered wgpu frame to NDI or Spout.
 3. **`flux osc <port>` is still a 30-second print-only listener, and it is now the *second*
-   OSC listener.** `crates/app/src/main.rs:865-883`: it binds, prints each decoded `OscControl`
-   to stdout, and exits at `as_secs() < 30` (line 873). It never touches a `Dispatcher`, a
+   OSC listener.** `crates/app/src/main.rs:932`-`:950`: it binds, prints each decoded `OscControl`
+   to stdout, and exits at `as_secs() < 30` (line 940). It never touches a `Dispatcher`, a
    project, or a frame — the desktop process does that now (see the status note above), which
    makes this command a diagnostic and not the feature. It shares `OscReceiver`, so it also
    inherited bridge-packet decoding. The function that *was* supposed to convert controls into
@@ -160,7 +162,7 @@ The hardware step is real, but it comes after a code step, and this document say
   (`crates/integrations/src/osc.rs:324`). There is no UDP socket that ever sends.
   `apps/max-for-live/flux-audio-bridge.maxpat:206` sets `"oscreceiveudpport" : 0` — the patch
   has no receive port open either. Feedback loop protection (AT050, marked `verified` in
-  `implementation/requirements.json:3655`) therefore protects a channel that carries no traffic.
+  `implementation/requirements.json:3620`) therefore protects a channel that carries no traffic.
 - **Shortest procedure.** After implementing: bind a listener in Live, move a Flux slider, check
   a packet arrives once (not per-frame) and that Flux does not react to its own feedback.
 - **Pass.** Exactly one `/flux/v1/project/…/param/…` per committed edit; no echo loop.
@@ -215,9 +217,9 @@ The hardware step is real, but it comes after a code step, and this document say
 - **Unproven.** That `flux link` runs at all on this machine right now.
   `crates/integrations/Cargo.toml:24-25` sets `default = []`; `crates/app/Cargo.toml:33`
   sets `default = []`. `link` is compiled **out** of any build that does not pass
-  `--features link` plus `FLUX_ABLETON_LINK_LIB` (`implementation/STATE.json:36`).
+  `--features link` plus `FLUX_ABLETON_LINK_LIB` (`implementation/STATE.json:72`, `:83`).
   `live::protocol_status()` reports `available: cfg!(feature = "link")`
-  (`crates/integrations/src/live.rs:82-90`) — so the binary's own report is the truth here,
+  (`crates/integrations/src/live.rs:86-94`) — so the binary's own report is the truth here,
   and the Nov 9 evidence (`implementation/evidence/link-a.txt`, 421 bytes, `peers` crossing 0→1)
   came from a *separately built* feature binary, not from `target\release\flux.exe`.
   Even in a feature build, Link is a standalone session in the CLI: it is not connected to the
@@ -232,13 +234,21 @@ The hardware step is real, but it comes after a code step, and this document say
 - **Failure looks like.** Flux never sees Live as a peer (multicast blocked — note `live.rs`
   binds loopback-oriented paths), or Flux's beat drifts a constant quarter off (phase anchor),
   or Live changes tempo and Flux holds its old value.
-- **Doc conflict.** `implementation/BLOCKERS.md:18-23` calls Link "supported integration —
-  built from upstream and verified locally" with "no blocker remains", and marks AT063
-  `verified` (`implementation/requirements.json:3782`). `implementation/STATE.json:35` also
-  lists "single-master tempo arbitration" as *verified*, while `BLOCKERS.md:22-23` and
-  `BLOCKERS.md:43` say it is *not covered*. Those two files disagree with each other. Neither
-  claims real-Live interop, and no evidence file contains Live's name. Treat "verified" here as
-  "two Flux processes found each other".
+- **Doc conflict, half-resolved 2026-11-15.** `implementation/BLOCKERS.md:26-35` calls Link
+  "supported integration — built from upstream and verified locally" but ends with "only
+  'single-master' arbitration and seek/loop assertions are still not covered (AT063 stays
+  `implemented_unverified`)", and `BLOCKERS.md:54-55` repeats it. The ledger used to disagree:
+  the generator arm asserted AT063 `verified`. It now emits
+  `implemented_unverified` with the uncovered clauses in the record's `blocker`
+  (`implementation/requirements.json:3783`, generator at
+  `crates/xtask/src/bin/requirements.rs:396` and `:453`), so BLOCKERS, STATE.json and the ledger
+  say the same thing for the first time. What is still *not* a single voice: `STATE.json:77`
+  keeps "supported + verified when built with feature link", and `STATE.json:82` names that as the
+  contradiction. Neither claims real-Live interop, and no evidence file contains Live's name — the
+  6 link tests, including `single_master_tempo_wins_across_peers`, only exist inside a `link`
+  feature build, which this host did not run today (`FLUX_ABLETON_LINK_LIB` unset, so the
+  `link-integration` step is `blocked_external`). Treat "verified" here as "two Flux processes
+  found each other".
 
 ### A7 — The SSL 2 ASIO single-client conflict, and what it actually costs Flux. UNVERIFIED. Owner: ALONE
 - **Unproven.** Everything about Flux's audio input on this interface — because there is no
@@ -248,7 +258,7 @@ The hardware step is real, but it comes after a code step, and this document say
   The routes available in code today are: **none.** `crates/platform/src/lib.rs:169-170`
   enumerates `eCapture` and `eRender` WASAPI endpoints — enumeration only, there is no
   activation, no `IAudioClient`, no `GetNextPacketSize`, nothing that returns samples.
-  `implementation/BLOCKERS.md:39-41` frames this as "live frame/audio *capture* needs a device
+  `implementation/BLOCKERS.md:51-53` frames this as "live frame/audio *capture* needs a device
   + OS permission, which this headless run could not exercise". **The code says something
   narrower: no capture code exists to exercise.** `implementation/requirements.json:62` (R005,
   `pending`, blocker "capture adapters implemented; device enumeration verified, live capture
@@ -287,7 +297,8 @@ The hardware step is real, but it comes after a code step, and this document say
 ### B1 — `.amxd` bytes do not exist. BLOCKED-ON-GUI, not on hardware. Owner: ALONE (he has Live 12)
 - **Unproven.** That either device loads in Live at all. The tree ships
   `apps/max-for-live/flux-audio-bridge.maxpat` and `flux-midi-bridge.maxpat`;
-  `implementation/STATE.json:24` is honest: "`.amxd` bytes need a Max host (external)".
+  `implementation/STATE.json:68` is honest: "no .amxd exists; packaging needs a Max host
+  (external)".
   `implementation/requirements.json:27` keeps R002 at `pending` — the correct status, and
   `spec/START-HERE.md:89` forbids raising it without the bytes.
 - **Exact manual procedure.** From `apps/max-for-live/README.md:48-52`, corrected for the real tree:
@@ -349,7 +360,7 @@ The hardware step is real, but it comes after a code step, and this document say
   are mandatory.**" The patch uses `udpsend` (`flux-audio-bridge.maxpat:4` occurrences) with
   `bridge-osc.js` doing hand-rolled OSC packing (`apps/max-for-live/bridge-osc.js:18` documents
   its own type table; `:57` `sock.send`). The desktop-side decoder is `rosc`
-  (`crates/integrations/Cargo.toml` `rosc = "0.11"`), and `implementation/requirements.json:3756`
+  (`crates/integrations/Cargo.toml` `rosc = "0.11"`), and `implementation/requirements.json:3757`
   keeps AT061 at `implemented_unverified`. The only round-trip evidence in the tree is
   Rust→Rust (`crates/integrations/src/tests.rs:8`), not Max→Rust.
 - **Shortest procedure.** With the packaged device running in Live and
@@ -404,15 +415,19 @@ The hardware step is real, but it comes after a code step, and this document say
 ### C1 — Neither sender can carry Flux's output. NOT WIRED. Owner: ALONE (code) — this is the real blocker
 - **Unproven.** That a VJ app ever sees a Flux frame. `flux spout-send-dx` and `flux ndi-send`
   both emit a synthetic animated gradient at hardcoded 640×360
-  (`crates/app/src/main.rs:645` and `:504`). `trait LiveSink` (`crates/integrations/src/live.rs:37-41`)
-  has no implementor. There is no wgpu→shared-texture→sender path anywhere.
-  `implementation/BLOCKERS.md:4` says "NDI … **Fully working — discovery, send, and receive
-  verified**" and `implementation/requirements.json:3743` marks AT060 `verified`.
-  **Both are describing the transport shim, not Flux's output.** Verified claim vs. code:
-  code is authoritative — the verified thing is "a Rust process pushed a gradient through an
-  NDI DLL and another Rust process got it back". Treat every NDI/Spout "VERIFIED" in
-  `implementation/STATE.json:38-39` and `implementation/FINAL-REPORT.md:6` (§5 headline) as
-  "shim works, Flux frames do not".
+  (`crates/app/src/main.rs:703` and `:558`; the same-process loopback sender at `:439`).
+  `trait LiveSink` (`crates/integrations/src/live.rs:37-41`) has no implementor. There is no
+  wgpu→shared-texture→sender path anywhere.
+  **What changed since this row was written is the docs, not the code.**
+  `implementation/BLOCKERS.md:4-17` now reads "**transport works; the product path does not**"
+  (D023), and `implementation/requirements.json:3743` records AT060 as
+  `implemented_unverified` with the unproven clauses in its `blocker` — a status the generator
+  asserts (`crates/xtask/src/bin/requirements.rs:374` and `:445`), because editing that JSON by
+  hand would only be overwritten. What *is* verified is the transport: "a Rust process pushed a
+  gradient through an NDI DLL and another Rust process got it back", re-measured 2026-11-15 in
+  `implementation/evidence/ndi-2026-11-15.txt`. Read every remaining NDI/Spout "VERIFIED" in
+  `implementation/STATE.json:85-86` and `implementation/FINAL-REPORT.md` §6b as "shim works, Flux
+  frames do not".
 - **Shortest procedure.** First write the frame pump (a `LiveSink` fed from the existing render
   device), then: `flux-desktop` with a plasma graph, Spout enabled, and Resolume Arena (or
   any free Spout receiver) on the same machine.
@@ -422,15 +437,15 @@ The hardware step is real, but it comes after a code step, and this document say
   the app), or shows Flux's output frozen at 640×360, or the process crashes on device loss.
 
 ### C2 — SpoutDX is not compiled into the Flux binary; the current workaround is a helper EXE. Owner: MIXED (code ALONE; interop proof needs a receiver)
-- **Unproven.** The production path. `implementation/BLOCKERS.md:16` names it exactly:
+- **Unproven.** The production path. `implementation/BLOCKERS.md:23-24` names it exactly:
   "a production fix is to **compile SpoutDX into the Flux binary directly**". Current state:
   the DLL form fails to load on this host with `ERROR_INVALID_DLL` / error **182**
-  (`BLOCKERS.md:12-13`), so `crates/app/src/main.rs:666-680` shells out to
+  (`BLOCKERS.md:20-22`), so `crates/app/src/main.rs:666-680` shells out to
   `apps/spout-bridge/spout_sender.exe` — a separate process with its own D3D11 device that
   `crates/integrations/src/spout.rs:219-221` tries first via `FLUX_SPOUTDX_SHIM`,
   `spoutdx_shim.dll`, then `apps/spout-bridge/spoutdx_shim.dll`. That helper cannot access
   Flux's GPU textures, so it is structurally incapable of C1's fix.
-  Additionally `BLOCKERS.md:15-16`: "Flux's enumerator doesn't see the DX sender (different
+  Additionally `BLOCKERS.md:23-24`: "Flux's enumerator doesn't see the DX sender (different
   Spout2 registration path)" — Flux cannot discover its own output.
 - **Shortest procedure.** (a) `target\release\flux.exe integrations` — the `spout` row must show
   `available=true` or the feature is off (C3) and all further testing is void.
@@ -464,9 +479,12 @@ The hardware step is real, but it comes after a code step, and this document say
 
 ### C4 — NDI over a real network, on real receivers. UNVERIFIED. Owner: EXTERNAL (a second machine / a consumer app)
 - **Unproven.** Everything past same-machine loopback. `spec` AT060/AT057 want real
-  interoperability; `implementation/evidence/ndi-io.txt` and `ndi-discovery-live.txt` show
-  discovery of 5 sources (NDI Test Pattern etc.) and a cross-process **640×360** frame on one
-  host. Not exercised: a second NIC, Wi-Fi, a VLAN, multicast vs. unicast discovery, bandwidth
+  interoperability. `implementation/evidence/ndi-2026-11-15.txt` shows what does reproduce
+  unattended on one host: the runtime loads, a discovery query runs, and a synthetic
+  640×**360** frame comes back both same-process and across two processes. It also shows
+  that the 2026-11-09 "5 live sources" reading in `ndi-discovery-live.txt` was the LAN's
+  state that afternoon, not a capability — the same command finds 0 sources today.
+  Not exercised: a second NIC, Wi-Fi, a VLAN, multicast vs. unicast discovery, bandwidth
   collapse, or a third-party consumer.
 - **Shortest procedure.** Point `flux ndi-send <name>` (once C1's pump exists) at a second
   machine running NDI Video Monitor / VMC / a real VJ app. Then pull one network adapter,
@@ -480,10 +498,10 @@ The hardware step is real, but it comes after a code step, and this document say
   Wi-Fi (mDNS/multicast).
 
 ### C5 — Syphon is macOS-only and macOS has no host. BLOCKED. Owner: EXTERNAL
-- `implementation/STATE.json:41` "syphon: interface present; blocked_external (needs macOS)";
-  `BLOCKERS.md:17` "Syphon is macOS-only"; `live.rs:73-81` reports `available:
+- `implementation/STATE.json:87` "syphon: interface present; blocked_external (needs macOS)";
+  `BLOCKERS.md:25` "Syphon is macOS-only"; `live.rs:77-85` reports `available:
   cfg!(all(target_os = "macos", feature = "syphon"))` — on Windows this is `false` by
-  construction. AT059 (`implementation/requirements.json:3729`) is the test that would cover it.
+  construction. AT059 (`implementation/requirements.json:3730`) is the test that would cover it.
   Nothing to do here until G1 (a Mac) is resolved. Do not mark it failed on Windows; the honest
   status is `blocked_external` per `spec/START-HERE.md:89`.
 
@@ -498,7 +516,7 @@ The hardware step is real, but it comes after a code step, and this document say
   `HKLM\SYSTEM\CurrentControlSet\Control\DeviceClasses\{e5323777-f976-4f5b-9b55-b94699c46e44}`,
   `enumerate()` (`:163-184`) assembles them. **Nothing in the file opens a device.**
   The self-reported limitation is `:179-181`: "live frame capture needs a device and OS permission".
-  `implementation/STATE.json:75` ("Live camera/screen capture needs a device") understates it.
+  `implementation/STATE.json:158` ("Live camera/screen capture needs a device") understates it.
   There is also no screen/window/region capture implementation at all: grepping the tree for
   duplication/BitBlt/`IMFSourceReader`/Windows.Graphics.Capture yields only `live.rs:32`'s trait
   method and `ndi_io.rs:153`'s `next_frame`. So AT054, AT055, AT056
@@ -613,8 +631,8 @@ The hardware step is real, but it comes after a code step, and this document say
 ### E4 — `bundle.active = false`: there is no packaged app to put on a second machine. Owner: ALONE
 - `apps/desktop/src-tauri/tauri.conf.json:24-27` — `"bundle": { "active": false }`. So the only
   "app" is an `.exe` in `target\`, which explains why AT082
-  (`implementation/requirements.json:4004`, clean-install/offline-launch/DLLs-without-dev-PATH)
-  is `implemented_unverified` and why `implementation/STATE.json:79` lists "No signed installer".
+  (`implementation/requirements.json:4005`, clean-install/offline-launch/DLLs-without-dev-PATH)
+  is `implemented_unverified` and why `implementation/STATE.json:163` lists "No signed installer".
   It also means C2's hand-carried `msvcp140*.dll` problem (and NDI's DLL search) is *untested*,
   because nobody has ever run a packaged Flux.
 - **Shortest procedure.** Enable bundling, build the MSI/NSIS, install on a clean Windows user
@@ -648,12 +666,17 @@ The hardware step is real, but it comes after a code step, and this document say
   (Nov 10 09:25), `fe9e35e` "Bundle the webview…" (Nov 10 09:06), `8139007` "Fix param edits not
   re-rendering" (Nov 10 01:02), `3ee178b` "**stream export frames to the monitor**" (Nov 10 00:23),
   `2688195`/`7618d9e` (node-graph DAG executor, per-node textures, `render_graph` path).
-  **Conclusion: the release CLI everyone will run was built before the preview and export paths
-  it is credited with were written.** `implementation/FINAL-REPORT.md:75` still points at it as
-  the artifact ("Release CLI `target/release/flux.exe`"), and
-  `implementation/STATE.json:13` still reports `test_totals: {passed: 167, failed: 0}` from a Nov 9
-  run. `implementation/BLOCKERS.md` (Nov 9 19:07) and `STATE.json` (Nov 9 18:41) are ~4 days
-  behind the code, as the project brief already assumes.
+  **Conclusion at the time (2026-11-13, tree `46cfd94`): the release CLI everyone will run was
+  built before the preview and export paths it is credited with were written.** The pointer was
+  `implementation/FINAL-REPORT.md:146` (§5 "Artifact readiness": "Release CLI
+  `target/release/flux.exe`"), and `STATE.json` then reported `test_totals.passed: 167` from a Nov
+  9 run, ~4 days behind the code. **Both halves are closed now.** `STATE.json:17-23` reports 204
+  passed / 0 failed / 0 ignored across 40 test binaries — measured with the CI-parity command, with
+  `previous_claim: "167 passed / 0 failed (2026-11-09)"` kept inside the same object so the
+  correction is visible — and all four binaries were rebuilt on 2026-11-15 (D024), so
+  `FINAL-REPORT.md:146` names an artifact that postdates the code it is credited with. Their sizes,
+  mtimes and sha256 live in `implementation/evidence/manifest.json` rather than in this sentence,
+  because a timestamp copied into prose is precisely the thing that goes stale.
 - **Shortest procedure.** After the in-flight build completes: `cargo build -p flux-app
   --release` and `cargo build -p flux-desktop --release` so both artifacts are from `46cfd94`,
   then re-run the timing captures in F2–F4 and overwrite the evidence with the git SHA stamped
@@ -663,11 +686,36 @@ The hardware step is real, but it comes after a code step, and this document say
   `benchmark.json` in `implementation/evidence/` are current (they are regenerated by every
   gate run, which is also why a verification pass always leaves the tree dirty). Still stale:
   the **release** binaries (`target/release/flux.exe`, `flux-desktop.exe`), which `verify.ps1`
-  does not build and `FINAL-REPORT.md:75` still credits, and every hand-captured
+  does not build and `FINAL-REPORT.md:146` still credits, and every hand-captured
   `*.txt`/`*.png` from Nov 9 (`media-export.txt`, `spout-*`, `ndi-*`, `link-*`,
   `vision-inference.txt`, `gui-release.png`, `capture.txt`). F2 and F4 therefore remain open.
+- **Discharged for the tooling half 2026-11-15 (D024).** "Each evidence file names the commit
+  SHA" is no longer a procedure someone has to remember — `write_evidence()` in
+  `crates/xtask/src/main.rs` injects a `provenance` object into every JSON the xtask writes,
+  carrying `gitHash`, `gitHashFull`, `gitDirty`, `generatedAtUtc`, the binary's own path,
+  mtime (unix + UTC) and host, so all eight xtask evidence files gained it from one place
+  rather than eight edits. `cargo run -p xtask -- evidence` then audits the whole directory and
+  writes `manifest.json`: 29 files, each with bytes, mtime, the SHA a file names (or none), a
+  `producer`, and an `attribution` of `stamped_current` / `stamped_other_commit` /
+  `no_provenance` / `unattributed`, plus sha256 + mtime for the four binaries. Exit code is
+  nonzero only for a file **xtask owns** that lacks provenance — the 20 hand-captured
+  `*.txt`/`*.png` transcripts have no writer in the tree, so they are reported honestly as
+  `unattributed` instead of being faked into stamped status. `gitDirty` is part of the stamp
+  because a gate that runs *before* its own tree is committed names its parent: the
+  `verify.json` written by this session's CI-parity run carries `gitHash: 90d9e59` with
+  `gitDirty: true` — the commit is the last one made, and the D024/D025 work is still in the
+  working tree. All four binaries were rebuilt the same afternoon, so the "release CLI predates
+  the export path" conclusion above is no longer true of the tree on disk. Their sizes, mtimes
+  and sha256s live in `evidence/manifest.json` and are deliberately not copied here, because a
+  timestamp transcribed into prose is exactly the thing that goes stale: this row used to name
+  the debug binaries as 13:47:11Z / 14:07:41Z, and the last `xtask` run replaced them with
+  15:32:45Z / 15:45:21Z inside the hour it took to write the sentence.
 - **Pass.** Each evidence file names the commit SHA and the binary's mtime; numbers differ from
-  the Nov 9 set or are explicitly restated as unchanged.
+  the Nov 9 set or are explicitly restated as unchanged. **Met for every file with a writer**;
+  the Nov 9 hand-captured transcripts still carry no SHA, and this pass criterion's original
+  wording ("stamped in the *filename*") is superseded by the payload field, because a filename
+  can be renamed while the bytes inside stay silent about where they came from. F2 and F4 stay
+  open: they need measurements this tooling cannot make.
 - **Failure looks like.** A 50 fps claim that reproduces only at 25 fps on the current tree —
   i.e. the regression hid in the DAG-executor work, and the frozen `benchmark.json` was the only
   record of the old behavior.
@@ -700,8 +748,8 @@ The hardware step is real, but it comes after a code step, and this document say
   `spec/VERIFICATION.md:138`: **`gen.concentric` p95 = 20.91 ms** and **`gen.clouds`
   p95 = 17.37 ms** (p50 for both ≈ 2.5–2.6 ms, so these are tail spikes, not throughput
   limits). The file records **no resolution, no adapter/driver, no p99, no presentation misses,
-  no warm-up state** — all of which `spec/VERIFICATION.md:134` and `:136` require ("Record exact
-  adapter/driver and actual path"). `implementation/BLOCKERS.md:46-47` separately warns
+  no warm-up state** — all of which `spec/VERIFICATION.md:132` requires ("Record exact
+  adapter/driver and actual path"). `implementation/BLOCKERS.md:58-59` separately warns
   "SDF/particle producers: correct and deterministic CPU implementations; **not realtime at 4K**"
   — so the CPU-producer class has a known, unquantified ceiling.
 - **Re-measured 2026-11-14 at `e84fe67`, and the harness was the bigger problem.**
@@ -754,21 +802,23 @@ The hardware step is real, but it comes after a code step, and this document say
   vs 19.57 ms on identical work), so one invocation is not a stable measurement and the
   single-frame hitch is unexplained. `presentation_misses` is recorded as
   `{"measured": false}` — headless graph execution has no swapchain, so nothing here says a frame
-  reached glass (that is F2). There is no 120 s steady-state soak, no peak RAM/VRAM, no decode
-  drops or audio underruns, and the `particles`/`sdf`/`fluid`/`recording` profiles of
-  `spec/VERIFICATION.md:139-142` are still absent from the table — naming one of those is a
-  refusal, not a measurement. The CPU-producer ceiling (`BLOCKERS.md:46-47`, "not realtime at 4K")
+  reached glass (that is F2). A 120 s steady-state soak with peak RAM/VRAM now exists (F5, D024)
+  and adds a fourth tail sample on the same graph: 23,673 timed frames with max 8.21 ms in run 2 against max 17.44 ms in run 1, so the hitch reproduces at 24,000-frame
+  scale, roughly once per run, and neither run explains it. Still absent: decode drops and audio
+  underruns (no device is opened by the soak), and the
+  `particles`/`sdf`/`fluid`/`recording` profiles of `spec/VERIFICATION.md:139-142`, which are not
+  in `BENCH_PROFILES` at all — `xtask soak --profile particles` exits 2. Naming one of those as
+  measured would be a refusal, not a measurement. The CPU-producer ceiling (`BLOCKERS.md:58-59`, "not realtime at 4K")
   is untouched. `benchmark.json` keeps only the most recent profile, since each run overwrites it.
-- **Shortest procedure — the harness part is done; what is left is soak and coverage.**
-  Remaining, in the order that buys the most truth per hour: (1) run the ordinary and 4K profiles
-  as a 120 s steady-state soak rather than 120 frames and record peak RAM/VRAM, because the hitch
-  in `ordinary` run 2 above is exactly the kind of thing a short sample cannot characterise;
-  (2) add the `particles`/`sdf`/`fluid`/`recording` rows to `BENCH_PROFILES` so naming one
-  measures it instead of refusing — the SDF/particle rows are where `BLOCKERS.md:46-47` expects
-  the ceiling to be; (3) take the drop count from somewhere that has a swapchain (F2), since this
-  harness structurally cannot produce one; (4) re-run `flux.exe doctor` and keep its adapter line
-  beside the numbers (recorded in `test-gpu.json`: RTX 2080 Ti, Vulkan, driver 560.94) — on
-  **this** machine, at the exact settings used live.
+- **Shortest procedure — the harness part is done; so is item (1), as of D024.**
+  Remaining, in the order that buys the most truth per hour: the 120 s steady-state soak with peak
+  RAM/VRAM that used to be item (1) now exists and has run twice at `ordinary` (F5); what is left of
+  it is `4k` and a second hour. Then: (2) add the `particles`/`sdf`/`fluid`/`recording` rows to
+  `BENCH_PROFILES` so naming one measures it instead of refusing — the SDF/particle rows are where
+  `BLOCKERS.md:58-59` expects the ceiling to be; (3) take the drop count from somewhere that has a
+  swapchain (F2), since this harness structurally cannot produce one; (4) re-run `flux.exe doctor`
+  and keep its adapter line beside the numbers (recorded in `test-gpu.json`: RTX 2080 Ti, Vulkan,
+  driver 560.94) — on **this** machine, at the exact settings used live.
 - **Pass.** Every node in the live set has a recorded p95 and p99 under the budget at the chosen
   resolution, on the exact adapter, with the numbers written down; anything over budget is either
   repaired or documented as a known capacity limit ("If not met, document actual sustainable
@@ -785,7 +835,7 @@ The hardware step is real, but it comes after a code step, and this document say
   container facts* — `codec_name=h264 width=640 height=360 duration=3.000000 nb_frames=180` and
   a 1280×720/4 s/240-frame case. **No encode time, no fps-of-encode, no audio-video sync check,
   no failure injection.** `spec/VERIFICATION.md` AT066/AT067/AT069/AT070
-  (`implementation/requirements.json:3815, 3825, …`) cover overload policy, CFR gaps, the codec
+  (`implementation/requirements.json:3816, 3826, …`) cover overload policy, CFR gaps, the codec
   matrix, cancel/disk-full, and fractional fps — all `implemented_unverified`. The video-export
   code itself landed in `3a2b43e`/`6ef3eaa`, *after* that evidence and after the release binary.
 - **Shortest procedure.** On the rebuilt binary, render a known 60 s project at 1920×1080/60
@@ -803,16 +853,58 @@ The hardware step is real, but it comes after a code step, and this document say
   export throughput.
 
 ### F5 — 2 h soak, and the 44.1 k ASIO-held box. Owner: ALONE
-- **Unproven.** AT081 (`implementation/requirements.json:3994`) wants "Soak 30min then 2h;
+- **Unproven.** AT081 (`implementation/requirements.json:3995`) wants "Soak 30min then 2h;
   stable cache/budgets/queue depths and no drift/leaks/crash under repeated edits and scene
-  switches"; `spec/VERIFICATION.md:144` sets the trip wire at unexplained growth > 10 % or 64 MiB.
+  switches"; `spec/VERIFICATION.md:145` sets the trip wire at unexplained growth > 10 % or 64 MiB.
   `main.js:218` calls `monitorSize()` per frame and the export path allocates a PNG per emit;
   `crates/audio/src/lib.rs:523` exposes a `dropped()` counter nobody reads.
 - **Shortest procedure.** 2 h of the live set: continuous playback/looping, scene recalls and
   parameter edits every 30 s, with the monitor fullscreen on the external panel; sample Working
   Set / GPU memory every 60 s; record `dropped()` at start and end.
+- **Half discharged 2026-11-15 (D024): `xtask soak` exists and ran twice at 120 s.**
+  `cargo run -q -p xtask -- soak --profile ordinary --seconds 120` drives the same 8-node chain
+  the benchmark times, on a wall-clock deadline rather than a frame count, with 15 warm-up frames
+  discarded, and samples the process Working Set every 500 ms (`K32GetProcessMemoryInfo`) and
+  `nvidia-smi` device memory every 10 s — both probes deliberately **outside** the per-frame
+  timing windows, so a memory read cannot become a frame-time sample. Evidence:
+  `implementation/evidence/soak-ordinary.json`, which now holds run 2; run 1's numbers below came
+  off that run's console output before its file was overwritten, and are recorded rather than
+  re-verifiable.
+
+  | run | timed frames | render median | render p95 | render p99 | render max | frames > 16.67 ms | copy median | copy max | WS first → last | WS peak | GPU peak (device-wide) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | 1 | 24,591 | 1.51 ms | 3.75 ms | 4.90 ms | **17.44 ms** | **1** | 2.93 ms | 19.45 ms | 207.83 → 219.28 MiB | 221 MiB | 1,248 MiB |
+  | 2 | 23,673 | 1.63 ms | 3.51 ms | 4.92 ms | 8.21 ms | 0 | 3.05 ms | 20.32 ms | 207.23 → 219.48 MiB | 221.46 MiB | 1,247 MiB |
+
+  Both runs stay inside every trip wire they can reach: 197.4 headless fps in run 2, `executeErrors
+  = 0`, and growth 11–12 MiB (5.51 % / 5.91 %) against `spec/VERIFICATION.md:145`'s 10 % / 64 MiB.
+  The tail behaved as D021 predicted — run 1's single over-budget frame at 17.44 ms did not
+  reproduce in run 2 (max 8.21 ms over 3,000 more frames is not the claim; run 2 had *fewer*
+  frames, 23,673 vs 24,591), so one hitch per ~24,000 frames is still unexplained, and note that
+  run 1's copy window peaked at 19.45 ms in the same run, which makes "the hitch is the GPU queue"
+  and "the hitch is the readback" indistinguishable at this sampling density.
+
+  The memory shape is the part that does not resolve. Of run 2's 238 samples (500 ms apart, ~119 s)
+  the first ~30 s take 207.23 → 217.80 MiB — allocator and texture-cache warm-up, +10.6 MiB — and
+  the remaining ~89 s take 217.80 → 219.48 MiB, a residual of ≈1.1 MiB/min that keeps rising in
+  every quarter (per-30 s maxima 217.80 → 218.57 → 218.74 → 219.48). Run 1 ends 0.16 MiB away from
+  run 2 (219.28 vs 219.48), which is what two identical 120 s durations should do under either
+  hypothesis, so **120 s cannot tell a plateau near 220 MiB from a continued creep.** The peak
+  (221.46 MiB) sits above the final sample, so part of the movement is churn, not retention. If
+  the residual slope held instead, the 64 MiB allowance is spent around the 58-minute mark — which
+  is precisely the distance AT081 is asking to be walked.
+
+  What 120 s headless **does not** cover, all of it recorded as `measured: false` in the same
+  JSON rather than left implicit: presentation misses (no swapchain — F2), audio underruns and
+  `dropped()` (no device is opened, so the ASIO path is untouched), per-process VRAM (no Vulkan
+  memory telemetry in this build and NVAPI not linked, so the 1,247 MiB is **device-wide** and
+  includes anything else on the GPU), repeated edits and scene switches, the monitor on an
+  external panel, and the second half of AT081 — 2 h. AT081 is not closed.
 - **Pass.** Growth < 10 % and < 64 MiB, `dropped()` bounded and explained, no presentation-miss
-  creep between minute 5 and minute 115.
+  creep between minute 5 and minute 115. After D024: the first clause is met at 120 s on both
+  runs and the other two are **not reachable headlessly** — no device is opened, so `dropped()` is
+  never populated, and there is no swapchain, so there are no presentation misses to compare. The
+  2 h duration is also unmet. F5 stays open; what closed is the ability to run it.
 - **Failure looks like.** Steady climb in commit count with flat fps then a stall — or fps that
   decays slowly, which is the signature of a per-frame PNG/GC/base64 leak in the webview path
   rather than a GPU leak.
@@ -822,13 +914,13 @@ The hardware step is real, but it comes after a code step, and this document say
 ## 8. Gate G — macOS host, code signing, notarisation
 
 ### G1 — macOS paths are unverified because there is no Mac. BLOCKED. Owner: EXTERNAL
-- **Unproven.** `implementation/BLOCKERS.md:29` "macOS hosts: unavailable; macOS-only paths
-  unverified"; `implementation/STATE.json:74` "macOS builds unverified (no host)";
+- **Unproven.** `implementation/BLOCKERS.md:41` "macOS hosts: unavailable; macOS-only paths
+  unverified"; `implementation/STATE.json:157` "macOS builds unverified (no host)";
   `implementation/requirements.json:14` (R001) blocker "macOS hosts unavailable";
   `crates/platform/src/lib.rs:36-47` returns an empty capability set with
-  `"capture adapters are implemented for Windows x64 only"`; `crates/integrations/src/live.rs:73-81`
+  `"capture adapters are implemented for Windows x64 only"`; `crates/integrations/src/live.rs:77-85`
   makes Syphon unavailability *structural* on Windows. AT083/AT084
-  (`implementation/requirements.json:4016, :4026`) are the arm64/x64 packaged-launch tests and
+  (`implementation/requirements.json:4017, :4027`) are the arm64/x64 packaged-launch tests and
   both are `implemented_unverified`. `spec/START-HERE.md:89` explicitly forbids claiming
   "macOS verification from Windows".
 - **Shortest procedure.** Needs Apple hardware or a hosted macOS runner — nothing on this rig can
@@ -840,12 +932,12 @@ The hardware step is real, but it comes after a code step, and this document say
   downstream of this.
 
 ### G2 — Code signing / notarisation: no identity, and bundling is switched off. BLOCKED + ALONE
-- **Unproven.** `implementation/BLOCKERS.md:30` "Code signing / notarization: no identity;
-  builds are unsigned"; `implementation/STATE.json:79` "No signed installer".
+- **Unproven.** `implementation/BLOCKERS.md:42` "Code signing / notarization: no identity;
+  builds are unsigned"; `implementation/STATE.json:163` "No signed installer".
   `apps/desktop/src-tauri/tauri.conf.json:25` `"active": false` — so beyond the missing identity
   there is no installer artifact to sign at all. Windows SmartScreen and macOS Gatekeeper
   behavior are therefore entirely unknown, and unsigned is exactly what breaks the clean-user,
-  offline, dev-PATH-free launch AT082 (`implementation/requirements.json:4004`) wants.
+  offline, dev-PATH-free launch AT082 (`implementation/requirements.json:4005`) wants.
 - **Shortest procedure.** Partly alone: turn bundling on and produce an **unsigned** MSI/NSIS,
   then install it on a standard user account, offline, with the Rust toolchain not on PATH.
   That exercises everything except the certificate. Windows EV/OV cert and an Apple Developer
@@ -869,7 +961,7 @@ The hardware step is real, but it comes after a code step, and this document say
   and `crates/integrations/src/lib.rs:15-16` `#[cfg(feature = "vision")] pub mod vision;`.
   `target\release\flux.exe` is Nov 9 04:24 (F1), built long before `93484db` (Nov 9 18:44) added
   the ONNX backend — so **the depth command is not in the release CLI**, whatever
-  `implementation/BLOCKERS.md:31-36` and `implementation/requirements.json:3923` (AT075
+  `implementation/BLOCKERS.md:43-48` and `implementation/requirements.json:3924` (AT075
   `verified`) say about the host.
 - **Shortest procedure.** `target\release\flux.exe depth implementation/evidence/depth-demo`
   first — expect "unknown command" or a silent no-op; then rebuild
@@ -889,9 +981,9 @@ The hardware step is real, but it comes after a code step, and this document say
   `FLUX_DEPTH_SIZE` defaulting to 518 (`:58-61`). The Nov 9 evidence used
   `FLUX_MODEL_DEPTH=C:\flux-models\depth` (`implementation/evidence/vision-inference.txt:15`) —
   a path that is not in the repo and may not exist on the rig now. Model weights are
-  user-installed by design (`implementation/STATE.json:20`, `BLOCKERS.md:35`); the registry keeps
+  user-installed by design (`implementation/STATE.json:63`, `BLOCKERS.md:47`); the registry keeps
   the node editable and emits a non-fatal `SdkMissing` rather than faking output (AT077,
-  `implementation/requirements.json:3946`) — that behavior is the one genuinely good part of this
+  `implementation/requirements.json:3947`) — that behavior is the one genuinely good part of this
   gate.
 - **Shortest procedure.** `set` (or `$env:`) the four variables, drop the ONNX file in, run
   `flux.exe models` and then `flux.exe depth <dir>`; time it.
@@ -932,7 +1024,7 @@ The hardware step is real, but it comes after a code step, and this document say
 
 ### H4 — Only depth exists; the other model-backed nodes are registry rows. Owner: ALONE
 - **Unproven / largely absent.** `crates/integrations/src/vision.rs` contains
-  `DepthModel`, `DepthResult`, and nothing else. `BLOCKERS.md:36` says "other G17x models follow
+  `DepthModel`, `DepthResult`, and nothing else. `BLOCKERS.md:48` says "other G17x models follow
   the same path" — a plan, not code. R022 (`implementation/requirements.json:275`) covers
   "Depth, motion, masking, and optional vision/model inputs"; `spec/START-HERE.md:67` lists
   optional vision models as **Conditional**. So the honest statement is: depth works in a
@@ -953,14 +1045,14 @@ The hardware step is real, but it comes after a code step, and this document say
 
 | # | Gate | Why this order | Owner |
 |---|---|---|---|
-| 1 | F1 | Rebuild from `46cfd94`. Every other item is meaningless against Nov 9/Nov 10 binaries. | ALONE |
+| 1 | F1 | Rebuild from `46cfd94`. Every other item is meaningless against Nov 9/Nov 10 binaries. **DONE 2026-11-15 (D024)** — the four binaries are rebuilt and hashed in `evidence/manifest.json`, and provenance is now written by `write_evidence()` instead of remembered. | ALONE |
 | 2 | C3, H1 | `flux integrations` + `flux doctor`: learn which features your binary actually has, before testing what isn't compiled in. | ALONE |
-| 3 | A1, A2, A3, A4, A5 | **Code** the OSC receive path into the desktop process and route bridge + transport packets; then wire Live. Nothing in Gate A can be *tested* before this. | ALONE (code), ALONE (test) |
+| 3 | A1, A2, A3, A4, A5 | **Code** the OSC receive path into the desktop process and route bridge + transport packets; then wire Live. Nothing in Gate A can be *tested* before this. **Code half DONE 2026-11-15 (D022)** — the desktop process listens, coalesces and applies, with 7 UDP loopback tests; the Live-wiring half is still open and is a host task. | ALONE (code), ALONE (test) |
 | 4 | Fact 4 / A7 / D1 | **Code** a real WASAPI loopback capture (and decide the ASIO coexistence policy for the SSL 2), then run A7's enumeration audit. | ALONE (code) + rig |
 | 5 | B1 → B2, B3, B4, B5, B6 | Package the two devices, fix the dead `bootpath` and README path, round-trip real OSC bytes. | ALONE (has Live 12) |
 | 6 | C1 → C2, C4 | **Code** a `LiveSink` fed by the render device, then Spout/NDI to a real receiver. | ALONE (code) + EXTERNAL (consumer app/machine) |
 | 7 | E1, E2, E3 | Native output window + display selection; then measure on a second panel. | ALONE (code) + rig |
-| 8 | F2, F3, F4, F5 | Re-measure preview fps, p95/p99, export wall-clock, soak — on the rebuilt binary, SHA-stamped. **F3's harness is fixed and its 1080p/4K graph numbers are recorded (D021); what remains here is the soak, the four unbuilt profiles and F2's drop count.** | ALONE |
+| 8 | F2, F3, F4, F5 | Re-measure preview fps, p95/p99, export wall-clock, soak — on the rebuilt binary, SHA-stamped. **F3's harness is fixed and its 1080p/4K graph numbers are recorded (D021); F5's 120 s soak exists and has run twice at `ordinary` (D024). What remains here is F5 at 2 h and at 4K, the four unbuilt profiles, F4's export wall-clock and F2's drop count.** | ALONE |
 | 9 | H2, H3, H4 | Model env vars, real-photo polarity check, per-node absence behavior. | ALONE (weights fetch needs net) |
 | 10 | E4, G2 | Installer (unsigned) → certificates. | ALONE (bundle) + EXTERNAL (identity/notarisation) |
 | 11 | G1, C5 | Everything macOS. | EXTERNAL |
@@ -969,15 +1061,15 @@ The hardware step is real, but it comes after a code step, and this document say
 
 | Topic | Docs say | Code says | Cite |
 |---|---|---|---|
-| NDI | "**Fully working** — discovery, send, and receive verified. No remaining NDI blocker." | The only sender transmits a synthetic 640×360 gradient; `trait LiveSink` has no implementor; Flux's output never reaches a receiver. | `implementation/BLOCKERS.md:4-9`, `implementation/requirements.json:3743` vs `crates/app/src/main.rs:504`-`:520`, `crates/integrations/src/live.rs:37-41` |
-| Spout | "Spout2 works **send-side** … 83 frames sent" | Those 83 frames were a gradient, sent to no named or confirmed receiver, from a helper EXE outside the Flux process. | `implementation/BLOCKERS.md:10-16`, `implementation/evidence/spout-send-dx.txt` |
-| OSC | "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands" | Half of it is now true, and the doc still describes the old half: `flux osc` prints for 30 s and quits, while the *desktop* is the thing that edits the document (`control::OscBridge`). `apply_controls` still has zero callers. Nobody has watched a Live fader move a Flux parameter. | `implementation/STATE.json:64`, `docs/USER-GUIDE.md:67-71` vs `crates/app/src/main.rs:865-883`, `crates/integrations/src/osc.rs:268`, `crates/app/src/control.rs:304` |
-| Max bridge | "bridge_max: verified (protocol decode + maxpat structure)" | Structure verified ≠ traffic verified. The discard defect is gone (`osc::decode_control` tries the bridge grammar first, and the desktop listener counts bridge packets), but every bridge packet is `notApplied`: no feature value reaches an analyser, and no real Max packet has ever been decoded. | `implementation/STATE.json:29` vs `crates/integrations/src/osc.rs:47`, `crates/app/src/commands.rs:284`-`:306` |
-| Ableton Link | AT063 `verified`; single-master arbitration both "verified" and "not yet asserted" | Feature off by default; `live.rs` reports availability from `cfg!(feature)`, so the shipping binary has no Link; no Link↔renderer connection exists. | `implementation/STATE.json:35` vs `:22-23`/`BLOCKERS.md:43`; `crates/integrations/Cargo.toml:25`, `crates/integrations/src/live.rs:82-90` |
-| Capture | "WASAPI endpoint + PnP camera enumeration is real and verified … live capture needs a device" | Enumeration is complete and **capture code does not exist**; AT054/055/056 have no subject. | `implementation/BLOCKERS.md:38-41`, `implementation/requirements.json:62` vs `crates/platform/src/lib.rs:163-184` |
-| GUI verified list | Seven behaviors "verified" incl. timeline, inspector, preview | That list predates the node-graph editor (`2688195`), the DAG executor (`7618d9e`), sliders + monitor window (`ac73572`) and the webview bundling (`fe9e35e`); the screenshots are Nov 9 10:33. | `implementation/STATE.json:46-54` vs `implementation/evidence/gui-release.png` mtime and the four commits |
-| Test totals | "167 passed, 0 failed" (Nov 9) | **Resolved 2026-11-14, re-measured 2026-11-15:** `cargo test --workspace -- --test-threads=1` at `e84fe67` was 196 passed / 0 failed / 0 ignored, 40 binaries, exit 0; the same command on the tree that added the OSC receive bridge is **203 passed / 0 failed / 0 ignored, 40 binaries, exit 0** — the +7 are `crates/app/src/control.rs`'s loopback tests. The vacuity caveat in §0 still applies: 14 GPU integration tests return early on device-creation failure and count as passes. | `implementation/STATE.json` `test_totals` |
+| NDI | "**Fully working** — discovery, send, and receive verified. No remaining NDI blocker." | **Docs corrected 2026-11-15 (D023); the code half is unchanged.** The only sender transmits a synthetic 640×360 gradient; `trait LiveSink` has no implementor; Flux's output never reaches a receiver. What *does* reproduce is the transport, same-process and cross-process, and the "5 live sources" reading was the LAN's state on 2026-11-09 (0 today). | `implementation/BLOCKERS.md:4-17`, `implementation/evidence/ndi-2026-11-15.txt` vs `crates/app/src/main.rs:403`-`:528`, `crates/integrations/src/live.rs:37` |
+| Spout | "Spout2 works **send-side** … 83 frames sent" | Those 83 frames were a gradient, sent to no named or confirmed receiver, from a helper EXE outside the Flux process. | `implementation/BLOCKERS.md:18-25`, `implementation/evidence/spout-send-dx.txt` |
+| OSC | "OSC (real UDP loopback, rate-limit) + MIDI parsing + live control bridge -> engine commands" | Half of it is now true, and the doc still describes the old half: `flux osc` prints for 30 s and quits, while the *desktop* is the thing that edits the document (`control::OscBridge`). `apply_controls` has no non-test caller — its only one is inside `#[cfg(test)]` (`osc.rs:378`) — because the desktop path applies through `CommandHost`, not through that helper. Nobody has watched a Live fader move a Flux parameter. | `implementation/STATE.json` `integrations.osc`, `docs/USER-GUIDE.md:67-71` vs `crates/app/src/main.rs:932`-`:950`, `crates/integrations/src/osc.rs:268`, `crates/app/src/control.rs:302` |
+| Max bridge | **Docs corrected 2026-11-15 (D022):** `STATE.json:75` now reads "FIXED IN PART … structure verified is not traffic verified". Before that it read "bridge_max: verified (protocol decode + maxpat structure)". | Structure verified ≠ traffic verified. The discard defect is gone (`osc::decode_control` tries the bridge grammar first, and the desktop listener counts bridge packets), but every bridge packet is `notApplied`: no feature value reaches an analyser, and no real Max packet has ever been decoded. | `implementation/STATE.json:75` vs `crates/integrations/src/osc.rs:47`, `crates/app/src/commands.rs:284`-`:306` |
+| Ableton Link | AT063 `verified` in the generated ledger until this change; it now reads `implemented_unverified` with the uncovered clauses named in the record's `blocker`. `BLOCKERS.md:26-35` and `:54-55` had already said that, and `STATE.json:77` still says "supported + verified when built with feature link" — which `STATE.json:82` itself names as the contradiction. | Feature off by default; `live.rs` reports availability from `cfg!(feature)`, so the shipping binary has no Link; no Link↔renderer connection exists. The 6 link tests — including `single_master_tempo_wins_across_peers` — only compile under feature `link`, and `link-integration` was `blocked_external` in the last full run. | `implementation/STATE.json:77` vs `:82`, `implementation/BLOCKERS.md:26-35`, `:54-55`, `implementation/requirements.json:3783`; `crates/integrations/Cargo.toml:25`, `crates/integrations/src/live.rs:86-94` |
+| Capture | "WASAPI endpoint + PnP camera enumeration is real and verified … live capture needs a device" | Enumeration is complete and **capture code does not exist**; AT054/055/056 have no subject. | `implementation/BLOCKERS.md:51-53`, `implementation/requirements.json:62` vs `crates/platform/src/lib.rs:163-184` |
+| GUI verified list | Six behaviors "verified" — library, preview, inspector, node-graph canvas + timeline strip, e2e flow, launch. **The staleness this row used to report is gone:** the list no longer predates the node-graph editor (`2688195`), the DAG executor (`7618d9e`), sliders + monitor window (`ac73572`) or the webview bundling (`fe9e35e`); it was refreshed with the one-clip-per-scene removal (D013) and the D019 re-measurement. | What is left is pixel evidence, not prose: the only screenshot is `gui-release.png` at 2026-11-09T09:33:05Z (398,725 B, `unattributed` in `evidence/manifest.json`), and no headless capture backs any of the six claims. `STATE.json:91`'s own note that the release GUI "predates HEAD" was overtaken by the 2026-11-15 rebuild. | `implementation/STATE.json:89-101` vs `implementation/evidence/manifest.json` (`gui-release.png`) |
+| Test totals | "167 passed, 0 failed" (Nov 9) | **Resolved 2026-11-14, re-measured 2026-11-15:** `cargo test --workspace -- --test-threads=1` at `e84fe67` was 196 passed / 0 failed / 0 ignored, 40 binaries, exit 0; the same command on the tree that added the OSC receive bridge is **204 passed / 0 failed / 0 ignored, 40 binaries, exit 0** — the +8 are the twelve tests in `crates/app/src/control.rs` (seven of them new UDP loopback tests) plus the seek wire-format test in `crates/integrations/src/tests.rs`. The vacuity caveat in §0 still applies: 14 GPU integration tests return early on device-creation failure and count as passes. | `implementation/STATE.json` `test_totals` |
 | CI / `verify.ps1` | "CI workflow + infrastructure/verify.ps1 (VERIFY: PASS)" | **Was VERIFY: FAIL at `e84fe67` (measured 2026-11-14, full run, exit 1); the blocking step is now cleared.** `cargo fmt --all -- --check` — the first check step in `ci.yml:29` — exited 1 with 56 diffs across 12 files, and in Actions that aborted the job before the suite ran. All 13 other executed local steps passed. `cargo fmt --all` has since been applied and `--check` exits 0. Both harness defects are repaired (D020): the chained `integration-tests` step is three steps, `Step` clears `LASTEXITCODE` before running, the skipped Link/Spout gates record `ok=null` + `status='blocked_external'`, and `verify.json` is written without a BOM with `gitHash` and the step counts in it. | `.github/workflows/ci.yml:29`, `infrastructure/verify.ps1:32`, `:35`, `:47-61` vs `implementation/evidence/verify.json`, `implementation/DECISIONS.md` D019 |
-| `.amxd` | Honest: needs a Max host | — | `implementation/STATE.json:24`, `implementation/requirements.json:27` (still `pending`, correctly) |
+| `.amxd` | Honest: needs a Max host | — | `implementation/STATE.json:68`, `implementation/requirements.json:27` (still `pending`, correctly) |
 | Depth polarity | "higher = nearer", "near = bright" | Recorded output of a synthetic near-center square: `center=0.001 corner=0.991`; the test only asserts variance. | `crates/integrations/src/vision.rs:6-7`, `:204` vs `implementation/evidence/depth-inference.txt`, `implementation/evidence/vision-inference.txt:17-19`, `crates/integrations/src/vision.rs:246-276` |
 | Stale absolute paths | "Repoint the Max patch at the new tree" (`46cfd94`) | **Resolved 2026-11-14:** `flux-audio-bridge.maxpat:199` `bootpath` and `apps/max-for-live/README.md:55` now read `D:/Projects/visual/genfx/...`; `check-maxpat.cjs` still PASSes. The remaining `D:\Projects\skeer-audio\genfx` mentions in this document (§3, §4 of gate B) and in `IMPLEMENTATION-ARCHITECTURE.md:654`, `:863` are historical descriptions of the bug, not live paths. | `5fbfc1e`/`e84fe67` vs `apps/max-for-live/flux-audio-bridge.maxpat:199`, `apps/max-for-live/README.md:55` |

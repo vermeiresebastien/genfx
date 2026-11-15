@@ -23,8 +23,72 @@ fn evidence_dir() -> PathBuf {
 
 fn write_evidence(name: &str, data: &serde_json::Value) {
     let path = evidence_dir().join(format!("{name}.json"));
-    std::fs::write(&path, serde_json::to_string_pretty(data).unwrap()).unwrap();
+    let mut envelope = data.clone();
+    // F1's pass criterion enforced at the writer, not in prose: a number that does not
+    // name its commit and its binary cannot be told from a stale one. The SHA is the
+    // commit the *run* started from, so a gate executed before committing its own tree
+    // names its parent — which is why `gitDirty` is part of the stamp.
+    if let Some(map) = envelope.as_object_mut() {
+        map.insert("provenance".to_string(), provenance());
+    }
+    std::fs::write(&path, serde_json::to_string_pretty(&envelope).unwrap()).unwrap();
     println!("evidence: {}", path.display());
+}
+
+/// Runs git in the repo root; `None` means git is absent or the call failed, which is
+/// recorded as an explicit null rather than guessed at.
+fn git(args: &[&str]) -> Option<String> {
+    Command::new("git")
+        .args(args)
+        .current_dir(root())
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+}
+
+fn file_mtime_utc(path: &std::path::Path) -> Option<(u64, String)> {
+    let secs = std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())?;
+    Some((secs, flux_domain::utc_from_unix_pub(secs)))
+}
+
+/// Content is what answers "is this the build I think it is". A copy preserves mtime and
+/// a rebuild changes it for reasons unrelated to the source, so mtime alone is only a
+/// date; and because MSVC lands the link time and embedded build paths into the binary,
+/// two compiles of identical source will not hash equal — a hash compares *copies*, and
+/// only a symbol check proves a particular change is inside an artifact.
+fn sha256_of(path: &std::path::Path) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let bytes = std::fs::read(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    Some(
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+    )
+}
+
+fn provenance() -> serde_json::Value {
+    let exe = std::env::current_exe().ok();
+    let binary = exe.as_ref().and_then(|p| {
+        file_mtime_utc(p)
+            .map(|(secs, utc)| json!({"path": p.display().to_string(), "mtimeUnix": secs, "mtimeUtc": utc}))
+    });
+    json!({
+        "gitHash": git(&["rev-parse", "--short", "HEAD"]),
+        "gitHashFull": git(&["rev-parse", "HEAD"]),
+        "gitDirty": git(&["status", "--porcelain"]).map(|s| !s.is_empty()),
+        "generatedAtUtc": flux_domain::now_utc_pub(),
+        "binary": binary,
+        "host": json!({"os": std::env::consts::OS, "arch": std::env::consts::ARCH}),
+    })
 }
 
 fn main() {
@@ -33,19 +97,180 @@ fn main() {
     let code = match cmd {
         "doctor" => cmd_doctor(),
         "fixtures" => cmd_fixtures(),
+        "evidence" => cmd_evidence(&args[1..]),
         "catalog" => cmd_catalog(&args[1..]),
         "check" => cmd_check(&args[1..]),
         "test-gpu" => cmd_test_gpu(&args[1..]),
         "scenario" => cmd_scenario(&args[1..]),
         "benchmark" => cmd_benchmark(&args[1..]),
+        "soak" => cmd_soak(&args[1..]),
         "report" => cmd_report(),
         "package" => cmd_package(&args[1..]),
         _ => {
-            println!("usage: cargo xtask <doctor|fixtures|catalog|check|test-gpu|scenario|benchmark|report|package>");
+            println!("usage: cargo xtask <doctor|fixtures|evidence|catalog|check|test-gpu|scenario|benchmark|soak|report|package>");
             2
         }
     };
     std::process::exit(code);
+}
+
+/// The evidence files this crate writes. Only these are held to the provenance rule.
+/// Everything else in the directory is a hand-saved transcript — `diagnostics.json`
+/// included, because `flux diagnostics` prints to stdout and nobody in the tree writes
+/// that file — and the honest disposition of a transcript is to name its age, not to
+/// invent a SHA for it.
+fn written_by_xtask(file: &str) -> bool {
+    const OWN: &[&str] = &[
+        "benchmark.json",
+        "catalog.json",
+        "check.json",
+        "doctor.json",
+        "fixtures.json",
+        "manifest.json",
+        "package.json",
+        "test-gpu.json",
+    ];
+    OWN.contains(&file) || file.starts_with("scenario-") || file.starts_with("soak-")
+}
+
+/// F1, the other half of it. Every file under `implementation/evidence/` either names
+/// the commit it was produced from or is listed here as unattributed, with its own mtime
+/// as the evidence of its age. The hand-captured `*.txt`/`*.png` transcripts have no
+/// writer, so they cannot be stamped after the fact — recording that plainly is the
+/// honest alternative to inventing a SHA for them.
+///
+/// Exits nonzero only when a file this crate *does* write is missing its stamp, because
+/// that is a defect in this contract. Unattributed hand-captures are reported, not
+/// failed on: re-capturing them belongs to F2/F4/G, whose owners are other lanes.
+fn cmd_evidence(_args: &[String]) -> i32 {
+    let dir = evidence_dir();
+    let mut paths = vec![];
+    let mut stack = vec![dir.clone()];
+    while let Some(d) = stack.pop() {
+        let Ok(read) = std::fs::read_dir(&d) else {
+            continue;
+        };
+        for entry in read.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.is_file() {
+                paths.push(p);
+            }
+        }
+    }
+    paths.sort();
+
+    let head = git(&["rev-parse", "--short", "HEAD"]);
+    let mut files = vec![];
+    let mut stamped = 0usize;
+    let mut broken = vec![];
+    for path in &paths {
+        let name = path
+            .strip_prefix(&dir)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let (mtime_unix, mtime_utc) = file_mtime_utc(path).unwrap_or((0, String::new()));
+        let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let found = name
+            .ends_with(".json")
+            .then(|| std::fs::read_to_string(path).ok())
+            .flatten()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| {
+                v.get("gitHash")
+                    .or_else(|| v.get("provenance").and_then(|p| p.get("gitHash")))
+                    .and_then(|h| h.as_str())
+                    .map(|s| s.to_string())
+            });
+        // A JSON gate written here must carry provenance; its absence is a bug, not a
+        // limitation. Files that predate this rule are `unattributed`, files that parse
+        // but name a different commit are `stale`.
+        let own = written_by_xtask(&name);
+        let status = match &found {
+            Some(sha) => {
+                stamped += 1;
+                if head.as_deref() == Some(sha.as_str()) {
+                    "stamped_current"
+                } else {
+                    "stamped_other_commit"
+                }
+            }
+            None if own => {
+                broken.push(name.clone());
+                "no_provenance"
+            }
+            None => "unattributed",
+        };
+        files.push(json!({
+            "file": name,
+            "bytes": bytes,
+            "mtimeUnix": mtime_unix,
+            "mtimeUtc": mtime_utc,
+            "gitHash": found,
+            "producer": if own { "xtask" } else { "hand-captured (no writer in the tree)" },
+            "attribution": status,
+        }));
+    }
+
+    let binaries = [
+        "target/release/flux.exe",
+        "target/debug/flux.exe",
+        "target/release/flux-desktop.exe",
+        "target/debug/flux-desktop.exe",
+    ]
+    .iter()
+    .map(|rel| {
+        let p = root().join(rel);
+        let (unix, utc) = file_mtime_utc(&p).unwrap_or((0, String::new()));
+        json!({
+            "path": rel,
+            "exists": p.exists(),
+            "bytes": std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
+            "mtimeUnix": unix,
+            "mtimeUtc": utc,
+            "sha256": sha256_of(&p),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    let total = files.len();
+    let rustc = Command::new("rustc")
+        .arg("--version")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+    write_evidence(
+        "manifest",
+        &json!({
+            "ok": broken.is_empty(),
+            "headAtRun": head,
+            "rustc": rustc,
+            "recheckCommand": "cargo run -q -p xtask -- evidence",
+            "counts": {"files": total, "stamped": stamped, "unattributed": total - stamped, "missing_provenance": broken.len()},
+            "missingProvenance": broken,
+            "notes": [
+                "mtimeUtc is a date, not a proof of provenance: a copy preserves it and a rebuild changes it for reasons unrelated to the source. The sha256 identifies the file on disk; two compiles of identical source will not hash equal on MSVC, so neither alone names a commit.",
+                "attribution=unattributed means nothing inside the file names a commit. These are hand-saved transcripts with no writer in the tree, including diagnostics.json, which `flux diagnostics` only prints.",
+                "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it.",
+            ],
+            "binaries": binaries,
+            "files": files,
+        }),
+    );
+    println!(
+        "evidence: {} files, {} name their commit, {} unattributed, {} missing provenance",
+        total,
+        stamped,
+        total - stamped,
+        broken.len()
+    );
+    if !broken.is_empty() {
+        eprintln!("evidence: files written here without provenance: {broken:?}");
+        return 1;
+    }
+    0
 }
 
 fn cmd_doctor() -> i32 {
@@ -493,6 +718,19 @@ fn time_graph(
     Ok(run)
 }
 
+/// A profile that silently benches a node the catalog does not have would report fewer
+/// passes than the graph it claims to represent.
+fn profile_absent(profile: &BenchProfile, catalog: &flux_catalog::Catalog) -> Vec<&'static str> {
+    let mut wanted: Vec<&'static str> = profile.chain.iter().map(|(id, _)| *id).collect();
+    wanted.push(profile.generator);
+    wanted.push("flux.output");
+    wanted
+        .iter()
+        .filter(|id| catalog.get(id).is_none())
+        .copied()
+        .collect()
+}
+
 fn cmd_benchmark(args: &[String]) -> i32 {
     let profile_name = opt_value(args, "--profile").unwrap_or_else(|| "ordinary".into());
     let Some(profile) = BENCH_PROFILES.iter().find(|p| p.name == profile_name) else {
@@ -522,14 +760,7 @@ fn cmd_benchmark(args: &[String]) -> i32 {
 
     // A profile that silently benches a node the catalog does not have would report
     // fewer passes than the graph it claims to represent.
-    let mut wanted: Vec<&str> = profile.chain.iter().map(|(id, _)| *id).collect();
-    wanted.push(profile.generator);
-    wanted.push("flux.output");
-    let absent: Vec<&str> = wanted
-        .iter()
-        .filter(|id| catalog.get(id).is_none())
-        .copied()
-        .collect();
+    let absent = profile_absent(profile, &catalog);
     if !absent.is_empty() {
         eprintln!(
             "benchmark: profile '{}' names nodes absent from the catalog: {absent:?}",
@@ -647,6 +878,325 @@ fn cmd_benchmark(args: &[String]) -> i32 {
         summarise(&chain.copy)["median_ms"].as_f64().unwrap_or(f64::NAN),
         samples,
         rows.len()
+    );
+    if ok {
+        0
+    } else {
+        1
+    }
+}
+
+/// Peak resident set of this process, and the device's GPU memory in use.
+#[cfg(windows)]
+fn process_memory() -> Option<(u64, u64)> {
+    use windows::Win32::System::ProcessStatus::{
+        K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
+    };
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    let mut counters = PROCESS_MEMORY_COUNTERS_EX::default();
+    counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+    let ok = unsafe {
+        K32GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            std::ptr::from_mut(&mut counters).cast::<PROCESS_MEMORY_COUNTERS>(),
+            counters.cb,
+        )
+    };
+    if ok.0 != 0 {
+        Some((
+            counters.WorkingSetSize as u64,
+            counters.PeakWorkingSetSize as u64,
+        ))
+    } else {
+        None
+    }
+}
+
+#[cfg(not(windows))]
+fn process_memory() -> Option<(u64, u64)> {
+    None
+}
+
+/// `nvidia-smi` reports device-wide memory, which is not per-process: it is recorded as
+/// what it is. A Vulkan renderer's allocations do not appear in `--query-compute-apps`,
+/// so no number here attributes VRAM to Flux.
+fn nvidia_memory_used_mib() -> Option<u64> {
+    let out = Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=memory.used",
+            "--format=csv,noheader,nounits",
+            "--id=0",
+        ])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+}
+
+/// F3/F5's steady-state half: the same graph the benchmark times, but run against a
+/// wall-clock deadline instead of a frame count, with peak and growth of the process's
+/// working set sampled alongside. 120 frames cannot see a leak or a hitch that appears
+/// at minute two, which is why `benchmark` is not this.
+///
+/// Deliberately not part of `verify.ps1`: it is a two-minute measurement, not a gate,
+/// and the trip wire it checks (growth under 10 % and under 64 MiB,
+/// `spec/VERIFICATION.md:144`) belongs to the soak run, not to every CI pass.
+fn cmd_soak(args: &[String]) -> i32 {
+    let profile_name = opt_value(args, "--profile").unwrap_or_else(|| "ordinary".into());
+    let Some(profile) = BENCH_PROFILES.iter().find(|p| p.name == profile_name) else {
+        let known: Vec<&str> = BENCH_PROFILES.iter().map(|p| p.name).collect();
+        eprintln!("soak: unknown profile '{profile_name}' (known: {known:?})");
+        write_evidence(
+            &format!("soak-{profile_name}"),
+            &json!({"ok": false, "reason": "unknown profile", "profile": profile_name, "known_profiles": known}),
+        );
+        return 2;
+    };
+    let seconds: u64 = opt_value(args, "--seconds")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(120);
+    if seconds == 0 {
+        eprintln!("soak: --seconds must be greater than 0");
+        return 2;
+    }
+    let warmup: usize = opt_value(args, "--warmup")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(15);
+    let evidence = format!("soak-{}", profile.name);
+
+    let gpu = match flux_render::gpu::Gpu::new(flux_render::BackendPref::Auto) {
+        Ok(g) => g,
+        Err(_) => {
+            write_evidence(
+                &evidence,
+                &json!({"ok": false, "reason": "no GPU", "profile": profile.name}),
+            );
+            return 1;
+        }
+    };
+    let catalog = flux_catalog::build_catalog();
+    let absent = profile_absent(profile, &catalog);
+    if !absent.is_empty() {
+        eprintln!(
+            "soak: profile '{}' names nodes absent from the catalog: {absent:?}",
+            profile.name
+        );
+        write_evidence(
+            &evidence,
+            &json!({"ok": false, "reason": "profile names absent catalog nodes", "profile": profile.name, "absent": absent}),
+        );
+        return 2;
+    }
+
+    let mut compiler = flux_render::pipeline::EffectCompiler::new(&gpu);
+    let graph = bench_chain_graph(profile);
+    let mut rt = match flux_render::graph_exec::RuntimeGraph::activate(
+        &gpu,
+        &mut compiler,
+        &catalog,
+        &graph,
+        profile.width,
+        profile.height,
+        1,
+    ) {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("soak: profile graph failed to activate — {e:?}");
+            write_evidence(
+                &evidence,
+                &json!({"ok": false, "reason": "graph activation failed", "profile": profile.name, "error": format!("{e:?}")}),
+            );
+            return 1;
+        }
+    };
+    let passes = rt.compiled.passes.len();
+    let project = flux_domain::Project::new("soak", 1);
+    let ctx =
+        flux_engine::frame::FrameContext::for_project(&project, flux_domain::RationalTime::ZERO, 0);
+    let mut resolved = std::collections::HashMap::new();
+    for pass in &rt.compiled.passes {
+        if let Some(e) = catalog.get(&pass.type_id) {
+            resolved.insert(
+                pass.node_id.clone(),
+                flux_render::pipeline::NodeParamsBuffer::defaults(&e.manifest),
+            );
+        }
+    }
+    let src = bench_source_texture(&gpu, profile.width, profile.height);
+    let sv = src.create_view(&Default::default());
+
+    let mut render: Vec<f64> = vec![];
+    let mut copy: Vec<f64> = vec![];
+    let mut errors = 0usize;
+    let mut rss: Vec<u64> = vec![];
+    let mut peak_rss: u64 = 0;
+    let mut vram: Vec<u64> = vec![];
+    let mut gpu_probes = 0usize;
+    let mut frames = 0usize;
+    let start = std::time::Instant::now();
+    let mut last_rss = start;
+    let mut last_gpu = start;
+    let deadline = start + std::time::Duration::from_secs(seconds);
+
+    while std::time::Instant::now() < deadline {
+        let t0 = std::time::Instant::now();
+        if rt
+            .execute(&gpu, &compiler, &catalog, &ctx, &sv, &resolved, 1.0)
+            .is_err()
+        {
+            errors += 1;
+        }
+        let _ = gpu.device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        });
+        let render_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        let t1 = std::time::Instant::now();
+        let _ = flux_render::preview::read_preview(
+            &gpu,
+            &rt.target_texture(),
+            profile.width,
+            profile.height,
+        );
+        let copy_ms = t1.elapsed().as_secs_f64() * 1000.0;
+        frames += 1;
+        if frames > warmup {
+            render.push(render_ms);
+            copy.push(copy_ms);
+        }
+        // Probing is never inside a frame's timing window: `nvidia-smi` is a process
+        // spawn costing tens of milliseconds, and putting it between t0 and the wait is
+        // exactly how the old harness made a copy appear in a render number.
+        if last_rss.elapsed() >= std::time::Duration::from_millis(500) {
+            if let Some((working, peak)) = process_memory() {
+                rss.push(working);
+                peak_rss = peak_rss.max(peak).max(working);
+            }
+            last_rss = std::time::Instant::now();
+        }
+        // One probe immediately, then every 10 s. Counting attempts rather than results
+        // is what stops a missing `nvidia-smi` from being re-spawned on every frame.
+        if gpu_probes == 0 || last_gpu.elapsed() >= std::time::Duration::from_secs(10) {
+            if let Some(used) = nvidia_memory_used_mib() {
+                vram.push(used);
+            }
+            gpu_probes += 1;
+            last_gpu = std::time::Instant::now();
+        }
+    }
+    let elapsed_at_end = start.elapsed();
+    render.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    copy.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let render_sum = summarise(&render);
+    let copy_sum = summarise(&copy);
+
+    let growth_mib = if rss.len() >= 2 {
+        Some(rss[rss.len() - 1].saturating_sub(rss[0]) / (1024 * 1024))
+    } else {
+        None
+    };
+    let growth_pct = if rss.len() >= 2 && rss[0] > 0 {
+        Some((rss[rss.len() - 1] as f64 - rss[0] as f64) * 100.0 / rss[0] as f64)
+    } else {
+        None
+    };
+    // spec/VERIFICATION.md:144 — unexplained growth over 10 % or 64 MiB is the trip wire.
+    let leaked = match (growth_mib, growth_pct) {
+        (Some(mib), Some(pct)) => mib > 64 || pct > 10.0,
+        _ => false,
+    };
+    let tail = render_sum
+        .get("p99_ms")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(f64::MAX);
+    // F3's failure mode is a hitch, not a slow mean, so the count of frames that
+    // individually breached the budget is part of the record even when p95 is fine.
+    let over_budget_frames = render.iter().filter(|v| **v > profile.budget_ms).count();
+
+    let ok = errors == 0 && !leaked && render_sum.get("p95_ms").is_some();
+    write_evidence(
+        &evidence,
+        &json!({
+            "ok": ok,
+            "profile": profile.name,
+            "requestedSeconds": seconds,
+            "wallSeconds": elapsed_at_end.as_secs_f64(),
+            "headlessFramesPerSecond": frames as f64 / elapsed_at_end.as_secs_f64(),
+            "frames": frames,
+            "timedSamples": render.len(),
+            "warmupFrames": warmup,
+            "passes": passes,
+            "resolution": [profile.width, profile.height],
+            "frameBudgetMs": profile.budget_ms,
+            "render": render_sum,
+            "previewCopy": copy_sum,
+            "executeErrors": errors,
+            "p99OverBudget": tail > profile.budget_ms,
+            "framesOverBudget": over_budget_frames,
+            "memory": {
+                "processWorkingSetSamplesBytes": rss,
+                "peakWorkingSetBytes": peak_rss,
+                "growthMiB": growth_mib,
+                "growthPct": growth_pct,
+                "tripWire": "growth must stay under 10% and under 64 MiB (spec/VERIFICATION.md:144)",
+                "measured": !rss.is_empty(),
+                "measureFailureReason": if rss.is_empty() { "K32GetProcessMemoryInfo unavailable on this host" } else { "" },
+            },
+            "gpuMemory": {
+                "deviceUsedMiBSamples": vram,
+                "peakDeviceUsedMiB": vram.iter().max(),
+                "probeCount": gpu_probes,
+                "measured": !vram.is_empty(),
+                "measureFailureReason": if vram.is_empty() { "nvidia-smi gave no parseable memory.used: absent, non-zero exit, or non-numeric" } else { "" },
+                "caveat": "device-wide memory in use from nvidia-smi, not per-process: a Vulkan renderer's allocations are not attributed to Flux by nvidia-smi. Other processes on this GPU are inside the number.",
+                "processVram": {"measured": false, "reason": "no Vulkan-memory telemetry in this build; NVAPI not linked"},
+            },
+            "presentationMisses": {"measured": false, "reason": "headless graph execution has no swapchain (same limit as benchmark, F2)"},
+            "audio": {"measured": false, "reason": "this soak drives the render loop only; no device is opened, so dropped() is not exercised"},
+            "gpu": gpu.info.to_json(),
+        }),
+    );
+    let ms = |key: &str| -> String {
+        render_sum
+            .get(key)
+            .and_then(|v| v.as_f64())
+            .map(|v| format!("{v:.2}"))
+            .unwrap_or_else(|| "-".to_string())
+    };
+    println!(
+        "soak {} @ {}x{}: {} frames in {:.1} s wall, {} execute errors, render p50 {} p95 {} p99 {} max {} ms against {:.2}",
+        profile.name,
+        profile.width,
+        profile.height,
+        frames,
+        elapsed_at_end.as_secs_f64(),
+        errors,
+        ms("median_ms"),
+        ms("p95_ms"),
+        ms("p99_ms"),
+        ms("max_ms"),
+        profile.budget_ms,
+    );
+    println!(
+        "  working set peak {} MiB, growth {} MiB ({} %) over {} samples; device GPU memory peak {} MiB over {} probes (device-wide, see gpuMemory.caveat)",
+        peak_rss / (1024 * 1024),
+        growth_mib.map(|v| v.to_string()).unwrap_or_else(|| "-".into()),
+        growth_pct
+            .map(|p| format!("{p:.2}"))
+            .unwrap_or_else(|| "-".into()),
+        rss.len(),
+        vram.iter()
+            .max()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "-".into()),
+        gpu_probes,
     );
     if ok {
         0
