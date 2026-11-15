@@ -1101,7 +1101,7 @@ the code this lane replaced, the second row read `verified=true`.
   `link-integration` on `if ($env:FLUX_ABLETON_LINK_LIB)`, so the step has been
   `blocked_external` in every run because one variable was unset in one shell, not because a
   prerequisite was missing. `Test-LinkLib` (`infrastructure/verify.ps1:77`) now also checks that
-  the directory holds the file, so the condition is about the machine.
+  the directory holds the file -- but the variable still named the directory, which D029 measured.
 - `apps/spout-bridge/spout_shim.dll` — 13,312 bytes, 2026-11-09, present on this host and
   gitignored (`.gitignore:38` `apps/spout-bridge/*.dll`), so it is in no checkout. Same shape:
   the gate keyed on `FLUX_SPOUT_SHIM` while the adapter itself (`crates/integrations/src/spout.rs:44-55`)
@@ -1122,7 +1122,7 @@ The two look identical in `verify.json`. They are not the same step, and a probe
 "is the file present" would have made it worse — because cargo runs a test binary with its cwd
 set to the *package* directory (`crates/integrations`), where the adapter's relative candidate
 does not resolve, so a repo-root probe reports "present" while the test skips. So
-`Resolve-SpoutShim` (`infrastructure/verify.ps1:90`) resolves an absolute path and exports it
+`Resolve-SpoutShim` (`infrastructure/verify.ps1:99`, was `:90`) resolves an absolute path and exports it
 before the step runs: the probe and the process now answer the same question. This is D023's
 `ndi-discovery` defect arriving through the repair door, caught by running the command before
 trusting the gate.
@@ -1133,7 +1133,7 @@ trusting the gate.
 `target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
 
 `verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
-(`infrastructure/verify.ps1:187-189`) so a run states which prerequisites it could reach. The
+(`infrastructure/verify.ps1:200-202`, was `:187-189`) so a run states which prerequisites it could reach. The
 step list alone cannot: a blocked step and an absent SDK look identical, and a step that ran
 because a vendored library happened to be on the machine is not a step that ran on CI.
 
@@ -1318,3 +1318,72 @@ Four citation sites into the generator itself — `requirements.rs:374`, `:396`,
   inside AT058's blocker, while AT050's `id` is at `:3620`. No live document cites either number, so
   it is a stale note in a historical record rather than a broken pointer; the record is left as
   written. Whether those were pre-fix or post-fix values is not recoverable from this tree.
+
+## D029 — 2026-11-15 one of the two "keyed on the machine" gates was still keyed on a pointer
+
+This lane exists because a sentence in D027's own summary turned out to be true of one gate and
+not the other, and the way to find that out was to run the harness from a shell that had not been
+prepared for it.
+
+### The measurement that produced it
+
+`infrastructure/verify.ps1` (full, no `-Quick`) at `7ecc1f1`, working tree clean, with
+`FLUX_ABLETON_LINK_LIB` unset in the invoking shell: `VERIFY: PASS`, exit 0, **passed=16
+failed=0 blocked_external=1**, `external = {ndiRuntime: true, abletonLinkLib: false, spoutShim:
+true}`. The blocked step was `link-integration`, on a host that holds
+`_upstream/link/build/Release/abl_link.lib`. The same script minutes earlier, from a shell where
+that directory had been exported, recorded **17 / 0 / 0** with `gitHash 7ecc1f1` and
+`gitDirty false`.
+
+Same machine, same commit, same tree: one variable decides whether a gate runs. That is the defect
+D027 says it closed — AGENTS.md's bullet ("both gates were *decided by an environment variable*
+rather than by the machine … They now test for the artifacts") is exact about Spout and wrong about
+Link. `Test-LinkLib` tested for `abl_link.lib` **inside the directory the variable names**, so the
+variable remained load-bearing: D027 could only upgrade "set but pointing nowhere" from a gate run
+to a blocker, which is real but is not the same claim as testing the machine.
+
+### What changed, and why testing was never enough
+
+`crates/integrations/build.rs:16` panics unless `FLUX_ABLETON_LINK_LIB` names a directory, so a
+gate that merely *knows* the library is present cannot hand it to cargo. The fix is what
+`Resolve-SpoutShim` already does for the shim: return a path and export it. `Resolve-LinkLib`
+(`infrastructure/verify.ps1:81`) tries the variable's directory, then
+`_upstream/link/build/Release`, `_upstream/link/build/Debug` and `link/build/Release` — the
+candidate-list shape `Test-NdiRuntime` already uses — and the gate assigns the answer to
+`$env:FLUX_ABLETON_LINK_LIB` before the step, printing `abl_link.lib resolved: <dir>` so the run
+says which candidate it used. `external.abletonLinkLib` now reports the resolved directory rather
+than re-running the search. `Test-LinkLib` is deleted: nothing calls a boolean that a path
+variable already answers.
+
+A fresh clone is unaffected: none of those candidates exist there, so `link-integration` and
+`spout-enumeration` stay `blocked_external` and CI still exits 0 with 2 blocked steps. The change
+moves the decision from the operator's shell to the filesystem, which is the only place a
+prerequisite can be true.
+
+### No guard, and what stands in for one
+
+`verify.ps1` has no test harness — the parse check is the whole static surface (`parse_errors=0`).
+The guard is behavioural and pending: the next full run, at this commit, from a shell that sets
+nothing, which should read 17 / 0 / 0. Until that run is recorded this entry claims the mechanism
+and the before-state, not the after-state. The two transcripts of this session
+(`target/verify-7ecc1f1.log`, `target/verify-7ecc1f1-link.log`) are scratch and gitignored; the
+durable half is `evidence/verify.json`, which the confirming run overwrites.
+
+### Citation churn
+
+13 lines inserted at `:74` moved everything below it in the same file: `Resolve-SpoutShim`
+`:90`→`:99`, the `external` block `:187-189`→`:200-202`, and `Test-LinkLib` `:77` disappears.
+Re-resolved in `implementation/DECISIONS.md:1103`, `:1125`, `:1136` and
+`docs/PERFORMANCE-READINESS.md:1073`; `:32`, `:35` and `:47-61` are above the insertion and were
+checked, not assumed.
+
+### Not changed here
+
+- The `passed=17 failed=0 blocked_external=0` figure quoted across README, AGENTS.md, STATE.json
+  and FINAL-REPORT.md stays, but with the shell-dependence attached, because a reader cannot
+  reproduce it from a bare shell until this fix ships.
+- `gitDirty false` at `7ecc1f1` closes the half of D026 that stopped at the mechanism: the
+  excluded pathspec is now measured at a commit that contains it, on a tree that was clean before
+  the run, with the source change committed after. No claim in that record needed editing.
+- The seven feature-off CLI branches that print and return `Ok` are untouched, and the
+  requirements-ledger freshness gate D028 documented is still a gap in both harnesses.

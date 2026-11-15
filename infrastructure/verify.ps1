@@ -71,12 +71,21 @@ function Test-NdiRuntime {
     return $false
 }
 
-# Same question for Ableton Link: the `link` feature needs a directory holding
-# abl_link.lib, because crates/integrations/build.rs:16 panics without FLUX_ABLETON_LINK_LIB.
-# An env var that is set but points nowhere is not a prerequisite, so the file is checked.
-function Test-LinkLib {
-    if (-not $env:FLUX_ABLETON_LINK_LIB) { return $false }
-    return Test-Path -LiteralPath (Join-Path $env:FLUX_ABLETON_LINK_LIB 'abl_link.lib') -PathType Leaf
+# Same question for Ableton Link. crates/integrations/build.rs:16 panics unless
+# FLUX_ABLETON_LINK_LIB names a directory, so the gate must supply that variable, not merely
+# read it. D027 keyed the step on abl_link.lib *inside* the directory the var names, which is
+# half the fix: measured 2026-11-15 at 7ecc1f1 from a shell with the var unset, this host still
+# recorded blocked_external (16-0-1) while holding _upstream/link/build/Release/abl_link.lib on
+# disk. The pointer was still deciding the gate. Candidates are now searched in the same shape
+# Test-NdiRuntime uses, and the directory that answers is exported before cargo runs.
+function Resolve-LinkLib {
+    if ($env:FLUX_ABLETON_LINK_LIB -and (Test-Path -LiteralPath (Join-Path $env:FLUX_ABLETON_LINK_LIB 'abl_link.lib') -PathType Leaf)) {
+        return $env:FLUX_ABLETON_LINK_LIB
+    }
+    foreach ($p in @('_upstream/link/build/Release', '_upstream/link/build/Debug', 'link/build/Release')) {
+        if (Test-Path -LiteralPath (Join-Path $p 'abl_link.lib') -PathType Leaf) { return (Join-Path $root $p) }
+    }
+    return $null
 }
 
 # And for Spout: the adapter (crates/integrations/src/spout.rs:44-55) tries FLUX_SPOUT_SHIM,
@@ -115,11 +124,15 @@ Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
-# Optional Ableton Link check — runs when a prebuilt abl_link.lib is reachable.
-if (Test-LinkLib) {
+# Optional Ableton Link check — runs when a prebuilt abl_link.lib is reachable, and exports the
+# directory that answered because build.rs:16 needs FLUX_ABLETON_LINK_LIB to be set, not just true.
+$linkLib = Resolve-LinkLib
+if ($linkLib) {
+    Write-Host ('abl_link.lib resolved: ' + $linkLib)
+    $env:FLUX_ABLETON_LINK_LIB = $linkLib
     Step 'link-integration' { cargo test -p flux-integrations --features link link:: }
 } else {
-    Blocked 'link-integration' 'FLUX_ABLETON_LINK_LIB unset, or no abl_link.lib in that directory'
+    Blocked 'link-integration' 'no abl_link.lib (FLUX_ABLETON_LINK_LIB unset or pointing elsewhere, and no _upstream/link/build/*/Release candidate)'
 }
 # NDI. Renamed 2026-11-15 (D023): it used to be called 'ndi-discovery', which is what the
 # two tests *do*, not what they *prove*. The ndi:: filter selects exactly
@@ -185,7 +198,7 @@ $payload = [ordered]@{
     # vendored library happened to be in the tree looks the same as one that ran on CI.
     external = @{
         ndiRuntime = (Test-NdiRuntime)
-        abletonLinkLib = (Test-LinkLib)
+        abletonLinkLib = [bool]$linkLib
         spoutShim = [bool]$spoutShim
     }
     steps = $results

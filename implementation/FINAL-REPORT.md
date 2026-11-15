@@ -50,8 +50,8 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   repeated, and it passes:** measured 2026-11-15 at HEAD `75da874` it exited 0 with
 >   `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external (`link-integration`,
 >   `spout-enumeration`), re-measured identically at `90d9e59`. D027 re-keyed both gates on
->   machine state — the spout shim resolves itself, Link still needs `FLUX_ABLETON_LINK_LIB`
->   exported — and at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
+>   machine state — the spout shim resolves itself, and Link needed its directory exported until
+>   D029 taught that gate to search — at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
 >   0 blocked_external**, the first recorded run with no blocked step. The two defects D019
 >   found in that script were repaired first (D020), along with a third `$LASTEXITCODE` leak.
 > - **§1 is a dated inventory: its numbers are the 2026-11-09 capture, and several have moved.**
