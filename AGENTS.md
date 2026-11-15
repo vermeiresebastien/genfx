@@ -79,9 +79,15 @@ them first.
   D020, which is also when `gitHash` and `counts` were added to it.
 - **Step names overpromise.** `ndi-discovery` runs `ndi::`, which selects 2 tests that only
   prove the DLL loads and discovery does not crash.
-- **`xtask benchmark --profile X` ignores X.** Resolution is hardcoded 1920×1080, the set is
-  the first 30 fragment generators, each iteration includes a full readback, and with 12
-  samples the `p95ms` field is literally the worst sample. It is not a frame-budget number.
+- **`xtask benchmark` numbers need their labels read.** The three harness defects D019 found were
+  fixed 2026-11-15 (D021): `--profile` now selects resolution/budget/graph (`ordinary`, `4k`;
+  anything else exits 2), render and preview-copy are timed in separate windows, warm-up is
+  discarded, and percentiles are nearest-rank over 120 samples. Two traps remain. (1) The single
+  number that used to be quoted — `p95ms` per generator — is gone; per-generator rows now carry
+  `median`/`max` over 10 samples only, and the merge-style percentiles belong to the 8-node chain.
+  (2) Tail numbers move by ~6x between runs on identical work (measured: max 2.96 ms, then
+  19.57 ms), so one invocation is not a frame-budget verdict; and `presentation_misses` is
+  `{measured: false}` because headless execution has no swapchain.
 - A gate pass **rewrites `implementation/evidence/*.json`**, which are tracked. A dirty tree
   after verification is normal and is not a code change.
 

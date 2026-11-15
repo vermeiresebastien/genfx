@@ -276,7 +276,9 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    the device, 0 failures — which is the strongest single piece of evidence in the tree, and
    the reason D018 item 3's "the green suite is weak" caveat needs the exception recorded
    here.
-4. **The benchmark gate is weaker than its output looks** (`crates/xtask/src/main.rs:299-382`).
+4. **The benchmark gate is weaker than its output looks** (`crates/xtask/src/main.rs:299-382`
+   as it stood at `e84fe67`; that code no longer exists — the line numbers below are the
+   historical ones, not a pointer into the current file).
    `--profile` is parsed and written into the JSON but never read again: resolution is
    hardcoded 1920×1080 (`:331`, `:355`) and the sample set is the first 30 fragment
    generators (`:324`), so no profile changes the work. Every timed iteration wraps a full
@@ -285,8 +287,13 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    is index 11 — the single worst sample — so the field labelled `p95ms` is really `max`.
    (The copy size stated here was first written as "~8 MB" and is wrong: `read_preview`
    downsamples to the 960×540 preview cap, ~2 MB. See D020.)
+   **All three counts discharged in D021** — and with them the premise of the paragraph below,
+   which is now superseded: the `gen.concentric` "outlier in twelve" was a preview readback
+   artefact, not a node, and the multi-node DAG this table said nothing in the tree times is now
+   the thing the gate measures.
 
-Performance, for the record: on the ordinary label the benchmark puts the median worst-sample
+Performance, for the record (superseded by D021, which re-measured this on a real graph): on the
+ordinary label the benchmark put the median worst-sample
 at 4.98 ms across 30 single generators at 1920×1080, with one row above a 16.6 ms budget
 (`gen.concentric`, worst 21.49 ms, median 2.75 ms — one outlier in twelve, not a slow node).
 Each row is one generator on one frame. Nothing in the tree times a multi-node DAG at 1080p60:
@@ -344,9 +351,8 @@ parity exits 0 end to end. It is a statement about the tree at `75da874` on this
 - **`ndi-discovery` still overpromises its name.** It runs `ndi::`, which selects the 2
   tests that prove the DLL loads and discovery does not crash. Renaming the step is a
   docs-and-labelling job, not a harness-correctness one, so it is left open.
-- **`xtask benchmark --profile X` still ignores X** (D019 conclusion 4). That is the next
-  unit of work; the harness now reports it truthfully, but the number itself is still
-  render-plus-readback at a hardcoded 1920×1080.
+- **`xtask benchmark --profile X` ignored X** (D019 conclusion 4) — left open by this commit and
+  closed by the next one, D021. Nothing in the harness repair changed what the benchmark measured.
 - CI does not consume `verify.json`. `.github/workflows/ci.yml` runs its own steps and
   only uploads `implementation/evidence/**`; so this repair makes the *local* gate
   truthful, and the Actions job is unaffected except that the artifact it uploads now has
@@ -360,3 +366,77 @@ parity exits 0 end to end. It is a statement about the tree at `75da874` on this
   `PERFORMANCE-READINESS.md` or `STATE.json` should not have to find D020 first to learn
   that the figure they are quoting is wrong.
 
+
+## D021 — 2026-11-15 the benchmark now measures a graph, at the resolution it claims
+
+D019 conclusion 4 said `xtask benchmark` "lies about what it measured" on three counts:
+`--profile` was read and thrown away, the timed loop included a full preview readback, and the
+`p95ms` field was the worst of twelve samples wearing a percentile's name. `docs/PERFORMANCE-READINESS.md`
+F3 called the harness "the bigger problem" and asked for the multi-node graph that nothing in the
+tree timed. All four are addressed here, and the first real numbers are recorded.
+
+### What the tool does now
+
+`BENCH_PROFILES` (`crates/xtask/src/main.rs:302-353`) maps a profile name to resolution, budget
+and graph. `ordinary` is 1920×1080 against 16.67 ms (`spec/VERIFICATION.md:138`); `4k` is
+3840×2160 against 33.33 ms (`:143`). An unknown profile exits 2 with the list of known names
+instead of silently benching the default, and a profile that names a node absent from the catalog
+exits 2 for the same reason — a graph that quietly drops a node would report fewer passes than it
+claims.
+
+The timed graph is the merge the old harness never built: `gen.plasma` feeds
+`fx.color_adjustment → fx.warp → fx.halftone → fx.vhs → fx.bloom → fx.composite → flux.output`,
+and also feeds `fx.composite` port `b` directly, so the measured path is a DAG with a join rather
+than a straight line. 8 nodes, and the evidence records `compiled_passes: 8` so a silent
+degradation would be visible rather than inferable.
+
+15 warm-up frames are discarded and 120 are timed. `execute()` only submits, so the render window
+now ends in an explicit `PollType::Wait` — without it the "render" number was CPU submission and
+the GPU was still busy. The preview readback is timed in its own window, and a third series sums
+the two, so the old single conflated figure is replaced by three numbers with different meanings
+rather than being quietly redefined. Percentiles are nearest-rank; `p95` is emitted only at ≥20
+samples and `p99` only at ≥100, which the chain run satisfies and the per-generator sweep does
+not, so the 30 sweep rows report `median`/`max` and nothing else. Adapter identity now rides in
+the evidence as `gpu.info.to_json()`.
+
+### Measured result on this host (RTX 2080 Ti, Vulkan, driver 560.94)
+
+| profile | resolution | render median | render p95 | render p99 | render max | copy median | budget |
+|---|---|---|---|---|---|---|---|
+| `ordinary` run 1 | 1920×1080 | 1.53 ms | 2.32 ms | 3.37 ms | 3.40 ms | 2.52 ms | 16.67 ms |
+| `ordinary` run 2 | 1920×1080 | 2.09 ms | 3.71 ms | 7.49 ms | **19.57 ms** | 4.28 ms | 16.67 ms |
+| `ordinary` run 3 | 1920×1080 | 1.59 ms | 2.59 ms | 2.78 ms | 2.96 ms | 2.51 ms | 16.67 ms |
+| `4k` | 3840×2160 | 3.98 ms | 5.09 ms | 6.12 ms | 8.37 ms | 3.32 ms | 33.33 ms |
+
+Three things fall out of this, and they change the reading of the old evidence.
+
+1. **The budget is met, at both resolutions.** The chain's render p95 is 2.3–3.7 ms against
+   16.67 ms at 1080p and 5.09 ms against 33.33 ms at 4K. `benchmark.json` exits 1 when the chain
+   tail breaches the budget, so this is a gate and not a printout.
+2. **The historic over-budget rows were a copy artefact, not a node.** With render and readback in
+   separate windows, every one of the 30 swept generators is under 16.67 ms on render alone
+   (worst 10.04 ms, `gen.fractal_noise`), while the same rows' `render+copy` max reaches
+   30.58 ms (`gen.clouds`). The `gen.concentric` "p95 20.91 ms" that F3 carried for six days
+   belonged to the readback. It was never a slow node.
+3. **The readback barely depends on resolution** — 2.5 ms at 1080p, 3.3 ms at 4K — because
+   `preview_size()` clamps it to 960×540 either way. That is the mechanism behind D020's `~8 MB`
+   correction, and the reason the old figure could not scale with the profile it claimed.
+
+### Deliberately not claimed
+
+- **Run-to-run variance is not understood.** Three identical invocations produced render maxima of
+  3.40, 19.57 and 2.96 ms. The tool now exposes that instead of hiding it, but nothing here
+  explains it, and a single invocation is therefore not a frame-budget verdict. F3 keeps this open.
+- **No presentation data.** Headless graph execution has no swapchain, so
+  `presentation_misses` is recorded as `{measured: false}` with the reason. F3's numbers are
+  critical-path render, not frames on glass; that is gate F2 and it is still unmeasured.
+- **Four of the six spec profiles do not exist.** `particles`, `sdf`, `fluid` and `recording`
+  (`spec/VERIFICATION.md:139-142`) are not in the table, so naming them is a refusal rather than
+  a measurement. The `BLOCKERS.md:46-47` CPU-producer ceiling is untouched by this change.
+- **`benchmark.json` holds one profile at a time.** Each run overwrites the file, so the 4K row
+  above was read from a copy taken before the next run replaced it. Unchanged, because making the
+  evidence filename profile-specific is a separate call about what `implementation/evidence/`
+  should contain.
+- **The sweep got shallower on purpose.** 12 samples became 10 per generator with no percentile
+  claim attached. The old rows were 12 samples labelled p50/p95; the label was the problem, not
+  the count.

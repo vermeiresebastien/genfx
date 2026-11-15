@@ -1,156 +1,548 @@
 {
   "ok": true,
   "profile": "ordinary",
-  "results": [
+  "spec_profile": "spec/VERIFICATION.md:138",
+  "resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "frame_budget_ms": 16.67,
+  "warmup_frames": 15,
+  "timed_frames": 120,
+  "graph": {
+    "source": "gen.plasma",
+    "chain": [
+      "fx.color_adjustment",
+      "fx.warp",
+      "fx.halftone",
+      "fx.vhs",
+      "fx.bloom",
+      "fx.composite"
+    ],
+    "merge": "the generator also feeds fx.composite port b",
+    "nodes": 8,
+    "compiled_passes": 8
+  },
+  "render_ms": {
+    "samples": 120,
+    "median_ms": 1.5926,
+    "mean_ms": 1.7065866666666667,
+    "max_ms": 2.9639,
+    "p95_ms": 2.5864,
+    "p99_ms": 2.777
+  },
+  "preview_copy_ms": {
+    "samples": 120,
+    "median_ms": 2.5090999999999997,
+    "mean_ms": 2.608847500000001,
+    "max_ms": 4.0465,
+    "p95_ms": 3.3318000000000003,
+    "p99_ms": 3.8299
+  },
+  "render_plus_copy_ms": {
+    "samples": 120,
+    "median_ms": 4.2067,
+    "mean_ms": 4.315434166666667,
+    "max_ms": 6.03,
+    "p95_ms": 5.3505,
+    "p99_ms": 5.7318999999999996
+  },
+  "tail_over_budget": false,
+  "execute_errors": 0,
+  "presentation_misses": {
+    "measured": false,
+    "why": "headless graph execution has no swapchain; a frame here is not a presented frame (docs/PERFORMANCE-READINESS.md F2)"
+  },
+  "copy_caveat": "read_preview builds a shader module, bind group layout and pipeline on every call (crates/render/src/preview.rs:32), so preview_copy_ms is an upper bound on the copy, and render_plus_copy_ms is the only number that bounds the GPU.",
+  "generators": [
     {
       "id": "gen.clouds",
-      "p50ms": 2.6409,
-      "p95ms": 5.0716
+      "render": {
+        "samples": 10,
+        "median_ms": 0.49779999999999996,
+        "mean_ms": 0.5748499999999999,
+        "max_ms": 0.9711000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8496000000000006,
+        "mean_ms": 3.06895,
+        "max_ms": 3.6595000000000004
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.concentric",
-      "p50ms": 2.7494,
-      "p95ms": 21.4853
+      "render": {
+        "samples": 10,
+        "median_ms": 0.33080000000000004,
+        "mean_ms": 0.37316,
+        "max_ms": 0.5611
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.6774000000000004,
+        "mean_ms": 2.6947,
+        "max_ms": 3.1614999999999998
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.fractal_noise",
-      "p50ms": 2.5728999999999997,
-      "p95ms": 5.5821000000000005
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4536,
+        "mean_ms": 0.46468,
+        "max_ms": 0.5218999999999999
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8897,
+        "mean_ms": 3.0098599999999998,
+        "max_ms": 4.0155
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.glowing_wave",
-      "p50ms": 2.6757999999999997,
-      "p95ms": 4.8471
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3992,
+        "mean_ms": 0.47515999999999997,
+        "max_ms": 0.7755000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.1100000000000003,
+        "mean_ms": 3.18089,
+        "max_ms": 3.9931
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.mesh_gradient",
-      "p50ms": 2.5025,
-      "p95ms": 5.2787
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3635,
+        "mean_ms": 0.42998000000000003,
+        "max_ms": 0.6904
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.857,
+        "mean_ms": 2.9635599999999998,
+        "max_ms": 3.7142999999999997
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.moire",
-      "p50ms": 2.7872,
-      "p95ms": 4.9913
+      "render": {
+        "samples": 10,
+        "median_ms": 0.33799999999999997,
+        "mean_ms": 0.37918,
+        "max_ms": 0.6103000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.6358,
+        "mean_ms": 2.79868,
+        "max_ms": 3.572
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.nebula",
-      "p50ms": 2.5553,
-      "p95ms": 5.560899999999999
+      "render": {
+        "samples": 10,
+        "median_ms": 0.8034,
+        "mean_ms": 0.88777,
+        "max_ms": 1.8029000000000002
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.2561,
+        "mean_ms": 3.5194599999999996,
+        "max_ms": 4.9273
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.pattern_grid",
-      "p50ms": 2.426,
-      "p95ms": 4.5463
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3622,
+        "mean_ms": 0.43894,
+        "max_ms": 0.7451
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8509,
+        "mean_ms": 3.0191500000000007,
+        "max_ms": 3.689
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.water_caustic",
-      "p50ms": 2.6421,
-      "p95ms": 4.5107
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4018,
+        "mean_ms": 0.44903999999999994,
+        "max_ms": 0.632
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.1484000000000005,
+        "mean_ms": 3.2417000000000002,
+        "max_ms": 4.0461
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.solid",
-      "p50ms": 2.538,
-      "p95ms": 4.805700000000001
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3567,
+        "mean_ms": 0.47722999999999993,
+        "max_ms": 1.1499
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8413,
+        "mean_ms": 3.09513,
+        "max_ms": 4.039
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.gradient",
-      "p50ms": 2.6687,
-      "p95ms": 4.7017
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3309,
+        "mean_ms": 0.44828,
+        "max_ms": 1.3169
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.6931000000000003,
+        "mean_ms": 2.92357,
+        "max_ms": 3.9228
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.mesh_gradient_fill",
-      "p50ms": 2.5589,
-      "p95ms": 5.0929
+      "render": {
+        "samples": 10,
+        "median_ms": 0.5132,
+        "mean_ms": 0.6469499999999999,
+        "max_ms": 1.2581
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.1132999999999997,
+        "mean_ms": 3.42622,
+        "max_ms": 4.4533
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.noise",
-      "p50ms": 2.5751,
-      "p95ms": 4.9779
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4588,
+        "mean_ms": 0.54712,
+        "max_ms": 0.7937000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.0468,
+        "mean_ms": 3.325240000000001,
+        "max_ms": 4.6937
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.voronoi",
-      "p50ms": 2.711,
-      "p95ms": 5.0501000000000005
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4929,
+        "mean_ms": 0.55317,
+        "max_ms": 0.8194
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.119,
+        "mean_ms": 3.3288799999999994,
+        "max_ms": 4.3103
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.plasma",
-      "p50ms": 2.5582000000000003,
-      "p95ms": 4.3454
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3344,
+        "mean_ms": 0.40515999999999996,
+        "max_ms": 0.6005999999999999
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.028,
+        "mean_ms": 3.07053,
+        "max_ms": 3.7401
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.grid",
-      "p50ms": 2.539,
-      "p95ms": 4.309699999999999
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4551,
+        "mean_ms": 0.48766,
+        "max_ms": 1.0777
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8057,
+        "mean_ms": 3.0876799999999998,
+        "max_ms": 3.748
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.radial_rays",
-      "p50ms": 2.4279,
-      "p95ms": 5.9425
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3586,
+        "mean_ms": 0.37804000000000004,
+        "max_ms": 0.45820000000000005
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8879,
+        "mean_ms": 3.00955,
+        "max_ms": 4.1731
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.interference",
-      "p50ms": 2.7773,
-      "p95ms": 4.9719999999999995
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3316,
+        "mean_ms": 0.5142,
+        "max_ms": 1.591
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8445,
+        "mean_ms": 3.15319,
+        "max_ms": 4.4015
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.pattern_fill",
-      "p50ms": 2.6513999999999998,
-      "p95ms": 5.5083
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4092,
+        "mean_ms": 0.6006400000000001,
+        "max_ms": 1.9616
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.1996,
+        "mean_ms": 3.38369,
+        "max_ms": 4.9562
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.topographic",
-      "p50ms": 2.7737,
-      "p95ms": 4.6922
+      "render": {
+        "samples": 10,
+        "median_ms": 0.6091,
+        "mean_ms": 0.63232,
+        "max_ms": 0.8629
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.3374,
+        "mean_ms": 3.5327100000000002,
+        "max_ms": 4.665
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.aurora",
-      "p50ms": 2.3911000000000002,
-      "p95ms": 4.9573
+      "render": {
+        "samples": 10,
+        "median_ms": 0.6612,
+        "mean_ms": 0.77768,
+        "max_ms": 1.4441
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.2142,
+        "mean_ms": 3.44739,
+        "max_ms": 4.4992
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.oscilloscope",
-      "p50ms": 2.5945,
-      "p95ms": 4.684200000000001
+      "render": {
+        "samples": 10,
+        "median_ms": 0.38230000000000003,
+        "mean_ms": 0.45908,
+        "max_ms": 0.9389
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.0254,
+        "mean_ms": 3.2505700000000006,
+        "max_ms": 4.1356
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.caustics",
-      "p50ms": 2.4998,
-      "p95ms": 4.8891
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3412,
+        "mean_ms": 0.3956,
+        "max_ms": 0.6957000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.7722,
+        "mean_ms": 2.93597,
+        "max_ms": 3.8153
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.fractal",
-      "p50ms": 2.7106,
-      "p95ms": 5.9785
+      "render": {
+        "samples": 10,
+        "median_ms": 0.5246,
+        "mean_ms": 0.53935,
+        "max_ms": 0.7324
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.1056999999999997,
+        "mean_ms": 3.23842,
+        "max_ms": 4.1612
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.lissajous",
-      "p50ms": 3.2361999999999997,
-      "p95ms": 6.9705
+      "render": {
+        "samples": 10,
+        "median_ms": 2.0293,
+        "mean_ms": 2.34233,
+        "max_ms": 3.2973999999999997
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 5.1998,
+        "mean_ms": 5.35907,
+        "max_ms": 6.753
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.superformula",
-      "p50ms": 2.7587,
-      "p95ms": 4.532900000000001
+      "render": {
+        "samples": 10,
+        "median_ms": 0.38939999999999997,
+        "mean_ms": 0.52655,
+        "max_ms": 1.7906
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.8198999999999996,
+        "mean_ms": 3.0822099999999995,
+        "max_ms": 4.6431000000000004
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.truchet",
-      "p50ms": 2.6508,
-      "p95ms": 5.2662
+      "render": {
+        "samples": 10,
+        "median_ms": 0.39740000000000003,
+        "mean_ms": 0.41669999999999996,
+        "max_ms": 0.6234
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.0447,
+        "mean_ms": 3.36357,
+        "max_ms": 4.4984
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.texture_field",
-      "p50ms": 2.5314,
-      "p95ms": 5.0849
+      "render": {
+        "samples": 10,
+        "median_ms": 0.4133,
+        "mean_ms": 0.4665100000000001,
+        "max_ms": 0.6840999999999999
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.7781000000000002,
+        "mean_ms": 3.06818,
+        "max_ms": 3.7580999999999998
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.starfield",
-      "p50ms": 2.6613,
-      "p95ms": 4.3396
+      "render": {
+        "samples": 10,
+        "median_ms": 0.3622,
+        "mean_ms": 0.43328000000000005,
+        "max_ms": 0.695
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 2.9154,
+        "mean_ms": 3.2047399999999997,
+        "max_ms": 4.2174
+      },
+      "execute_errors": 0
     },
     {
       "id": "gen.test_signal",
-      "p50ms": 2.4994,
-      "p95ms": 5.3702000000000005
+      "render": {
+        "samples": 10,
+        "median_ms": 0.39649999999999996,
+        "mean_ms": 0.46519000000000005,
+        "max_ms": 0.7129000000000001
+      },
+      "frame": {
+        "samples": 10,
+        "median_ms": 3.0604,
+        "mean_ms": 3.07096,
+        "max_ms": 3.7323999999999997
+      },
+      "execute_errors": 0
     }
-  ]
+  ],
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 2080 Ti",
+    "backend": "Vulkan",
+    "deviceType": "DiscreteGpu",
+    "driver": "NVIDIA 560.94",
+    "maxTexture2D": 8192,
+    "supportsRgba16fFilter": true,
+    "maxUniformBindingSize": 65536
+  }
 }

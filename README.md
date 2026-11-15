@@ -45,7 +45,8 @@ target/release/flux.exe demo-render gen.plasma out      # -> out/Demo_gen_plasma
 target/release/flux.exe demo-media clip.mp4 out         # import + export a video
 target/release/flux.exe contact-sheet out               # every fragment-shader effect + preset
 cargo xtask test-gpu --profile baseline                 # compile all catalog shaders on GPU
-cargo xtask benchmark --profile ordinary                # 1080p timings
+cargo xtask benchmark --profile ordinary                # 1080p 8-node graph, 16.67 ms budget
+cargo xtask benchmark --profile 4k                      # 4K same graph, 33.33 ms budget
 cargo build -p flux-desktop                             # the GUI; run target/debug/flux-desktop.exe
 ```
 

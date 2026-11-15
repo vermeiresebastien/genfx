@@ -754,9 +754,14 @@ safe across processes.
 list** (`:51-94`), `fixtures` generates `fixtures/generated/{test_10s_60fps.mp4,
 test_2997.mp4, sine_1k_48k.wav}` via lavfi (`:96-161`), `catalog` lints duplicate ids and
 empty `implementation.path` (`:163-199`), `check` runs `cargo test -p` per package with a
-`--scope` filter (`:201-240`), `benchmark` builds single-generator graphs at 1920×1080 for
-12 iterations reporting p50/p95 over 30 generators (`:299-387`), and `package` builds
-`flux-app --no-default-features` expecting `target/release/flux.exe` (`:436-467`). Two more
+`--scope` filter (`:201-240`), `benchmark` takes a named profile from a `BENCH_PROFILES` table
+(`:302-353`) — `ordinary` (1920×1080, 16.67 ms budget) or `4k` (3840×2160, 33.33 ms) — and times
+an 8-node merging generator→six-effect→output graph over 15 warm-up plus 120 sampled frames,
+reporting render and preview-copy separately with nearest-rank median/p95/p99, then sweeps 30
+(10 at 4K) single-generator graphs at 10 samples each with median/max only (`:496-660`); an
+unknown profile exits 2 rather than benching the default, and it exits 1 when the chain tail
+breaches the budget. `package` builds `flux-app --no-default-features` expecting
+`target/release/flux.exe` (`:775-806`). Two more
 bins exist: `requirements` (regenerates `implementation/requirements.json` from
 `spec/SPEC-INDEX.json` + the live catalog) and `export_shaders` (dumps
 `apps/shader-harness/shaders.json` and Naga-validates every shader with the same validator
@@ -808,7 +813,7 @@ the native renderer uses).
 | GPU integration harness (metamorphic, skipping) | `crates/tests/src/lib.rs` | `14-16, 63-111, 218-349` |
 | GPU test serialisation lock (only two files) | `crates/tests/tests/dag_parallel.rs`, `node_editor.rs` | `10-17`, `15-19` |
 | Full-catalog GPU shader compile (panics without GPU) | `crates/render/src/tests.rs` | `13-33` |
-| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-49, 51-94, 242-287, 299-387` |
+| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-49, 51-94, 242-287, 302-660` |
 | Requirements coverage generator | `crates/xtask/src/bin/requirements.rs` | `17-32` |
 | Tauri IPC surface (10 commands) | `apps/desktop/src-tauri/src/lib.rs` | `16-24, 32-47, 78, 95-98, 154-275, 308-349, 430-441` |
 | UI preview sizing (the effective cap) | `apps/desktop/ui/main.js` | `185-196, 198-215` |

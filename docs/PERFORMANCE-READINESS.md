@@ -643,8 +643,9 @@ The hardware step is real, but it comes after a code step, and this document say
   (`main.js:199`), `PreviewRenderer` cache misses (`b5889b9`), and per-frame PNG encode cost
   scaling with preview size.
 
-### F3 — `benchmark.json`'s own numbers already miss the budget. Owner: ALONE
-- **Unproven, and the existing data argues against the target.**
+### F3 — the benchmark harness, and what its numbers were actually measuring. Owner: ALONE
+- **The Nov 9 headline dissolved. The gate is now measured on a real graph, and passes.**
+- **What the Nov 9 file claimed, and why it could not be read.**
   `implementation/evidence/benchmark.json` (`"profile": "ordinary"`, 30 generators, Nov 9 02:27)
   reports per-node p50/p95 in ms. Two entries exceed the `p95 ≤ 16.67 ms` goal in
   `spec/VERIFICATION.md:138`: **`gen.concentric` p95 = 20.91 ms** and **`gen.clouds`
@@ -654,40 +655,81 @@ The hardware step is real, but it comes after a code step, and this document say
   adapter/driver and actual path"). `implementation/BLOCKERS.md:46-47` separately warns
   "SDF/particle producers: correct and deterministic CPU implementations; **not realtime at 4K**"
   — so the CPU-producer class has a known, unquantified ceiling.
-- **Re-measured 2026-11-14 at `e84fe67`, and the harness is the bigger problem.**
+- **Re-measured 2026-11-14 at `e84fe67`, and the harness was the bigger problem.**
   `cargo run -q -p xtask -- benchmark --profile ordinary` on the freshly built xtask, same host
   (RTX 2080 Ti / Vulkan): 30 generators at 1920×1080, median worst-sample **4.98 ms**, and only
   **one** row over a 16.6 ms budget — `gen.concentric` (median 2.75 ms, worst 21.49 ms).
   `gen.clouds` is no longer over budget (worst 5.07 ms, was 17.37), so the Nov 9 spike did move;
-  the `concentric` tail persists. Three things make even this weak evidence, and they are in
-  `crates/xtask/src/main.rs:299-387`, not in the GPU:
-  (a) `--profile` is parsed and written to the JSON but never used — resolution is hardcoded
-  1920×1080 (`:331`, `:355`) and the set is `.take(30)` fragment generators in catalog order
-  (`:324`), so `--profile 4k` would do identical work;
-  (b) every timed iteration wraps a `read_preview` call asked for 1920×1080 (`:371`), which
-  `preview_size()` clamps to the 960×540 preview cap (`crates/render/src/preview.rs:7-11`) —
-  so the number is render **+ a 2,073,600 B GPU→CPU copy**, which is not what a live frame
-  costs and is not comparable to the `p95 ≤ 16.67 ms` goal;
+  the `concentric` tail persists. Three things made even this weak evidence, and they were in
+  `crates/xtask/src/main.rs`, not in the GPU:
+  (a) `--profile` was parsed and written to the JSON but never used — resolution hardcoded
+  1920×1080, the set was `.take(30)` fragment generators in catalog order, so `--profile 4k`
+  did identical work;
+  (b) every timed iteration wrapped a `read_preview` call, which `preview_size()` clamps to the
+  960×540 preview cap (`crates/render/src/preview.rs:7-11`) — so the number was render **+ a
+  2,073,600 B GPU→CPU copy**, not what a live frame costs and not comparable to the
+  `p95 ≤ 16.67 ms` goal;
   (c) with 12 samples, `times[len*95/100]` is index 11 — the single worst sample — so the field
-  named `p95ms` is `max`, and `p50ms` is index 6. There is no p99 and no warm-up discard.
-  The gap this gate actually needs is still open: nothing times a **multi-node graph**.
+  named `p95ms` was `max`, and `p50ms` was index 6. There was no p99 and no warm-up discard.
+  The other gap this gate needed was a **multi-node graph**: until 2026-11-15 nothing timed one.
   `crates/tests/tests/preview_perf.rs:12` renders `chain_graph("gen.plasma", &[])` — one
   generator, zero effects — at 320×180/352×198/640×360/960×540 only, and returns early on
   `no GPU; skipping`.
-- **Shortest procedure.** Fix (a)–(c) first so the output means what it says: honour
-  `--profile` for resolution and node-count, time the render and the readback separately, and
-  either sample ≥ 100 frames for a real p95/p99 or rename the fields `median`/`max`. Then re-run
-  on the rebuilt binary, capturing the adapter string from `target\debug`… actually from `flux.exe doctor` (recorded in `test-gpu.json`: RTX 2080 Ti,
-  Vulkan, driver 560.94) — on **this** machine, at the exact settings used live. Add p99 and a
-  drop count. Then run the 4K six-effect profile from `spec/VERIFICATION.md:143`
-  (p95 ≤ 33.33 ms) and the SDF/particle profiles separately.
+- **Harness defects (a)–(c) discharged 2026-11-15 (D021), and the multi-node gap is closed.**
+  `--profile` now selects resolution, budget and graph from a profile table (`BENCH_PROFILES`,
+  `crates/xtask/src/main.rs`), and an unknown profile is refused with exit 2 instead of silently
+  benching 1080p. The timed path is
+  `gen.plasma → fx.color_adjustment → fx.warp → fx.halftone → fx.vhs → fx.bloom → fx.composite →
+  output`: 8 nodes, 8 compiled passes, with the generator also feeding `fx.composite` port `b` so
+  the measured DAG genuinely merges. Render and readback are timed in separate windows, the
+  render window ends in an explicit queue wait (because `execute()` only submits), 15 warm-up
+  frames are discarded and 120 are timed, and `p95`/`p99` are emitted because n≥100 supports them.
+  The per-generator sweep survives at 10 samples each, so it reports `median`/`max` and nothing
+  that looks like a percentile.
+- **Measured 2026-11-15 on this host (RTX 2080 Ti, Vulkan, driver 560.94), 8-node chain:**
+  | profile | resolution | render median | render p95 | render p99 | render max | copy median | budget |
+  |---|---|---|---|---|---|---|---|
+  | `ordinary` run 1 | 1920×1080 | 1.53 ms | 2.32 ms | 3.37 ms | 3.40 ms | 2.52 ms | 16.67 ms |
+  | `ordinary` run 2 | 1920×1080 | 2.09 ms | 3.71 ms | 7.49 ms | **19.57 ms** | 4.28 ms | 16.67 ms |
+  | `ordinary` run 3 | 1920×1080 | 1.59 ms | 2.59 ms | 2.78 ms | 2.96 ms | 2.51 ms | 16.67 ms |
+  | `4k` | 3840×2160 | 3.98 ms | 5.09 ms | 6.12 ms | 8.37 ms | 3.32 ms | 33.33 ms |
+  Three conclusions, measured rather than reasoned. **(1)** The gate passes: p95 is 2.3–3.7 ms
+  against a 16.67 ms budget at 1080p and 5.09 ms against 33.33 ms at 4K. **(2)** The old
+  over-budget rows were a readback artefact, not a node — separating the windows puts all 30
+  swept generators under 16.67 ms on render alone (worst 10.04 ms, `gen.fractal_noise`), while
+  those same rows' `render+copy` max still reaches 30.58 ms (`gen.clouds`). The Nov 9
+  `gen.concentric` p95 of 20.91 ms belonged to the copy. **(3)** The copy barely changes with
+  resolution (2.5 ms at 1080p, 3.3 ms at 4K) because `preview_size()` caps it at 960×540 either
+  way, which is precisely why the old number could not scale and could not be read as a frame cost.
+- **What this still does not prove.** Run-to-run spread is a factor of ~6 in the tail (max 2.96 ms
+  vs 19.57 ms on identical work), so one invocation is not a stable measurement and the
+  single-frame hitch is unexplained. `presentation_misses` is recorded as
+  `{"measured": false}` — headless graph execution has no swapchain, so nothing here says a frame
+  reached glass (that is F2). There is no 120 s steady-state soak, no peak RAM/VRAM, no decode
+  drops or audio underruns, and the `particles`/`sdf`/`fluid`/`recording` profiles of
+  `spec/VERIFICATION.md:139-142` are still absent from the table — naming one of those is a
+  refusal, not a measurement. The CPU-producer ceiling (`BLOCKERS.md:46-47`, "not realtime at 4K")
+  is untouched. `benchmark.json` keeps only the most recent profile, since each run overwrites it.
+- **Shortest procedure — the harness part is done; what is left is soak and coverage.**
+  Remaining, in the order that buys the most truth per hour: (1) run the ordinary and 4K profiles
+  as a 120 s steady-state soak rather than 120 frames and record peak RAM/VRAM, because the hitch
+  in `ordinary` run 2 above is exactly the kind of thing a short sample cannot characterise;
+  (2) add the `particles`/`sdf`/`fluid`/`recording` rows to `BENCH_PROFILES` so naming one
+  measures it instead of refusing — the SDF/particle rows are where `BLOCKERS.md:46-47` expects
+  the ceiling to be; (3) take the drop count from somewhere that has a swapchain (F2), since this
+  harness structurally cannot produce one; (4) re-run `flux.exe doctor` and keep its adapter line
+  beside the numbers (recorded in `test-gpu.json`: RTX 2080 Ti, Vulkan, driver 560.94) — on
+  **this** machine, at the exact settings used live.
 - **Pass.** Every node in the live set has a recorded p95 and p99 under the budget at the chosen
   resolution, on the exact adapter, with the numbers written down; anything over budget is either
   repaired or documented as a known capacity limit ("If not met, document actual sustainable
   quality/rate", `spec/VERIFICATION.md:142`).
 - **Failure looks like.** p50 fine and p95 spiking to 20–30 ms — audibly/visibly *not* a slow
   machine, it is a hitch every 1–2 seconds, which on a live projection reads as a stutter. That
-  is the failure mode a p50-only culture misses, and it is what a gig exposes.
+  is the failure mode a p50-only culture misses, and it is what a gig exposes. Note that the
+  harness no longer hides this shape: `ordinary` run 2 above reported median 2.09 ms with a
+  19.57 ms max, and the tool exits 1 when the chain tail breaches the budget rather than
+  averaging it away.
 
 ### F4 — Export wall-clock timings are unrecorded for the path that ships. Owner: ALONE
 - **Unproven.** `implementation/evidence/media-export.txt` (Nov 9 02:42) records only *decoded
@@ -869,7 +911,7 @@ The hardware step is real, but it comes after a code step, and this document say
 | 5 | B1 → B2, B3, B4, B5, B6 | Package the two devices, fix the dead `bootpath` and README path, round-trip real OSC bytes. | ALONE (has Live 12) |
 | 6 | C1 → C2, C4 | **Code** a `LiveSink` fed by the render device, then Spout/NDI to a real receiver. | ALONE (code) + EXTERNAL (consumer app/machine) |
 | 7 | E1, E2, E3 | Native output window + display selection; then measure on a second panel. | ALONE (code) + rig |
-| 8 | F2, F3, F4, F5 | Re-measure preview fps, p95/p99, export wall-clock, soak — on the rebuilt binary, SHA-stamped. | ALONE |
+| 8 | F2, F3, F4, F5 | Re-measure preview fps, p95/p99, export wall-clock, soak — on the rebuilt binary, SHA-stamped. **F3's harness is fixed and its 1080p/4K graph numbers are recorded (D021); what remains here is the soak, the four unbuilt profiles and F2's drop count.** | ALONE |
 | 9 | H2, H3, H4 | Model env vars, real-photo polarity check, per-node absence behavior. | ALONE (weights fetch needs net) |
 | 10 | E4, G2 | Installer (unsigned) → certificates. | ALONE (bundle) + EXTERNAL (identity/notarisation) |
 | 11 | G1, C5 | Everything macOS. | EXTERNAL |
