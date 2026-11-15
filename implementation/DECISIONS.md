@@ -1685,8 +1685,8 @@ written here without provenance.
 `file:C:/Program Files/Git/etc/gitconfig`, the system gitconfig — and there is no `.gitattributes`.
 Measured on this host: a fresh shallow clone checks `implementation/requirements.json` out with
 4049 CR bytes, one per newline (the committed blob has 4049 newlines and no trailing one), while
-this working tree has 0 because every writer
-in the tree emits LF, and `crates/xtask/src/main.rs` clones at 1524 CR bytes for the same reason.
+this working tree has 0 because every writer in the tree emits LF, and `crates/xtask/src/main.rs`
+clones at 1524 CR bytes for the same reason.
 The generator emits LF. So a raw byte-compare would have called a clean checkout stale on the first
 CI run, and the gate would have been switched off within a day. `--check` normalizes `\r\n` and
 lone `\r` to `\n` on both sides before comparing, which is exactly the conversion git itself does on
@@ -1737,12 +1737,12 @@ side are named, and if either side fails to parse — the worst case, a hand-edi
 
 ### What this does not close
 
-Two branches of `drift_lines` are reachable but were not exercised. The reverse one-sided arm — a
-record the committed file has and this tree no longer generates, printed as
-`AT0xx: in the committed file, not in this tree` — is the same two-map code as the deletion that was
-just measured, in the other direction, and saying that is not the same as measuring it. Neither was
-the `first differing line` fallback that fires when both sides parse, are semantically equal, and
-still differ byte-wise, which is what a reordered key would hit.
+Two branches of `drift_lines` were reachable but not exercised when this was written. The reverse
+one-sided arm — a record the committed file has and this tree no longer generates, printed as
+`AT0xx: in the committed file, not in this tree` — was the same two-map code as the deletion that
+had just been measured, in the other direction, and saying that was not the same as measuring it.
+Neither was the `first differing line` fallback for sides that parse, are semantically equal and
+still differ byte-wise. [D033 measured both, each with its own mutation control.]
 
 No GitHub Actions run has been observed, so the `ci.yml` step is declared parity rather than
 evidence: the two harnesses now invoke the same 18 checks, and only one of them has a record here.
@@ -1786,6 +1786,104 @@ the inserted step split — those five commands are `:35`–`:41` and `:50` now.
 
 Two files grew, both deliberately and both below every citation into them: `README.md` 115 → 117,
 adding at 91-93 where the largest inbound reference is `README.md:60`, and `AGENTS.md` 197 → 198,
-which nothing cites by line. `DECISIONS.md` grows only at 1302 and below, while every internal and
+which nothing cites by line. `DECISIONS.md` grows only at 1302 and later, while every internal and
 inbound reference into it sits at `:116`, `:805`, `:825`, `:1103`, `:1125`, `:1136`, `:1267` or
 `:1284`.
+
+## D033 — 2026-11-15 the two report shapes D032 reasoned are now measured, each with its own control
+
+### The residue
+
+D032 closed the freshness gap and then wrote, in its own "What this does not close", that two of
+`drift_lines`' four report shapes were reachable but had no test: the reverse one-sided arm (a
+record the committed ledger has and this tree no longer generates) and the fallback that fires when
+both sides parse, mean the same thing and still are not the bytes the generator writes. The forward
+arm had been exercised by hand — AT062 deleted from the file, exit 1, `AT062: in this tree, not in
+the committed file` — and the fallback had never been reached at all: every mutation tried produced
+a field-level difference, so `out` was never empty while the bytes differed. A branch that no
+invocation has ever taken is not covered by a comment that describes it.
+
+### Why the direction is not just symmetry
+
+A stale ledger has two causes and the report is supposed to tell them apart. Adding a row to
+`record()`/`at_status()` makes the committed file lag behind in one direction; deleting one — the
+shape a reverted feature leaves behind — lags in the other. With only the forward arm tested, a
+comparator that walked `cb` and forgot `ca` would pass the whole suite and go silent precisely when
+a feature was removed, which is the failure this repository keeps hitting: a check that reports
+nothing and is called a pass.
+
+### What the two tests build
+
+- `a_record_only_in_the_committed_file_is_named` parses the generated ledger, filters AT062 out of
+  the `records` array, and hands the pair to `drift_lines` in the orientation a real `--check` uses:
+  the full file on disk as committed, the shortened bytes as generated. It asserts the report is
+  *exactly* one line — an absent record must not smear itself across the other 344 rows — and then
+  that `check_freshness` returns 1 on that pair.
+- `equal_meaning_in_different_order_reports_a_line` swaps two adjacent scalar field lines inside
+  AT062's row. Both sides parse, `Value` equality says they are the same object, and the bytes are
+  not. The assertion is on what the report says when no field moved: one entry,
+  `first differing line is N`, with N the line the swap landed on.
+
+### Treating a reordered ledger as drift is a decision, not an accident
+
+The alternative was to compare parsed values and let key order through. Then the next
+`xtask --bin requirements` run rewrites the order back, which is a tracked-file diff produced by a
+verification step — the thing D032's whole design exists to avoid. So byte equality is the contract,
+and the message gives a position rather than a guarantee, because the reader who has to fix a
+reordered file needs to know where it diverges, not that something is wrong.
+
+### Measured
+
+- `cargo test -q -p xtask --bin requirements`: 8 passed / 0 failed — 6 of them in `mod freshness`.
+- Two mutation controls, each against the real source rather than a fixture. Deleting the
+  `ca`-minus-`cb` loop left **7 passed / 1 failed** and the failure was
+  `a_record_only_in_the_committed_file_is_named`; deleting the `out.is_empty()` fallback left
+  **7 passed / 1 failed** and the failure was `equal_meaning_in_different_order_reports_a_line`.
+  Neither new test is decoration, and each names the branch it guards.
+- `cargo fmt --all -- --check` exit 0, after rustfmt split two long `assert_*` calls; the file is
+  870 lines, every added line below the last cited one.
+- `cargo run -q -p xtask --bin requirements -- --check` exit 0 — the gate's verdict is unchanged,
+  because no generator logic moved.
+- `cargo test --workspace -- --test-threads=1` — exit 0, **220 passed / 0 failed / 0 ignored across
+  the same 40 result lines**; the +2 are `mod freshness` going from 6 to 8 tests inside a bin target
+  that was already one of those lines. `cargo fmt --all -- --check` exit 0 (it was red on the first
+  draft of these two tests: two long assertion calls, split by the formatter, 864 → 870 lines).
+- `cargo run -q -p xtask --bin requirements -- --check` exit 0 — "is fresh", unchanged from D032:
+  these two tests build their divergent ledgers in memory and in `std::env::temp_dir()`, so the
+  gate they exercise and the file it guards are not the same object.
+- The `requirements` bin suite alone: `cargo test -q -p xtask --bin requirements` exit 0 at **8
+  passed / 0 failed** (was 6). With each mutation reverted in turn: **7 passed / 1 failed**, naming
+  respectively `a_record_only_in_the_committed_file_is_named` and `equal_meaning_in_different_order_reports_a_line`.
+- The first control run also caught the test written backwards: with `dropped` as the committed
+  side it reported `AT062: in this tree, not in the committed file`, which is the arm D032 had
+  already measured by hand. Swapping the arguments is what made it test the unexercised direction.
+
+### What this does not close
+
+`drift_lines` still has report shapes with no invocation behind them. The top-level key loop is
+reached only when `specVersion`, `generatedBy` or `counts` moves, and nothing has tried that —
+`counts` is the interesting one, since it summarises the very records the per-record loop already
+walks, so the two can disagree and only the top-level arm would say so. The `... and N more`
+truncation has never fired either, because no mutation here produced more than 20 drifts.
+`check_freshness`' exit 2 — the file missing entirely — has no test. All three are read off the
+code, which is what this record is supposed to stop doing. The gate still cannot compare the
+generator to reality: a confident wrong `at_status()` arm regenerates wrong bytes and passes, and
+that residue belongs to `mod evidence_routing`, not to this one.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/xtask/src/bin/requirements.rs` | `mod freshness` gains `a_record_only_in_the_committed_file_is_named` and `equal_meaning_in_different_order_reports_a_line`, and imports `drift_lines` alongside `check_freshness`. 802 → 870 lines, all of it below the last cited line. No comparator logic changed. |
+| `implementation/DECISIONS.md` | this record; D032's residue paragraph put in the past tense and marked answered rather than deleted, one orphaned wrap in its CRLF section fixed, and "1302 and below" corrected to "and later" in its churn list. |
+| `implementation/STATE.json`, `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | 218 → 220 with what the +2 are, and D033 entered wherever the lane handover lists what D032 left open: STATE's `test_totals.passed` field and its `measured` prose (which had disagreed once before, in D031), README's totals clause, FINAL-REPORT §0's two totals, PERFORMANCE-READINESS §"Test totals" as an eighth chronologically-labelled run. `STATE.json` stays at 187 lines, `README.md` at 117, `FINAL-REPORT.md` at 290 and `PERFORMANCE-READINESS.md` at 1076, so no inbound `:NNN` citation in any of them moved — FINAL-REPORT lost a date clause and two parentheticals to pay for the third number, because a wrapped bullet cannot grow without pushing §6b's `:146` and `:151-152` down. The remaining 218s in the tree are D032's own Measured rows in DECISIONS/STATE/P-R, which are dated runs at a named commit, not present-tense totals. |
+
+### Citation churn
+
+The insertion starts at line 803 of a file whose inbound citations end at `:584` and `:528-571`, so
+nothing re-points: `requirements.rs:22-32`, `:374`, `:393`, `:396`, `:424`, `:445`, `:453`, `:472`,
+`:494`, `:512`, `:528-571` and `:584` are all still exact, and the two SDK/harness step citations in
+D032's churn list were untouched because no script or workflow changed here. `docs/` and
+`implementation/` keep the line counts their own inbound citations depend on; DECISIONS.md grows only
+below 1302, where nothing is cited.
+

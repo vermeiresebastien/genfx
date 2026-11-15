@@ -732,7 +732,7 @@ fn first_diff_line(a: &str, b: &str) -> usize {
 
 #[cfg(test)]
 mod freshness {
-    use super::{check_freshness, generate, normalize_newlines, root};
+    use super::{check_freshness, drift_lines, generate, normalize_newlines, root};
     use std::path::PathBuf;
 
     fn scratch(name: &str) -> PathBuf {
@@ -796,6 +796,74 @@ mod freshness {
         let broken = body.chars().take(cut).collect::<String>() + "\"trailing\": ,}";
         let path = scratch("broken");
         std::fs::write(&path, &broken).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The other one-sided arm: a record the committed file has and this tree no
+    /// longer generates, which is what a deleted `at_status()` row or a dropped
+    /// catalog entry leaves behind. D032 reasoned this branch from the two id maps
+    /// and said so; this is the measurement it asked for.
+    #[test]
+    fn a_record_only_in_the_committed_file_is_named() {
+        let body = generate();
+        let mut generated: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let before = generated["records"].as_array().unwrap().len();
+        let kept = generated["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["id"].as_str() != Some("AT062"))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kept.len(),
+            before - 1,
+            "AT062 was not the record dropped — this control proves nothing"
+        );
+        generated["records"] = serde_json::Value::Array(kept);
+        let shortened = serde_json::to_string_pretty(&generated).unwrap();
+        assert_eq!(
+            drift_lines(&normalize_newlines(&body), &normalize_newlines(&shortened)),
+            vec!["AT062: in the committed file, not in this tree".to_string()],
+            "a committed-only record should be the only drift, and should be located"
+        );
+        let path = scratch("committed-only");
+        std::fs::write(&path, &body).unwrap();
+        assert_eq!(check_freshness(&path, &shortened), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The fallback for a ledger that parses, means the same thing and still is not
+    /// the bytes the generator writes. The gate calls that drift on purpose — the
+    /// file is generated, so byte equality is the contract — which is exactly why
+    /// the report must give a location instead of naming a field that did not move.
+    #[test]
+    fn equal_meaning_in_different_order_reports_a_line() {
+        let body = normalize_newlines(&generate());
+        let mut lines: Vec<&str> = body.lines().collect();
+        let at = lines
+            .iter()
+            .position(|l| l.trim() == "\"id\": \"AT062\",")
+            .expect("no AT062 row in the generated ledger");
+        lines.swap(at + 1, at + 2);
+        let swapped = lines.join("\n");
+        assert_ne!(
+            swapped, body,
+            "the swap changed nothing — no branch is tested"
+        );
+        assert_eq!(swapped.lines().count(), body.lines().count());
+        let a: serde_json::Value = serde_json::from_str(&swapped).unwrap();
+        let b: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(
+            a, b,
+            "swapping two scalar fields changed meaning, not order"
+        );
+        let report = drift_lines(&swapped, &body);
+        assert_eq!(report.len(), 1, "expected only the fallback: {report:?}");
+        assert_eq!(report[0], format!("first differing line is {}", at + 2));
+        let path = scratch("reordered");
+        std::fs::write(&path, &swapped).unwrap();
         assert_eq!(check_freshness(&path, &body), 1);
         let _ = std::fs::remove_file(&path);
     }
