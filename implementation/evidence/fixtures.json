@@ -7,11 +7,11 @@
     "sine_1k_48k.wav"
   ],
   "provenance": {
-    "gitHash": "7adb5e6",
-    "gitHashFull": "7adb5e694e92c8d94e3a0610628a7fb23b0a5bb5",
-    "gitDirty": false,
+    "gitHash": "51bc077",
+    "gitHashFull": "51bc077bacf0c6c625d76636511e2300cf6f85a2",
+    "gitDirty": true,
     "gitDirtyScope": "working tree, excluding implementation/evidence/",
-    "generatedAtUtc": "2026-11-15T22:09:56Z",
+    "generatedAtUtc": "2026-11-15T23:23:32Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
       "mtimeUnix": 1794774257,

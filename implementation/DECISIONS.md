@@ -1997,6 +1997,21 @@ or transcripts (`grep` over `*.md`, `*.json`, `*.txt` for `STATUS_ACCESS_VIOLATI
 guessed a quantum boundary for the Link flake and D030 had to read the vendored SDK to find the real
 race — is the reason this paragraph stops at the counts.
 
+### What this does not close
+
+- Only `counts` is driven among the three non-`records` top-level keys. `specVersion` and
+  `generatedBy` reach the same two lines of the same loop, so they are covered by the shape of the code
+  and not by a measurement; a future edit that special-cased one of them would still pass this suite.
+- The cap's text stays unasserted, deliberately. Nothing reddens if `take(20)` becomes `take(10)`; what
+  reddens is a report that stops naming records. That is the trade described above, not an oversight.
+- The gate can only compare the committed bytes against what this tree's generator writes. It cannot
+  tell you that an arm derives a status the spec no longer means — `AT060` and `AT063` were fixed that
+  way at D025, by reading — so a status that is freshly generated and still wrong is invisible here by
+  construction.
+- Three workspace runs say nothing about how rare the render crash is. One in three long invocations is
+  a count, not a rate, and the ten short runs were that binary alone, which is the weakest possible
+  control for a fault that might need the GPU state left behind by the preceding 11 binaries.
+
 ### Measured
 
 - `cargo test -q -p xtask --bin requirements -- --test-threads=1` — exit 0, **10 passed / 0 failed**
@@ -2039,22 +2054,52 @@ race — is the reason this paragraph stops at the counts.
 - `cargo run -q -p xtask --bin requirements -- --check` exit 0, "is fresh": the ledger is untouched,
   because both tests build their divergent copies in memory and in `std::env::temp_dir()`.
 
+### The harness at the commit that holds this lane
+
+`infrastructure/verify.ps1` then ran at `51bc077`, from a shell with `FLUX_ABLETON_LINK_LIB` and
+`FLUX_SPOUT_SHIM` removed via `env -u`: **`VERIFY: PASS`**, `steps: passed=18 failed=0
+blocked_external=0`, no `FAILED` line in a 1 930-line log. `requirements-freshness` recorded
+`{ exit: 0, ok: true }` while printing that the ledger `is fresh` — the gate holding on a generator that
+had just grown two tests and a comment. `link-integration` printed `abl_link.lib resolved:` naming
+`_upstream\link\build\Release` and ran 7 tests; `ndi-runtime-loads` ran 2 with 29 filtered out;
+`spout-enumeration` 1; `external` read `{ndiRuntime, abletonLinkLib, spoutShim}` all true. `unit-tests`
+is the same 158 lib tests (app 34, audio 14, catalog 16, domain 30, engine 22, integrations 28, media 6,
+render 8), which restates the scope limit D033 recorded: this script executed none of the four tests
+this lane added, and the workspace run that did is in the bullet above.
+
+`gitDirty` came back **true**, in `verify.json` and again in the restamped `manifest.json`, and it is
+this record rather than the gate: D026's scope excludes `implementation/evidence/`, and the file that
+was dirty was this one, which was being edited while the harness ran. `cargo run -q -p xtask -- evidence`
+restamped at head `51bc077` — 32 files, 5 `stamped_current` (catalog, doctor, fixtures, test-gpu,
+verify), 4 `stamped_other_commit`, 4 `header_other_commit`, 19 unattributed, 0 missing provenance. Its
+`provenance.binary.mtimeUnix` is byte-for-byte the same value the D033 restamp recorded, so one
+`xtask.exe` wrote both manifests, which is consistent rather than lucky:
+`git diff --stat 7adb5e6..51bc077 -- crates/xtask/src/main.rs` is empty, because this lane touched the
+`requirements` bin and not the evidence writer.
+
+The self-stamp limit is re-checked, not inherited: `git show 51bc077:implementation/DECISIONS.md`
+contains no occurrence of the string `51bc077`. So the evidence in this commit names a head that holds
+the tests and the first 2 065 lines of this document, and *not* the paragraph that says so — which
+arrives one commit later, as it did for D032 and D033.
+
 ### Files changed
 
 | File | What moved |
 |---|---|
 | `crates/xtask/src/bin/requirements.rs` | `mod freshness` gains `a_hand_edited_counts_block_is_named` and `twenty_five_drifts_are_counted_record_by_record`. 870 → 956 lines, all of it inside the block appended after the last pre-existing line, plus three doc-comment lines above the second test. No comparator or `check_freshness` logic changed, and the two probes exist only in this document. |
-| `implementation/DECISIONS.md` | this record. |
+| `implementation/DECISIONS.md` | this record, written across two commits: `51bc077` holds everything above the harness section, and this section plus "What this does not close" arrive with the evidence they describe. |
 | `implementation/STATE.json`, `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | 220 → 222 with what the +2 are, and D034 entered in the lane handover in place of the residue D033 named. The truncated run is recorded in the three places that state a suite total and what it does not prove — `test_totals.caveat`, `known_gaps[15]`, `FINAL-REPORT.md`'s "green but weak" bullet and the `PERFORMANCE-READINESS` test-totals row — and not in `README.md`, which gets the number and nothing about how one invocation died. |
 | `AGENTS.md` | the `STATUS_ACCESS_VIOLATION` shape added to the suite caveat, because a future agent who sees exit 139 after 11 result lines will otherwise assume their own change broke the build; and the harness-scope bullet's totals moved 220 → 222 with its D028-D033 range re-labelled D028-D034, so the count in that bullet stays the count the workspace run prints. |
+| `implementation/evidence/` | `verify.json` from the run above, plus `catalog.json`, `doctor.json`, `fixtures.json` and `test-gpu.json` rewritten by their gates during it, plus `manifest.json` restamped by `cargo run -q -p xtask -- evidence`. Five of the 32 files are stamped at `51bc077` by the writer that produced them; the rest of the tiers are unchanged from D031's shape. These are measurements, not assertions: nothing in this group is edited by hand, and `manifest.json` is documented at D032 as the file the freshness gate deliberately does not cover. |
 
 ### Citation churn
 
 `requirements.rs` grows only at the end (870 → 956), below `:584` and `:528-571`, so no citation into
-it moves. The probe panics were reported at `:898` and `:944`, which are the probe-modified files;
-this record cites the committed lines `:897` and `:940` beside them rather than the raw numbers,
-because a line number taken from a source that no longer exists is the kind of citation this repo has
-had to re-resolve before. This record is written at DECISIONS.md `:1919` and below; the deepest line
+it moves. The probe panics were reported at `:898` and `:944`, which are line numbers in files that no
+longer exist; this record cites the `assert!`s at the committed `:897` and `:943` instead, re-read off
+the reverted tree — and `:943` is itself three lines below the `:940` that the probe ran against,
+because this lane's own doc comment landed between them. That is the churn rule biting inside a single
+lane rather than across two, and it is why the number in the paragraph is the one the file says. This record is written at DECISIONS.md `:1919` and below; the deepest line
 any other file cites into it is `:1267`, re-read after the edit. `FINAL-REPORT.md` stays at 290 lines
 and `docs/PERFORMANCE-READINESS.md` at 1076 — both forced by citations *above* the ones this lane
 edits (`FINAL-REPORT.md:22` → `:151-152`, `STATE.json:157`/`:163` ceilings), so their edits are
@@ -2062,4 +2107,8 @@ in-place reflows rather than appends. `README.md` stays at 118. `STATE.json` goe
 is a `known_gaps` element, which cannot be folded into a prose field without losing the pointer that
 `test_totals.caveat` now uses, and nothing in the tree cites a STATE.json line deeper than `:163`, so
 the +1 at `:166` re-points nothing — each of those five numbers was read back off the file, not
-assumed from the edit.
+assumed from the edit. The harness rows (`at_head`, `counts`, `passing_steps`, `re_run_lanes`) and the
+lane-20 handover are single JSON strings, so writing the `51bc077` run into them costs no lines;
+`test_run_2026_11_14.verify_ps1_full.counts` now says four 18-0-0 runs, and one number in that block
+corrected itself on measurement — `ndi-runtime-loads` filtered 29 tests out at this run, where the row
+had carried 28.
