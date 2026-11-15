@@ -1,6 +1,6 @@
 {
-    "generatedAt":  "2026-11-15T19:42:42.0623894Z",
-    "gitHash":  "f867b72",
+    "generatedAt":  "2026-11-15T20:41:04.0860693Z",
+    "gitHash":  "a91ebda",
     "gitDirty":  false,
     "gitDirtyScope":  "working tree, excluding implementation/evidence/",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
@@ -9,7 +9,7 @@
     "counts":  {
                    "blocked_external":  0,
                    "failed":  0,
-                   "passed":  17
+                   "passed":  18
                },
     "external":  {
                      "ndiRuntime":  true,
@@ -57,6 +57,10 @@
                                          "exit":  0,
                                          "ok":  true
                                      },
+                  "requirements-freshness":  {
+                                                 "exit":  0,
+                                                 "ok":  true
+                                             },
                   "maxpat":  {
                                  "exit":  0,
                                  "ok":  true

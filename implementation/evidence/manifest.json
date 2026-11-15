@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "headAtRun": "142f7e8",
+  "headAtRun": "a91ebda",
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "recheckCommand": "cargo run -q -p xtask -- evidence",
   "counts": {
@@ -16,7 +16,7 @@
     "attribution comes in two strengths. stamped_current / stamped_other_commit: the SHA was injected by write_evidence() while this crate produced the file. header_current / header_other_commit: a hand-saved text transcript carries `# provenance (F1): gitHash <sha>` that its author typed and no writer checked — a claim about the capture, not a record of the run.",
     "attribution=unattributed means nothing inside the file names a commit at all. These are hand-saved files with no writer in the tree — text transcripts, PNG captures, and diagnostics.json, which `flux diagnostics` only prints; PNG bytes are deliberately not scanned, so a hash-shaped run inside an IDAT chunk could never be mistaken for provenance.",
     "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it. header_other_commit is the normal state for a transcript, which is captured at a commit and committed later, or not at all.",
-    "manifest.json's own row describes the manifest that was on disk when this scan ran — the writer cannot see the file it is about to produce. The provenance block of this payload is the first-party stamp for the current run.",
+    "manifest.json's own row describes the manifest that was on disk when this scan ran — the writer cannot see the file it is about to produce. The provenance block of this payload is the first-party stamp for the current run. This file is deliberately NOT freshness-gated: almost every value in it is a measurement of the run that wrote it (per-file mtimes, binary sha256, gitDirty), so its bytes change on every gate invocation and a byte-compare would report drift with nothing broken. `implementation/requirements.json` is the generated tracked file that can be gated, because it is a pure function of the tree — `cargo run -q -p xtask --bin requirements -- --check`.",
     "provenance.gitDirty is measured on the working tree with implementation/evidence/ excluded, because a gate rewriting its own tracked evidence is not an uncommitted source change."
   ],
   "binaries": [
@@ -48,9 +48,9 @@
       "path": "target/debug/flux-desktop.exe",
       "exists": true,
       "bytes": 23891456,
-      "mtimeUnix": 1794771754,
-      "mtimeUtc": "2026-11-15T19:42:34Z",
-      "sha256": "8ae5f3a7cfb0d9c04dcceea891d5b76c9340f901b91f50b5adc9199e227d6614"
+      "mtimeUnix": 1794775256,
+      "mtimeUtc": "2026-11-15T20:40:56Z",
+      "sha256": "94b07bfa522a15b7c65f6473a8307d09272196146b826a26651adaa030e2d2cf"
     }
   ],
   "files": [
@@ -77,12 +77,12 @@
     {
       "file": "catalog.json",
       "bytes": 621,
-      "mtimeUnix": 1794771726,
-      "mtimeUtc": "2026-11-15T19:42:06Z",
-      "gitHash": "f867b72",
+      "mtimeUnix": 1794775232,
+      "mtimeUtc": "2026-11-15T20:40:32Z",
+      "gitHash": "a91ebda",
       "provenanceSource": "writer",
       "producer": "xtask",
-      "attribution": "stamped_other_commit"
+      "attribution": "stamped_current"
     },
     {
       "file": "depth-demo/depth.png",
@@ -117,12 +117,12 @@
     {
       "file": "doctor.json",
       "bytes": 1405,
-      "mtimeUnix": 1794771727,
-      "mtimeUtc": "2026-11-15T19:42:07Z",
-      "gitHash": "f867b72",
+      "mtimeUnix": 1794775233,
+      "mtimeUtc": "2026-11-15T20:40:33Z",
+      "gitHash": "a91ebda",
       "provenanceSource": "writer",
       "producer": "xtask",
-      "attribution": "stamped_other_commit"
+      "attribution": "stamped_current"
     },
     {
       "file": "effects_contact_sheet.png",
@@ -137,12 +137,12 @@
     {
       "file": "fixtures.json",
       "bytes": 649,
-      "mtimeUnix": 1794771731,
-      "mtimeUtc": "2026-11-15T19:42:11Z",
-      "gitHash": "f867b72",
+      "mtimeUnix": 1794775237,
+      "mtimeUtc": "2026-11-15T20:40:37Z",
+      "gitHash": "a91ebda",
       "provenanceSource": "writer",
       "producer": "xtask",
-      "attribution": "stamped_other_commit"
+      "attribution": "stamped_current"
     },
     {
       "file": "gui-release.png",
@@ -196,10 +196,10 @@
     },
     {
       "file": "manifest.json",
-      "bytes": 13091,
-      "mtimeUnix": 1794772077,
-      "mtimeUtc": "2026-11-15T19:47:57Z",
-      "gitHash": "f867b72",
+      "bytes": 12868,
+      "mtimeUnix": 1794772086,
+      "mtimeUtc": "2026-11-15T19:48:06Z",
+      "gitHash": "142f7e8",
       "provenanceSource": "writer",
       "producer": "xtask",
       "attribution": "stamped_other_commit"
@@ -337,22 +337,22 @@
     {
       "file": "test-gpu.json",
       "bytes": 807,
-      "mtimeUnix": 1794771729,
-      "mtimeUtc": "2026-11-15T19:42:09Z",
-      "gitHash": "f867b72",
+      "mtimeUnix": 1794775235,
+      "mtimeUtc": "2026-11-15T20:40:35Z",
+      "gitHash": "a91ebda",
       "provenanceSource": "writer",
       "producer": "xtask",
-      "attribution": "stamped_other_commit"
+      "attribution": "stamped_current"
     },
     {
       "file": "verify.json",
-      "bytes": 3738,
-      "mtimeUnix": 1794771762,
-      "mtimeUtc": "2026-11-15T19:42:42Z",
-      "gitHash": "f867b72",
+      "bytes": 3959,
+      "mtimeUnix": 1794775264,
+      "mtimeUtc": "2026-11-15T20:41:04Z",
+      "gitHash": "a91ebda",
       "provenanceSource": "writer",
       "producer": "hand-captured (no writer in the tree)",
-      "attribution": "stamped_other_commit"
+      "attribution": "stamped_current"
     },
     {
       "file": "vision-inference.txt",
@@ -376,15 +376,15 @@
     }
   ],
   "provenance": {
-    "gitHash": "142f7e8",
-    "gitHashFull": "142f7e8dedb0e5f8cd21f86526c056a88ead686c",
+    "gitHash": "a91ebda",
+    "gitHashFull": "a91ebdae61a7f4c629b8d21d80d33a76e5c47c39",
     "gitDirty": false,
     "gitDirtyScope": "working tree, excluding implementation/evidence/",
-    "generatedAtUtc": "2026-11-15T19:48:06Z",
+    "generatedAtUtc": "2026-11-15T20:41:34Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
-      "mtimeUnix": 1794772023,
-      "mtimeUtc": "2026-11-15T19:47:03Z"
+      "mtimeUnix": 1794774257,
+      "mtimeUtc": "2026-11-15T20:24:17Z"
     },
     "host": {
       "os": "windows",

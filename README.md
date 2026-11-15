@@ -80,15 +80,17 @@ a single exit-code read, and recorded skipped SDK gates as passes. Both are fixe
 and the full script measured `VERIFY: PASS` / exit 0 — 15 passed, 0 failed,
 2 `blocked_external`. D027 found those two blockers were about an environment variable and
 not about the machine: keyed instead on whether `abl_link.lib` and `spout_shim.dll` are
-actually reachable, this host runs all 17 steps — `VERIFY: PASS`, exit 0, **17 passed /
+actually reachable, this host ran all 17 steps then — `VERIFY: PASS`, exit 0, **17 passed /
 0 failed / 0 `blocked_external`**, the first recorded run with nothing blocked. That figure was
 still shell-dependent until D029: the same commit measured **16 passed / 0 failed /
 1 `blocked_external`** from a shell that had not exported `FLUX_ABLETON_LINK_LIB`, because the
 Link gate looked for the library *inside the directory that variable names*. It now searches the
 vendored candidates and exports the directory it finds, and the run at `7235afd` — clean tree,
-variable removed from the environment — is `17 passed / 0 failed / 0 blocked_external` again. Both of
-those files are gitignored, so a fresh clone — and CI — still record 2 blocked steps. See
-`AGENTS.md` § "Traps inside this repo's own verification harness".
+variable removed from the environment — is `17 passed / 0 failed / 0 blocked_external` again. D032's
+18th step, `requirements-freshness`, compares the generated ledger against what its generator
+produces, and the run at `a91ebda` is `18 passed / 0 failed / 0 blocked_external` with
+`gitDirty false`. The two SDK files are gitignored, so a fresh clone — and CI — still record 2
+blocked steps. See `AGENTS.md` § "Traps inside this repo's own verification harness".
 
 ## Live control
 

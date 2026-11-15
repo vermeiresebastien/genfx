@@ -1295,15 +1295,17 @@ Four citation sites into the generator itself — `requirements.rs:374`, `:396`,
   the AT057–AT063 block and nothing else.
 - `infrastructure/verify.ps1` was **not** re-run for this change. The 17/0/0 figure quoted elsewhere
   is D027's run at `cf95a2f`; this lane touched only the generator and the docs, and no step in that
-  harness runs `xtask --bin requirements` — which is the gap noted below.
+  harness then ran `xtask --bin requirements` — which is the gap noted below, closed by D032.
 
 ### Not changed here
 
-- **Nothing regenerates or freshness-checks the ledger.** `ci.yml` runs `catalog`, `doctor`,
-  `test-gpu`, `export_shaders` and `fixtures` (`:35`–`:45`); `verify.ps1` has zero matches for
-  `requirements`. So a hand-edit of `requirements.json` survives CI silently and the statuses that
-  D025 and D028 fixed are only as current as the last manual run. Patched as documentation, not as
-  a step: adding it to one harness and not the other is the divergence AGENTS.md forbids.
+- **Nothing regenerated or freshness-checked the ledger** — the gap D032 closed, in both harnesses at
+  once rather than one and not the other. `ci.yml` then ran `catalog`, `doctor`, `test-gpu`,
+  `export_shaders` and `fixtures` (`:35`–`:41`, `:50` since D032 inserted a step above that last
+  `export_shaders` and `fixtures` (`:35`–`:41`, `:50`; D032 inserted a step between the last two),
+  and `verify.ps1` had zero matches for `requirements`. So a hand-edit of `requirements.json`
+  survived CI silently, and the statuses D025 and D028 fixed were only as current as the last manual
+  run. D028 patched prose, not a step — one harness alone is the divergence AGENTS.md forbids.
 - `docs/PERFORMANCE-READINESS.md:22-23` insists a Max GUI is *not* external ("he has Live 12")
   while `BLOCKERS.md:36-40` makes `.amxd` depend on Max's Save-As dialog. AT062 has to sit on one
   side of that, and the ladder (`spec/START-HERE.md:93`) has no status for "blocked on a human
@@ -1397,8 +1399,8 @@ checked, not assumed.
 - `gitDirty false` at `7ecc1f1` closes the half of D026 that stopped at the mechanism: the
   excluded pathspec is now measured at a commit that contains it, on a tree that was clean before
   the run, with the source change committed after. No claim in that record needed editing.
-- The seven feature-off CLI branches that print and return `Ok` are untouched, and the
-  requirements-ledger freshness gate D028 documented is still a gap in both harnesses.
+- The seven feature-off CLI branches that print and return `Ok` are untouched, and the ledger had no
+  freshness gate. [D032 closed that: `verify.ps1:123` plus a matching `ci.yml` step, both harnesses.]
 
 ## D030 — 2026-11-15 the Link flake had a mechanism, and the test was asserting a property Link does not deliver
 
@@ -1646,8 +1648,8 @@ shipped product, so the "no production caller" point stands. The file is kept at
 
 - `verify.ps1` and `ci.yml` still do not run `xtask evidence`, so the manifest is only as fresh as
   the last person who typed it. That is the same gap D028 recorded for `requirements.json`, and it
-  wants one decision covering both: either both generated files are checked for staleness in CI, or
-  neither is and the prose says so.
+  wanted one decision covering both. [D032 made it: the ledger is byte-gated in both harnesses, the
+  manifest is not, and its own notes say why — the second option, chosen rather than left open.]
 - The `stamped` key keeps its old meaning (writer-injected only) rather than becoming
   stamped+header. A count that silently changes what it counts is how this lane started.
 
@@ -1716,8 +1718,15 @@ side are named, and if either side fails to parse — the worst case, a hand-edi
   `requirements-freshness` with `{ exit: 0, ok: true }`, its printed line is
   `requirements: …\implementation/requirements.json is fresh`, and the run resolved `abl_link.lib`
   from `_upstream` with `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` both removed from the
-  environment. `gitDirty true` there is this record and `STATE.json` uncommitted while the gates
-  ran, both of them written from that run; the residue section below says what answers it.
+  environment, `external` all true. Its `gitDirty true` is the self-stamp shape D026 documents: the
+  uncommitted sources were this record and `STATE.json`, both writable only from that run's numbers.
+- The same script re-run at `a91ebda`, the commit that contains those two files: **`VERIFY: PASS`,
+  exit 0, passed=18 failed=0 blocked_external=0**, `verify.json` carrying `gitHash a91ebda` with
+  `gitDirty false` — the gate's first run on a tree with nothing dirty outside
+  `implementation/evidence/`. `cargo run -q -p xtask -- evidence` then exit 0 restamped the manifest
+  at that same head: 32 files, 9 stamped by their writer (5 `stamped_current` — catalog, doctor,
+  fixtures, test-gpu, verify — and 4 `stamped_other_commit`), 4 naming a commit in a header,
+  19 unattributed, 0 missing provenance.
 - Non-vacuity of the control: forcing `check_freshness()` to `return 0` at its first line left
   `committed_ledger_is_fresh` green and reddened exactly `one_status_flip_is_drift` (1 failed / 4
   passed — that probe ran on the five-test module, before the parse-fallback test below existed). A
@@ -1735,10 +1744,8 @@ just measured, in the other direction, and saying that is not the same as measur
 the `first differing line` fallback that fires when both sides parse, are semantically equal, and
 still differ byte-wise, which is what a reordered key would hit.
 
-The `infrastructure/verify.ps1` run above measured `gitDirty true`, because the uncommitted sources
-were this record and `STATE.json` — the two files that can only be written from that run's numbers;
-the clean-tree repeat is the paired evidence commit's job, unmeasured here. And no GitHub
-Actions run has been observed, so the `ci.yml` step is declared parity rather than evidence.
+No GitHub Actions run has been observed, so the `ci.yml` step is declared parity rather than
+evidence: the two harnesses now invoke the same 18 checks, and only one of them has a record here.
 
 The gate compares the artifact to its generator. It cannot compare either of them to reality: an
 `at_status()` arm that derives a confident wrong status from a path that exists will regenerate the
@@ -1755,12 +1762,13 @@ for a reader to infer.
 | `crates/xtask/src/main.rs` | one existing `notes` element in `cmd_evidence` extended to state that `manifest.json` is deliberately not freshness-gated. Line count kept at 1524 so the eight citations D031 re-resolved did not move. |
 | `infrastructure/verify.ps1` | new `Step 'requirements-freshness'` after `shaders-export` (218 lines) |
 | `.github/workflows/ci.yml` | matching step, with the autocrlf reason in a comment above it |
-| `AGENTS.md` | the command enters Canonical commands (it now *is* CI parity); the harness trap that said "nothing in `ci.yml` or `verify.ps1` runs that command, so a hand-edit survives CI silently" is rewritten to what is true now |
-| `implementation/DECISIONS.md` | this record; D025's writer citation re-pointed; D029's `verify.ps1:200-202` re-pointed to `:201-203`; D031's "Not changed here" marked answered, not deleted |
-| `implementation/STATE.json` | `test_totals.passed` was still **204** while its own `measured` prose said 214 — D031 updated the sentence and left the field a machine reads; both now say 218 with the +4, plus a lane-18 handover paragraph. Its `verify.ps1:35`/`:81` citations are above the inserted step and did not move. |
+| `implementation/evidence/` | the gate's own footprint: two harness runs rewrote `catalog`, `doctor`, `fixtures`, `test-gpu` and `verify.json` (the first at `3e4e825` with `gitDirty true`, the repeat at `a91ebda` with `false`) and `xtask evidence` restamped `manifest.json` at `a91ebda` |
+| `AGENTS.md` | the command enters Canonical commands (it now *is* CI parity); the harness trap that said "nothing in `ci.yml` or `verify.ps1` runs that command, so a hand-edit survives CI silently" is rewritten to what is true now, and the 17-0-0 in the SDK-gate trap is put in the past tense with 18 named as the new ceiling |
+| `implementation/DECISIONS.md` | this record; D025's writer citation re-pointed; D029's `verify.ps1:200-202` re-pointed to `:201-203`; D028's, D029's and D031's "Not changed here" bullets put in past tense and marked answered, not deleted |
+| `implementation/STATE.json` | `test_totals.passed` was still **204** while its own `measured` prose said 214 — D031 updated the sentence and left the field a machine reads; both now say 218 with the +4, plus a lane-18 handover paragraph. Its `verify.ps1:35`/`:81` citations are above the inserted step and did not move. `at_head`, `counts`, `passing_steps`, `re_run_lanes`, the commands list and `known_gaps[13]` (D027's rotated-evidence gap, closed by D028 and gated by D032) are brought to the same state, and lanes 15/16's "both harnesses or neither" handovers are marked done. 187 lines kept |
 | `docs/PERFORMANCE-READINESS.md` | a seventh Test-totals run inside the Test totals row, and the 18-step CI-parity run inside the CI row, both appended without adding a line. Held at 1076 lines, so its own inbound citations and the `IMPLEMENTATION-ARCHITECTURE.md:661`/`:875` targets do not move. |
 | `docs/IMPLEMENTATION-ARCHITECTURE.md` | the catalog-is-authority sentence and the `xtask` bin inventory both name the comparison mode; 888 lines kept |
-| `implementation/FINAL-REPORT.md`, `README.md` | 214 → 218 with what the +4 are, inside the same number of lines (290 and 115) |
+| `implementation/FINAL-REPORT.md`, `README.md` | 214 → 218 with what the +4 are, and the harness timeline carried from 17 steps to 18. FINAL-REPORT held at 290 lines so its inbound `:146`/`:151-152` citations do not move; README grew by two at 91-93, below every `README.md:NN` citation in the tree |
 
 ### Citation churn
 
@@ -1770,7 +1778,14 @@ span `main()` did (18-177), and `record`, `product_paths`, `blocker_for`, `task_
 so `requirements.rs:22-32`/`:26-32` (`IMPLEMENTATION-ARCHITECTURE.md:100`, `:330`), `:374`/`:393`/
 `:396`/`:424`/`:445`/`:453`/`:472`/`:494`/`:512` (`DECISIONS.md:825`, `:1284`,
 `PERFORMANCE-READINESS.md:245`, `:426`) and `:528-571` (`DECISIONS.md:1267`, `STATE.json:134`) are
-all still exact. Two citations did move and both are re-pointed rather than left: `DECISIONS.md:805`
-(cites `requirements.rs:174`, the writer, now `:584`) and `DECISIONS.md:1136` (cites
-`verify.ps1:200-202`, shifted by one inserted step to `:201-203`). `ci.yml:29`/`:31` and
+all still exact. Three citations did move and all three are re-pointed rather than left:
+`DECISIONS.md:805` (cites `requirements.rs:174`, the writer, now `:584`), `DECISIONS.md:1136` (cites
+`verify.ps1:200-202`, shifted by one inserted step to `:201-203`) and D028's `ci.yml:35-45`, which
+the inserted step split — those five commands are `:35`–`:41` and `:50` now. `ci.yml:29`/`:31` and
 `verify.ps1:32`/`:35`/`:47-61`/`:77`/`:81`/`:99` sit above their insertions and are unchanged.
+
+Two files grew, both deliberately and both below every citation into them: `README.md` 115 → 117,
+adding at 91-93 where the largest inbound reference is `README.md:60`, and `AGENTS.md` 197 → 198,
+which nothing cites by line. `DECISIONS.md` grows only at 1302 and below, while every internal and
+inbound reference into it sits at `:116`, `:805`, `:825`, `:1103`, `:1125`, `:1136`, `:1267` or
+`:1284`.

@@ -79,13 +79,14 @@ them first.
   `spout_shim.dll` on disk. They now test for the artifacts, and export the resolved shim
   path — cargo sets a test binary's cwd to the *package* directory, where the adapter's
   relative candidate does not resolve, so a repo-root "is the file there" probe reads present
-  while the test silently skips and cargo calls it a pass. With that, this host runs 17-0-0 —
+  while the test silently skips and cargo calls it a pass. With that, this host ran 17-0-0 —
   but until D029 only from a shell that had exported `FLUX_ABLETON_LINK_LIB`: that gate checked
   for `abl_link.lib` *inside the directory the variable names*, so the same commit and the same
   clean tree recorded 16-0-1 from a bare shell (`7ecc1f1`). `Resolve-LinkLib` now searches the
   vendored candidates and exports the directory it finds, because `crates/integrations/build.rs:16`
   needs the variable *set*, not merely true; the run at `7235afd`, with that variable removed from
-  the environment, is 17-0-0 again. CI still records 2, because both artifacts are gitignored.
+  the environment, is 17-0-0 again, and D032's `requirements-freshness` step made the ceiling 18.
+  CI still records 2 blocked, because both artifacts are gitignored.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
