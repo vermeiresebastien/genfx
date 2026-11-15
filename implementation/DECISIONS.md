@@ -1159,7 +1159,7 @@ derived from reading, not measured. It goes to `STATE.json` as open work with it
 | `crates/integrations/src/tests.rs` | +1 source-text guard test |
 | `crates/app/src/main.rs` | `cmd_spout`: missing shim → `SdkMissing` instead of a printed message and exit 0 |
 | `infrastructure/verify.ps1` | `Test-LinkLib`, `Resolve-SpoutShim`, both gates re-keyed on the machine, `external` block, and a comment on what `spout-enumeration` actually asserts. Parse-checked: `parse_errors=0` |
-| `implementation/evidence/` | `spout-2026-11-15.txt`, `link-2026-11-15.txt` added (hand transcripts; both name `gitHash cf95a2f` in a `# provenance (F1)` header, and both still read `unattributed` in the manifest because `cmd_evidence` only extracts provenance from `.json` — see `crates/xtask/src/main.rs:183-193`) |
+| `implementation/evidence/` | `spout-2026-11-15.txt`, `link-2026-11-15.txt` added (hand transcripts; both name `gitHash cf95a2f` in a `# provenance (F1)` header, and both read `unattributed` in the manifest then, because `cmd_evidence` only extracted provenance from `.json` (D031 gave a typed header its own tier) — see `crates/xtask/src/main.rs:183-193`, `crates/xtask/src/main.rs:244-254` since D031) |
 | `implementation/BLOCKERS.md` | `:54-55` carried the pre-D025 flattened Link sentence while `docs/PERFORMANCE-READINESS.md:242` cited it as repeating the split — the citation was false until the text was made true. Line-count preserved (10 citations land below it) |
 | `implementation/STATE.json`, `FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md`, `AGENTS.md`, `implementation/DECISIONS.md` | every place that quoted the old booleans or the old strings; D023's and D025's "Not changed here" bullets now read as closed |
 
@@ -1533,8 +1533,113 @@ disk, so the same command from a different shell gives the same verdict.
 commit, 23 unattributed, 0 missing provenance**. The transcript this decision cites is the +1 file
 and the +1 unattributed, and it is the fourth of its kind: `link-flake-2026-11-15.txt` names
 `gitHash f49bb20` in its own `# provenance (F1)` header and still cannot be credited, because
-`cmd_evidence` extracts provenance from `.json` only (`crates/xtask/src/main.rs:183-193`). Lane 13
-counted three such files; the count it recorded was right then and is four now. Fixing the
+`cmd_evidence` extracts provenance from `.json` only (`crates/xtask/src/main.rs:183-193`, `crates/xtask/src/main.rs:244-254` since D031). Lane 13
+counted three such files; the count it recorded was right then and is four now. [D031 then read those headers into `header_other_commit`, and 23 unattributed became 19.] Fixing the
 extractor to read a `# provenance` line out of text transcripts is a one-function change to a
 writer other lanes own, so it stays on the open list rather than being done under cover of a Link
 commit.
+
+## D031 — 2026-11-15 four transcripts named a commit the manifest swore they did not
+
+### The defect
+
+`implementation/evidence/manifest.json` carries a `notes` array, and until this commit one of its
+lines read: *"attribution=unattributed means nothing inside the file names a commit."* For four of
+the files it was labelling `unattributed` — `ndi-2026-11-15.txt`, `spout-2026-11-15.txt`,
+`link-2026-11-15.txt`, `link-flake-2026-11-15.txt` — the first line of the file is
+`# provenance (F1): gitHash <sha>`. The count was not wrong; the sentence about what the count
+means was, and a false explanation inside generated evidence is worse than a missing one because
+it reads like a policy.
+
+Lane 16 found this, wrote the number down (four, not three) and left the code alone rather than
+changing an evidence writer under cover of a Link commit. This is that change, on its own.
+
+### The choice, and the two wrong answers
+
+The tempting ones. Fold the four into `stamped_current` / `stamped_other_commit` and the manifest
+looks healthier — but `stamped_*` means *this crate wrote that SHA into the file while producing
+it*, which is a guarantee a hand-typed line does not carry. Or leave the tiers alone and put the
+exception in prose, which is exactly where the false sentence already was. Both were refused.
+
+What shipped is a third strength plus a field that names the strength:
+
+| `attribution` | `provenanceSource` | means |
+|---|---|---|
+| `stamped_current` / `stamped_other_commit` | `writer` | `write_evidence()` injected the SHA as the gate ran |
+| `header_current` / `header_other_commit` | `header` | the file's own `# provenance` line names a SHA; a human typed it and nothing checked it |
+| `unattributed` | `none` | nothing inside the file names a commit — now actually true |
+| `no_provenance` | `none` | a file this crate writes named nothing: a bug, and the command exits 1 on it |
+
+Two bounds are part of the contract, not accidents. Only `.txt` and `.md` are scanned: a PNG has
+no business matching a hex-shaped byte run. And the scan stops at line 24, because a SHA in the middle of a transcript is usually a citation of somebody else's commit; it also takes the first
+plausible token on the earliest line that matches, which is why `spout-2026-11-15.txt` reports `cf95a2f`
+and not the 16-hex id printed further down its body. A short
+HEAD also matches a full SHA in the file, so a transcript that quotes `gitHashFull` does not get
+filed under another commit.
+
+### Measured
+
+- `cargo fmt --all -- --check` exit 0.
+- `cargo test --workspace -- --test-threads=1` exit 0 — **214 passed / 0 failed / 0 ignored across
+  the same 40 result lines**. Seven new tests, none of them a new result line: they are the first
+  unit tests in `crates/xtask/src/main.rs`, whose bin target already appeared in that count as
+  `running 0 tests`.
+- `cargo run -q -p xtask -- evidence` exit 0 — **32 files, 9 stamped by their writer, 4 naming a
+  commit in a header, 19 unattributed, 0 missing provenance**. All four header rows read
+  `header_other_commit`, which is correct rather than flattering: a transcript is captured at a
+  commit and committed afterwards, or not at all.
+- Non-vacuity, by mutation and not by argument. Dropping `.take(24)` from `header_git_hash` reddens
+  `stops_at_the_top_of_the_file` (1 failed / 6 passed). Making the header tier return `stamped_*`
+  reddens `a_writer_stamp_and_a_typed_header_stay_apart` and `a_full_sha_matches_a_short_head`
+  (2 failed / 5 passed). Both restored; `grep -c MUTATION` on the file is 0 and the seven are green.
+
+### Not measured
+
+Nothing can verify a hand-typed SHA after the fact — that is the content of the weaker tier, not a
+TODO. Whether the four headers are *accurate* is a claim about their authors, and `ndi` / `spout` /
+`link` were captured by lanes that recorded their own dirty state, which the reader can see in each
+file. The 19 files that name nothing still name nothing; re-capturing them is F2/F4/G capture work
+owned elsewhere.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/xtask/src/main.rs` | `header_git_hash`, `attribute`, the two-tier loop body, `provenanceSource` in each row, `header_named` in `counts`, the corrected `notes`, the new print line, and `mod evidence_provenance` (7 tests) |
+| `implementation/evidence/manifest.json` | regenerated: the false note is gone, four rows moved to the header tier |
+| `implementation/STATE.json` | `test_totals.measured` → 214 with the reason; `evidence_manifest` row carries the tier split; the lane-16 sentence about "cannot be credited" is marked superseded, not deleted |
+| `implementation/DECISIONS.md` | this record; D027's and D030's citations of the moved extraction qualified |
+| `docs/PERFORMANCE-READINESS.md` | the evidence row's attribution vocabulary, and a sixth entry in Test totals |
+| `implementation/FINAL-REPORT.md`, `README.md` | 207 → 214, with what the +7 are |
+| `docs/IMPLEMENTATION-ARCHITECTURE.md` | eight `xtask/src/main.rs` citations re-resolved (six were already mis-targeted since D024), the "two callers" of `read_preview` corrected to three, and the row kept at 888 lines |
+
+### Citation churn
+
+`cmd_evidence` grew by 61 lines above the extraction it used to do inline, so the block cited as `crates/xtask/src/main.rs:183-193` is `:244-254` now. All four citations (here at :1162 and
+:1536, `STATE.json` `re_run_lanes` and `current_task`) were rewritten to name both, since the older
+number is what those records saw. `docs/PERFORMANCE-READINESS.md` is where line-number citations
+hurt most, so its evidence paragraph was reflowed inside its existing line budget and the file is
+still 1076 lines; `README.md` (115), `FINAL-REPORT.md` (290), `STATE.json` (187) likewise.
+
+`docs/IMPLEMENTATION-ARCHITECTURE.md` carried eight more `crates/xtask/src/main.rs` citations, and
+grepping them turned up a defect older than D031: since D024 inserted `cmd_evidence` near the top of
+the file they had been pointing into the wrong functions — the "catalog lints duplicate ids" note
+read `:163-199`, which is `cmd_evidence`'s file walk, and the "test-gpu reports UNAVAILABLE" note read
+`:242-287`, which is `cmd_evidence`'s tail and `cmd_doctor`. D031 shifted those targets a second time.
+All eight are re-resolved here to the functions their prose names (`cmd_catalog:460-497`,
+`cmd_test_gpu:539-585`, `cmd_doctor:348-392`, `cmd_fixtures:393-459`, `cmd_check:498-538`,
+`BENCH_PROFILES:614-650`, `cmd_benchmark:806-962`, `cmd_package:1397-1524`), each range measured off
+the function-start grep, not eyeballed. One citation was also a wrong *claim*: "`read_preview` has
+exactly two callers — `tests.rs:164` and `main.rs:477`" — when `477` is `cmd_test_gpu` (which does not
+call it) and the real callers are `tests.rs:164`, `main.rs:774` and `:1134` — three, none in the
+shipped product, so the "no production caller" point stands. The file is kept at 888 lines so its own
+`:661`/`:875` inbound citations (from `PERFORMANCE-READINESS.md:1076`) do not move.
+
+### Not changed here
+
+- `verify.ps1` and `ci.yml` still do not run `xtask evidence`, so the manifest is only as fresh as
+  the last person who typed it. That is the same gap D028 recorded for `requirements.json`, and it
+  wants one decision covering both: either both generated files are checked for staleness in CI, or
+  neither is and the prose says so.
+- The `stamped` key keeps its old meaning (writer-injected only) rather than becoming
+  stamped+header. A count that silently changes what it counts is how this lane started.

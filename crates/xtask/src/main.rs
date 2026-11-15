@@ -140,11 +140,71 @@ fn written_by_xtask(file: &str) -> bool {
     OWN.contains(&file) || file.starts_with("scenario-") || file.starts_with("soak-")
 }
 
-/// F1, the other half of it. Every file under `implementation/evidence/` either names
-/// the commit it was produced from or is listed here as unattributed, with its own mtime
-/// as the evidence of its age. The hand-captured `*.txt`/`*.png` transcripts have no
-/// writer, so they cannot be stamped after the fact — recording that plainly is the
-/// honest alternative to inventing a SHA for them.
+/// The `# provenance (F1): gitHash <sha>` line a hand-saved transcript opens with. Bounded
+/// to the head of the file on purpose: a SHA mentioned in the middle of prose is usually a
+/// reference to somebody else's commit, not this capture's provenance.
+fn header_git_hash(text: &str) -> Option<String> {
+    for line in text.lines().take(24) {
+        let Some(at) = line.find("gitHash") else {
+            continue;
+        };
+        for token in line[at + "gitHash".len()..].split_whitespace() {
+            let sha: String = token
+                .trim_start_matches(|c: char| !c.is_ascii_alphanumeric())
+                .chars()
+                .take_while(|c| c.is_ascii_hexdigit())
+                .collect();
+            if (7..=40).contains(&sha.len()) {
+                return Some(sha);
+            }
+        }
+    }
+    None
+}
+
+/// Two kinds of "this file names a commit", and the manifest must not blur them. A
+/// `writer` stamp was injected by `write_evidence()` at the moment the gate ran, so it
+/// cannot be wrong about its own tree. A `header` SHA was typed by whoever captured the
+/// transcript and checked by nothing. `head` is the short SHA, so a file naming the full
+/// SHA of the same commit still reads as current.
+fn attribute(
+    writer: Option<String>,
+    header: Option<String>,
+    own: bool,
+    head: Option<&str>,
+) -> (Option<String>, &'static str, &'static str) {
+    let current = |sha: &str| match head {
+        Some(h) => h.eq_ignore_ascii_case(sha) || sha.to_ascii_lowercase().starts_with(h),
+        None => false,
+    };
+    match (writer, header) {
+        (Some(sha), _) => {
+            let status = if current(&sha) {
+                "stamped_current"
+            } else {
+                "stamped_other_commit"
+            };
+            (Some(sha), "writer", status)
+        }
+        (None, Some(sha)) => {
+            let status = if current(&sha) {
+                "header_current"
+            } else {
+                "header_other_commit"
+            };
+            (Some(sha), "header", status)
+        }
+        (None, None) if own => (None, "none", "no_provenance"),
+        (None, None) => (None, "none", "unattributed"),
+    }
+}
+
+/// F1, the other half of it. Every file under `implementation/evidence/` either names the
+/// commit it came from or is reported as unattributed, with its own mtime as the evidence
+/// of its age. Naming a commit has two strengths, and the manifest keeps them apart:
+/// `stamped_*` is a SHA this crate injected while producing the file, `header_*` is a SHA
+/// a human typed into a transcript. Neither is invented here, and neither is rounded up:
+/// a hand-capture that names nothing stays `unattributed`.
 ///
 /// Exits nonzero only when a file this crate *does* write is missing its stamp, because
 /// that is a defect in this contract. Unattributed hand-captures are reported, not
@@ -171,6 +231,7 @@ fn cmd_evidence(_args: &[String]) -> i32 {
     let head = git(&["rev-parse", "--short", "HEAD"]);
     let mut files = vec![];
     let mut stamped = 0usize;
+    let mut header_named = 0usize;
     let mut broken = vec![];
     for path in &paths {
         let name = path
@@ -191,31 +252,31 @@ fn cmd_evidence(_args: &[String]) -> i32 {
                     .and_then(|h| h.as_str())
                     .map(|s| s.to_string())
             });
+        // A hand transcript's SHA lives in a header line its author wrote. Only text files
+        // are scanned, so a PNG's bytes can never look like a provenance claim.
+        let header = (name.ends_with(".txt") || name.ends_with(".md"))
+            .then(|| std::fs::read_to_string(path).ok())
+            .flatten()
+            .and_then(|s| header_git_hash(&s));
         // A JSON gate written here must carry provenance; its absence is a bug, not a
-        // limitation. Files that predate this rule are `unattributed`, files that parse
-        // but name a different commit are `stale`.
+        // limitation. A hand file that names nothing is a limitation, and reads as one.
         let own = written_by_xtask(&name);
-        let status = match &found {
-            Some(sha) => {
-                stamped += 1;
-                if head.as_deref() == Some(sha.as_str()) {
-                    "stamped_current"
-                } else {
-                    "stamped_other_commit"
-                }
-            }
-            None if own => {
-                broken.push(name.clone());
-                "no_provenance"
-            }
-            None => "unattributed",
-        };
+        let (sha, source, status) = attribute(found, header, own, head.as_deref());
+        match source {
+            "writer" => stamped += 1,
+            "header" => header_named += 1,
+            _ => {}
+        }
+        if status == "no_provenance" {
+            broken.push(name.clone());
+        }
         files.push(json!({
             "file": name,
             "bytes": bytes,
             "mtimeUnix": mtime_unix,
             "mtimeUtc": mtime_utc,
-            "gitHash": found,
+            "gitHash": sha,
+            "provenanceSource": source,
             "producer": if own { "xtask" } else { "hand-captured (no writer in the tree)" },
             "attribution": status,
         }));
@@ -255,12 +316,13 @@ fn cmd_evidence(_args: &[String]) -> i32 {
             "headAtRun": head,
             "rustc": rustc,
             "recheckCommand": "cargo run -q -p xtask -- evidence",
-            "counts": {"files": total, "stamped": stamped, "unattributed": total - stamped, "missing_provenance": broken.len()},
+            "counts": {"files": total, "stamped": stamped, "header_named": header_named, "unattributed": total - stamped - header_named, "missing_provenance": broken.len()},
             "missingProvenance": broken,
             "notes": [
                 "mtimeUtc is a date, not a proof of provenance: a copy preserves it and a rebuild changes it for reasons unrelated to the source. The sha256 identifies the file on disk; two compiles of identical source will not hash equal on MSVC, so neither alone names a commit.",
-                "attribution=unattributed means nothing inside the file names a commit. These are hand-saved transcripts with no writer in the tree, including diagnostics.json, which `flux diagnostics` only prints.",
-                "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it.",
+                "attribution comes in two strengths. stamped_current / stamped_other_commit: the SHA was injected by write_evidence() while this crate produced the file. header_current / header_other_commit: a hand-saved text transcript carries `# provenance (F1): gitHash <sha>` that its author typed and no writer checked — a claim about the capture, not a record of the run.",
+                "attribution=unattributed means nothing inside the file names a commit at all. These are hand-saved transcripts with no writer in the tree, including diagnostics.json, which `flux diagnostics` only prints.",
+                "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it. header_other_commit is the normal state for a transcript, which is captured at a commit and committed later, or not at all.",
                 "manifest.json's own row describes the manifest that was on disk when this scan ran — the writer cannot see the file it is about to produce. The provenance block of this payload is the first-party stamp for the current run.",
                 "provenance.gitDirty is measured on the working tree with implementation/evidence/ excluded, because a gate rewriting its own tracked evidence is not an uncommitted source change.",
             ],
@@ -269,10 +331,11 @@ fn cmd_evidence(_args: &[String]) -> i32 {
         }),
     );
     println!(
-        "evidence: {} files, {} name their commit, {} unattributed, {} missing provenance",
+        "evidence: {} files, {} stamped by their writer, {} naming a commit in a header, {} unattributed, {} missing provenance",
         total,
         stamped,
-        total - stamped,
+        header_named,
+        total - stamped - header_named,
         broken.len()
     );
     if !broken.is_empty() {
@@ -1361,5 +1424,101 @@ fn cmd_package(_args: &[String]) -> i32 {
         0
     } else {
         1
+    }
+}
+
+#[cfg(test)]
+mod evidence_provenance {
+    use super::{attribute, header_git_hash};
+
+    /// The header form the 2026-11-15 hand transcripts actually open with. Before D031 the
+    /// manifest called these files `unattributed` and asserted in its own notes that nothing
+    /// inside them named a commit, which this line shows to be false.
+    #[test]
+    fn reads_the_f1_header_a_hand_transcript_uses() {
+        let line = "# provenance (F1): gitHash f49bb20, working tree DIRTY at capture time";
+        assert_eq!(header_git_hash(line).as_deref(), Some("f49bb20"));
+        let quoted = "# provenance (F1): gitHash \"cf95a2f\", gitDirty true";
+        assert_eq!(header_git_hash(quoted).as_deref(), Some("cf95a2f"));
+    }
+
+    /// A header that names nothing must read as naming nothing. Returning a guess here is
+    /// how a provenance field turns into folklore.
+    #[test]
+    fn names_nothing_when_there_is_no_sha_to_name() {
+        assert_eq!(header_git_hash("# peers=0 tempo=120.0 frames=83"), None);
+        assert_eq!(
+            header_git_hash("# provenance (F1): gitHash not-recorded"),
+            None
+        );
+        assert_eq!(header_git_hash("# gitHash abc"), None);
+        assert_eq!(header_git_hash(""), None);
+    }
+
+    /// The scan is bounded to the head of the file on purpose: a SHA in the middle of prose
+    /// is usually a citation of somebody else's commit. This test is what makes `take(24)`
+    /// load-bearing rather than decorative.
+    #[test]
+    fn stops_at_the_top_of_the_file() {
+        let mut text = String::new();
+        for i in 0..40 {
+            text.push_str(&format!("# body line {i}\n"));
+        }
+        text.push_str("# provenance (F1): gitHash f49bb20\n");
+        assert_eq!(header_git_hash(&text), None);
+    }
+
+    /// The two strengths may not be blended: a writer stamp outranks a header, and a header
+    /// is never reported as if a writer had injected it.
+    #[test]
+    fn a_writer_stamp_and_a_typed_header_stay_apart() {
+        let (sha, source, status) = attribute(
+            Some("aaaaaaa".into()),
+            Some("bbbbbbb".into()),
+            false,
+            Some("aaaaaaa"),
+        );
+        assert_eq!(
+            (sha.as_deref(), source, status),
+            (Some("aaaaaaa"), "writer", "stamped_current")
+        );
+
+        let (sha, source, status) = attribute(None, Some("abc1234".into()), false, Some("abc1234"));
+        assert_eq!(
+            (sha.as_deref(), source, status),
+            (Some("abc1234"), "header", "header_current")
+        );
+
+        let (_, _, status) = attribute(None, Some("abc1234".into()), false, Some("9999999"));
+        assert_eq!(status, "header_other_commit");
+    }
+
+    /// A full SHA in the file still has to read as current against a short HEAD, or every
+    /// transcript that quotes `gitHashFull` would be filed under another commit.
+    #[test]
+    fn a_full_sha_matches_a_short_head() {
+        let full = "90d9e59a000000000000000000000000000000ff";
+        let (_, _, status) = attribute(None, Some(full.into()), false, Some("90d9e59"));
+        assert_eq!(status, "header_current");
+    }
+
+    /// Absence is reported with two different words, and which one applies is a property of
+    /// the file's producer, not of the file: this crate writing a gate without provenance is
+    /// a bug in this crate (`no_provenance`, and the command exits nonzero), while a hand
+    /// capture that names nothing is a limitation worth stating plainly.
+    #[test]
+    fn missing_provenance_is_a_defect_only_for_files_this_crate_writes() {
+        let (sha, source, status) = attribute(None, None, true, Some("abc1234"));
+        assert_eq!((sha, source, status), (None, "none", "no_provenance"));
+        let (sha, source, status) = attribute(None, None, false, Some("abc1234"));
+        assert_eq!((sha, source, status), (None, "none", "unattributed"));
+    }
+
+    /// With no readable HEAD nothing can be called current. The SHA is still reported, so a
+    /// reader can compare it by hand instead of trusting a tier this run cannot compute.
+    #[test]
+    fn an_unreadable_head_credits_nothing() {
+        let (_, _, status) = attribute(Some("abc1234".into()), None, true, None);
+        assert_eq!(status, "stamped_other_commit");
     }
 }

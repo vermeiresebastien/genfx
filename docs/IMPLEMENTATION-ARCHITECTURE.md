@@ -374,8 +374,8 @@ Tests assert the counts and that every referenced `type_id` exists in the catalo
     If the node should appear in a preset, add the chain in `presets.rs` (§3.5); the
     catalog-membership test is `preset_types_exist_in_catalog` (`presets.rs:806-820`).
 11. **Then the GPU gates**: `cargo run -p xtask -- catalog` (duplicate ids + empty
-    implementation paths, `xtask/src/main.rs:163-199`) and `cargo xtask test-gpu`
-    (`xtask/src/main.rs:242-287`), plus `crates/render/src/tests.rs:17-33` which compiles
+    implementation paths, `xtask/src/main.rs:460-497`) and `cargo xtask test-gpu`
+    (`xtask/src/main.rs:539-585`), plus `crates/render/src/tests.rs:17-33` which compiles
     the whole catalog on the real device.
 
 ---
@@ -443,8 +443,8 @@ into the downscaled RGBA8 texture, pads the row stride and blocks on
 `map_async(..., PollType::Wait{timeout: None})` (`:23-232`); `read_full()` is the same at
 native size, documented "Used by the exporter" (`:236-299`).
 
-**Verified: `read_preview` has exactly two callers** — `crates/render/src/tests.rs:164` and
-`crates/xtask/src/main.rs:477` (grep over the whole tree). The GUI and the exporter both go
+**Verified: `read_preview` has exactly three callers, none in the shipped product** —
+`crates/render/src/tests.rs:164`, `crates/xtask/src/main.rs:774` and `:1134` (grep over the whole tree). The GUI and the exporter both go
 through `PreviewRenderer::render_single_frame` → `read_full`
 (`app/src/export.rs:319-610, 604`). The Rust-side 960×540 cap therefore does **not** bound
 the editor today. What bounds it is JavaScript: `apps/desktop/ui/main.js:185-191`
@@ -728,7 +728,7 @@ Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the 
   its headline test compiles all 217 catalog shaders on the device (`:17-33`). So
   `cargo test -p flux-render` fails without a GPU while `cargo test -p flux-tests` does not.
 - `cargo xtask test-gpu` neither skips nor panics — it requires a device and reports
-  `UNAVAILABLE` in `implementation/evidence/` (`crates/xtask/src/main.rs:242-287`).
+  `UNAVAILABLE` in `implementation/evidence/` (`crates/xtask/src/main.rs:539-585`).
 - `crates/media/src/tests.rs` and `crates/tests/tests/golden.rs` require **FFmpeg**
   (`find_ffmpeg().expect("ffmpeg available")`, `media/src/tests.rs:16`; but skip in
   `export_formats.rs:98,113`).
@@ -758,17 +758,17 @@ safe across processes.
 `cargo xtask <doctor|fixtures|catalog|check|test-gpu|scenario|benchmark|report|package>`
 (`crates/xtask/src/main.rs:18-28, 30-49`) emits JSON into `implementation/evidence/`:
 `doctor` records rustc/GPU/FFmpeg/encoders/`catalogEntries` **plus a hardcoded `blockers`
-list** (`:51-94`), `fixtures` generates `fixtures/generated/{test_10s_60fps.mp4,
-test_2997.mp4, sine_1k_48k.wav}` via lavfi (`:96-161`), `catalog` lints duplicate ids and
-empty `implementation.path` (`:163-199`), `check` runs `cargo test -p` per package with a
-`--scope` filter (`:201-240`), `benchmark` takes a named profile from a `BENCH_PROFILES` table
-(`:302-352`) — `ordinary` (1920×1080, 16.67 ms budget) or `4k` (3840×2160, 33.33 ms) — and times
+list** (`:348-392`), `fixtures` generates `fixtures/generated/{test_10s_60fps.mp4,
+test_2997.mp4, sine_1k_48k.wav}` via lavfi (`:393-459`), `catalog` lints duplicate ids and
+empty `implementation.path` (`:460-497`), `check` runs `cargo test -p` per package with a
+`--scope` filter (`:498-538`), `benchmark` takes a named profile from a `BENCH_PROFILES` table
+(`:614-650`) — `ordinary` (1920×1080, 16.67 ms budget) or `4k` (3840×2160, 33.33 ms) — and times
 an 8-node merging generator→six-effect→output graph over 15 warm-up plus 120 sampled frames,
 reporting render and preview-copy separately with nearest-rank median/p95/p99, then sweeps 30
-(10 at 4K) single-generator graphs at 10 samples each with median/max only (`:496-656`); an
+(10 at 4K) single-generator graphs at 10 samples each with median/max only (`:806-962`); an
 unknown profile exits 2 rather than benching the default, and it exits 1 when the chain tail
 breaches the budget. `package` builds `flux-app --no-default-features` expecting
-`target/release/flux.exe` (`:775-806`). Two more
+`target/release/flux.exe` (`:1397-1524`). Two more
 bins exist: `requirements` (regenerates `implementation/requirements.json` from
 `spec/SPEC-INDEX.json` + the live catalog) and `export_shaders` (dumps
 `apps/shader-harness/shaders.json` and Naga-validates every shader with the same validator
@@ -820,7 +820,7 @@ the native renderer uses).
 | GPU integration harness (metamorphic, skipping) | `crates/tests/src/lib.rs` | `14-16, 63-111, 218-349` |
 | GPU test serialisation lock (only two files) | `crates/tests/tests/dag_parallel.rs`, `node_editor.rs` | `10-17`, `15-19` |
 | Full-catalog GPU shader compile (panics without GPU) | `crates/render/src/tests.rs` | `13-33` |
-| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-49, 51-94, 242-287, 302-656` |
+| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-100, 129-347` |
 | Requirements coverage generator | `crates/xtask/src/bin/requirements.rs` | `17-32` |
 | Tauri IPC surface (10 commands) | `apps/desktop/src-tauri/src/lib.rs` | `16-24, 32-47, 78, 95-98, 154-275, 308-349, 430-441` |
 | UI preview sizing (the effective cap) | `apps/desktop/ui/main.js` | `185-196, 198-215` |
@@ -859,8 +859,8 @@ Claims from the earlier survey that are **wrong as stated** (code is right):
    endpoints and PnP camera-class enumeration are both real
    (`platform/src/lib.rs:54-79, 112-161`); camera *capture* is not implemented.
 7. **The 960×540 preview cap is not enforced by Rust in production.** `read_preview` has no
-   production caller (`preview.rs:23-232`; callers are `render/src/tests.rs:164` and
-   `xtask/src/main.rs:477`); the effective limit is `main.js:185-196`.
+   production caller (`preview.rs:23-232`; callers are `render/src/tests.rs:164`,
+   `xtask/src/main.rs:774` and `:1134`); the effective limit is `main.js:185-196`.
 
 Divergences between code and the markdown, ordered by how much they will mislead:
 
