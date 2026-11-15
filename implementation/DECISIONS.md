@@ -254,7 +254,8 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    `crates/tests/tests/sweep_catalog.rs`) gained redundant `{ }` around multi-line closure
    bodies, which is a token change, and the green suite is what makes it safe to call
    inert.
-2. **`verify.ps1` can record a passing step for failing work.** `Step` reads `$LASTEXITCODE`
+2. **`verify.ps1` could record a passing step for failing work** — repaired in D020, and
+   true only of the tree this entry measured. `Step` reads `$LASTEXITCODE`
    once, after the whole scriptblock. Step `'integration-tests'` (`:35`) chains three
    `cargo test` invocations with `;`, so its verdict is `dag_parallel`'s alone and a
    `producer_tests` or `export_matrix` regression is invisible in `verify.json`. Proved
@@ -276,7 +277,8 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    the device, 0 failures — which is the strongest single piece of evidence in the tree, and
    the reason D018 item 3's "the green suite is weak" caveat needs the exception recorded
    here.
-4. **The benchmark gate is weaker than its output looks** (`crates/xtask/src/main.rs:299-382`
+4. **The benchmark gate was weaker than its output looked** — true of the tree this entry
+   measured, no longer true of HEAD (`crates/xtask/src/main.rs:299-382`
    as it stood at `e84fe67`; that code no longer exists — the line numbers below are the
    historical ones, not a pointer into the current file).
    `--profile` is parsed and written into the JSON but never read again: resolution is
