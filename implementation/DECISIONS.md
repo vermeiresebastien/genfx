@@ -1360,14 +1360,25 @@ A fresh clone is unaffected: none of those candidates exist there, so `link-inte
 moves the decision from the operator's shell to the filesystem, which is the only place a
 prerequisite can be true.
 
-### No guard, and what stands in for one
+### The guard is behavioural, because a .ps1 has no test surface
 
-`verify.ps1` has no test harness — the parse check is the whole static surface (`parse_errors=0`).
-The guard is behavioural and pending: the next full run, at this commit, from a shell that sets
-nothing, which should read 17 / 0 / 0. Until that run is recorded this entry claims the mechanism
-and the before-state, not the after-state. The two transcripts of this session
-(`target/verify-7ecc1f1.log`, `target/verify-7ecc1f1-link.log`) are scratch and gitignored; the
-durable half is `evidence/verify.json`, which the confirming run overwrites.
+`verify.ps1` has no unit tests — the parse check is the whole static surface (`parse_errors=0`),
+so the guard had to be a run: full harness, at the commit that carries the change, from a shell with
+`FLUX_ABLETON_LINK_LIB` explicitly removed from its environment. That ran at `7235afd`:
+`VERIFY: PASS`, exit 0, **passed=17 failed=0 blocked_external=0**, `external` all three true,
+`gitHash 7235afd` with `gitDirty false`, and the printed line `abl_link.lib resolved:
+D:\Projects\visual\genfx\_upstream\link\build\Release` — the candidate list, not the operator,
+decided that step. `evidence/verify.json` now carries it. The pointer-keyed before-state survives
+only in scratch logs (`target/verify-7ecc1f1.log` and siblings), which is why the 16-0-1 figure is
+quoted in this record rather than stored beside it.
+
+What that run also changed is the flake tally. `link::` has now executed 16 times today: the 13
+invocations D027 counted (11 clean, 2 red), plus the harness run at `cf95a2f`, plus the two at
+`7ecc1f1` and `7235afd` — and `set_playing_reflected_in_state` passed in all three harness
+executions. Three consecutive clean runs is not a mechanism and not a fix; the assertion at
+`crates/integrations/src/link.rs:203` is still untouched, still not wired into CI, and still the
+only known red in the suite. It stays open with its rate attached: 2 failures in 16, both at the
+same line, none of them in a run where the gate had to find its own library.
 
 ### Citation churn
 
@@ -1380,8 +1391,9 @@ checked, not assumed.
 ### Not changed here
 
 - The `passed=17 failed=0 blocked_external=0` figure quoted across README, AGENTS.md, STATE.json
-  and FINAL-REPORT.md stays, but with the shell-dependence attached, because a reader cannot
-  reproduce it from a bare shell until this fix ships.
+  and FINAL-REPORT.md now reads without a caveat, because the bare-shell run above is what produces
+  it. The shell-dependence stays in those sentences as history with its number attached — 16-0-1 at
+  `7ecc1f1` — rather than being deleted, because a reader who runs an older checkout meets it.
 - `gitDirty false` at `7ecc1f1` closes the half of D026 that stopped at the mechanism: the
   excluded pathspec is now measured at a commit that contains it, on a tree that was clean before
   the run, with the source change committed after. No claim in that record needed editing.

@@ -85,7 +85,8 @@ actually reachable, this host runs all 17 steps — `VERIFY: PASS`, exit 0, **17
 still shell-dependent until D029: the same commit measured **16 passed / 0 failed /
 1 `blocked_external`** from a shell that had not exported `FLUX_ABLETON_LINK_LIB`, because the
 Link gate looked for the library *inside the directory that variable names*. It now searches the
-vendored candidates and exports the directory it finds. Both of
+vendored candidates and exports the directory it finds, and the run at `7235afd` — clean tree,
+variable removed from the environment — is `17 passed / 0 failed / 0 blocked_external` again. Both of
 those files are gitignored, so a fresh clone — and CI — still record 2 blocked steps. See
 `AGENTS.md` § "Traps inside this repo's own verification harness".
 
