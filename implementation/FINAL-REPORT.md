@@ -42,9 +42,13 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   maxpat, fixtures, both builds, NDI). In GitHub Actions the fmt failure aborted the job
 >   before the suite even started, which is why the green local result and the red CI result
 >   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
->   workspace suite behind the reformat still reports 196 passed / 0 failed; the full
->   `verify.ps1` run has not been repeated since, so PASS is still not claimed here.
->   See D019.
+>   workspace suite behind the reformat still reports 196 passed / 0 failed. **The full
+>   `verify.ps1` run has now been repeated, and it passes:** measured 2026-11-15 at HEAD
+>   `75da874` it exited 0 with `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external
+>   (`link-integration`, `spout-enumeration`). The two harness defects D019 found in that
+>   script — the chained step that masked exit codes, and skipped gates recorded as
+>   `ok: true` — were repaired first, along with a third `$LASTEXITCODE` leak the repair
+>   exposed. See D019 and D020.
 
 ## 1. What works (verified on this host: Windows x64, RTX 2080 Ti, FFmpeg 9)
 

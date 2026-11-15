@@ -1,21 +1,35 @@
-﻿{
-    "generatedAt":  "2026-11-14T05:06:32.0770879Z",
+{
+    "generatedAt":  "2026-11-15T11:53:46.5339208Z",
+    "gitHash":  "75da874",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  false,
-    "ok":  false,
+    "ok":  true,
+    "counts":  {
+                   "blocked_external":  2,
+                   "failed":  0,
+                   "passed":  15
+               },
     "steps":  {
                   "fmt":  {
-                              "exit":  1,
-                              "ok":  false
+                              "exit":  0,
+                              "ok":  true
                           },
                   "unit-tests":  {
                                      "exit":  0,
                                      "ok":  true
                                  },
-                  "integration-tests":  {
-                                            "exit":  0,
-                                            "ok":  true
-                                        },
+                  "integration-producer-tests":  {
+                                                     "exit":  0,
+                                                     "ok":  true
+                                                 },
+                  "integration-export-matrix":  {
+                                                    "exit":  0,
+                                                    "ok":  true
+                                                },
+                  "integration-dag-parallel":  {
+                                                   "exit":  0,
+                                                   "ok":  true
+                                               },
                   "golden":  {
                                  "exit":  0,
                                  "ok":  true
@@ -53,8 +67,9 @@
                                     "ok":  true
                                 },
                   "link-integration":  {
-                                           "ok":  true,
+                                           "ok":  null,
                                            "skipped":  true,
+                                           "status":  "blocked_external",
                                            "reason":  "FLUX_ABLETON_LINK_LIB unset"
                                        },
                   "ndi-discovery":  {
@@ -62,8 +77,9 @@
                                         "ok":  true
                                     },
                   "spout-enumeration":  {
-                                            "ok":  true,
+                                            "ok":  null,
                                             "skipped":  true,
+                                            "status":  "blocked_external",
                                             "reason":  "FLUX_SPOUT_SHIM unset"
                                         }
               }

@@ -59,14 +59,24 @@ them first.
   first check step in CI, so while it is red the job dies before the test suite runs and
   every later gate goes unreported — which is how "CI is green" survived next to a tree
   that could not be merged. Re-run this step before repeating any CI claim.
-- **`verify.ps1` masks exit codes.** `Step` reads `$LASTEXITCODE` once, after the whole
-  block. Step `'integration-tests'` chains three `cargo test` runs with `;`, so its verdict
-  is the *last* command's. Never put two commands in one `Step` block; and treat a
-  `verify.json` `ok` as weaker evidence than the printed `VERIFY:` line.
-- **Skipped gates are recorded as `ok: true`.** `link-integration` and `spout-enumeration`
-  write `{ ok = true; skipped = true }` when their env vars are unset. That violates the
-  rule above inside the harness itself — check `steps.<name>.skipped` before claiming a
-  gate ran.
+- **One command per `Step` block in `verify.ps1`.** `Step` reads `$LASTEXITCODE` once, after
+  the whole block, so a `;`-chained pair is judged only by its last command. This was a live
+  defect: step `'integration-tests'` chained three `cargo test` runs and recorded only
+  `dag_parallel`'s exit. Fixed 2026-11-15 (D020) by splitting them into three steps, and
+  `Step` now clears `LASTEXITCODE` before running, because a block containing no external
+  command used to inherit the *previous* step's verdict. Keep the rule anyway: never put two
+  commands in one `Step` block. Treat a `verify.json` `ok` as weaker evidence than the
+  printed `VERIFY:` line.
+- **A skipped gate is `blocked_external`, not `ok: true`.** `link-integration` and
+  `spout-enumeration` used to write `{ ok = true; skipped = true }` when their env vars were
+  unset, which is the repo's own truthfulness rule broken inside the harness. They now write
+  `ok = null` plus `status = 'blocked_external'`, and the run prints
+  `steps: passed=N failed=N blocked_external=N`. Check that third number before saying a
+  gate ran; a machine without the SDKs still exits 0.
+- **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
+  in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
+  Measured on the committed file at `75da874` and its predecessor. Written without BOM since
+  D020, which is also when `gitHash` and `counts` were added to it.
 - **Step names overpromise.** `ndi-discovery` runs `ndi::`, which selects 2 tests that only
   prove the DLL loads and discovery does not crash.
 - **`xtask benchmark --profile X` ignores X.** Resolution is hardcoded 1920×1080, the set is

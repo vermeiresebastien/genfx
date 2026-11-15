@@ -660,13 +660,14 @@ The hardware step is real, but it comes after a code step, and this document say
   **one** row over a 16.6 ms budget — `gen.concentric` (median 2.75 ms, worst 21.49 ms).
   `gen.clouds` is no longer over budget (worst 5.07 ms, was 17.37), so the Nov 9 spike did move;
   the `concentric` tail persists. Three things make even this weak evidence, and they are in
-  `crates/xtask/src/main.rs:299-382`, not in the GPU:
+  `crates/xtask/src/main.rs:299-387`, not in the GPU:
   (a) `--profile` is parsed and written to the JSON but never used — resolution is hardcoded
   1920×1080 (`:331`, `:355`) and the set is `.take(30)` fragment generators in catalog order
   (`:324`), so `--profile 4k` would do identical work;
-  (b) every timed iteration wraps a full 1920×1080 `read_preview` (`:371`), so the number is
-  render **+ ~8 MB GPU→CPU copy**, which is not what a live frame costs and is not comparable
-  to the `p95 ≤ 16.67 ms` goal;
+  (b) every timed iteration wraps a `read_preview` call asked for 1920×1080 (`:371`), which
+  `preview_size()` clamps to the 960×540 preview cap (`crates/render/src/preview.rs:7-11`) —
+  so the number is render **+ a 2,073,600 B GPU→CPU copy**, which is not what a live frame
+  costs and is not comparable to the `p95 ≤ 16.67 ms` goal;
   (c) with 12 samples, `times[len*95/100]` is index 11 — the single worst sample — so the field
   named `p95ms` is `max`, and `p50ms` is index 6. There is no p99 and no warm-up discard.
   The gap this gate actually needs is still open: nothing times a **multi-node graph**.

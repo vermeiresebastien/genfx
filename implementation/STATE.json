@@ -30,12 +30,14 @@
     "cargo_test_workspace": "196 passed / 0 failed / 0 ignored across 40 test binaries, exit 0",
     "verify_ps1_full": {
       "command": "powershell -File infrastructure/verify.ps1   (no -Quick)",
-      "at_head": "e84fe67",
-      "verdict": "VERIFY: FAIL, exit 1",
-      "failing_step": "fmt - the ONLY failing step",
-      "passing_steps": "unit-tests (149 lib tests), integration-tests (producer_tests 6 + export_matrix 6 + dag_parallel 4), golden (3), catalog, doctor, test-gpu, shaders-export, maxpat, fixtures, cli-build, gui-build, ndi-discovery",
-      "skipped_steps": "link-integration (FLUX_ABLETON_LINK_LIB unset), spout-enumeration (FLUX_SPOUT_SHIM unset) - both recorded as ok:true in verify.json, see ci_defects_found_2026_11_14",
-      "evidence": "implementation/evidence/verify.json"
+      "at_head": "75da874",
+      "verdict": "VERIFY: PASS, exit 0",
+      "failing_step": "none",
+      "counts": "17 steps: passed=15 failed=0 blocked_external=2",
+      "passing_steps": "fmt, unit-tests (149 lib tests), integration-producer-tests (6), integration-export-matrix (6), integration-dag-parallel (4), golden (3), catalog, doctor, test-gpu, shaders-export, maxpat, fixtures, cli-build, gui-build, ndi-discovery",
+      "skipped_steps": "link-integration (FLUX_ABLETON_LINK_LIB unset), spout-enumeration (FLUX_SPOUT_SHIM unset) - now recorded ok:null / status=blocked_external after the D020 harness repair",
+      "evidence": "implementation/evidence/verify.json",
+      "history": "at e84fe67 the same script ended VERIFY: FAIL on the fmt step alone, with 15 steps; the two harness defects in ci_defects_found_2026_11_14 were repaired before this PASS (D020)"
     },
     "gates_measured": {
       "catalog": "217 entries (52 fx/util, 165 generators), duplicates=0",
@@ -117,13 +119,13 @@
   ],
   "ci_defects_found_2026_11_14": [
     "HEAD DOES NOT PASS ITS OWN CI. `cargo fmt --all -- --check` is the first check step in ci.yml (line 29, 'Format check') and the first step of verify.ps1 (line 32); at e84fe67 it exits 1 with 56 diffs across 12 files (src-tauri build.rs + lib.rs, app/commands.rs, app/samples.rs, catalog/presets.rs, media/lib.rs, and tests export_formats/golden/node_editor/preset_sweep/preview_perf/sweep_catalog). The compact hand-formatted multi-item arrays and long assert! lines committed on 2026-11-10 (fe9e35e, ac73572, 8139007) were never rustfmt-ed. In GitHub Actions a failing step aborts the job, so every step after 'Format check' - including the whole workspace test suite - would not run. CLEARED by the commit that adds this note: `cargo fmt --all` was applied to the 12 files, `--check` exits 0, the citation anchors that moved were re-audited against the new tree, and `cargo test --workspace -- --test-threads=1` still reports 196 passed / 0 failed.",
-    "verify.ps1:35 masks two of its three exit codes. The 'integration-tests' Step block runs three cargo tests separated by `;`, and Step only reads $LASTEXITCODE after the block - so the step's ok reflects dag_parallel (the last command) alone. Measured directly: a block containing a failing `cargo fmt` then a passing `doctor` records ok=True exit=0. A producer_tests or export_matrix regression is invisible in verify.json.",
-    "verify.json records skipped gates as ok:true. link-integration and spout-enumeration write { ok = true; skipped = true } when their env vars are unset, which is exactly the AGENTS.md rule 'missing prerequisite is blocked_external, never passed' violated inside the verification harness itself. The aggregate ok can never reflect an unavailable SDK.",
+    "REPAIRED (D020) verify.ps1:35 masked two of its three exit codes. The 'integration-tests' Step block ran three cargo tests separated by `;`, and Step only read $LASTEXITCODE after the block - so the step's ok reflected dag_parallel (the last command) alone. Measured directly: a block containing a failing `cargo fmt` then a passing `doctor` recorded ok=True exit=0. Fixed by splitting it into integration-producer-tests, integration-export-matrix and integration-dag-parallel (one command per block), and by having Step clear $global:LASTEXITCODE on entry - which exposed a SECOND leak that this repair found: a step whose block runs no external command inherited the previous step's verdict.",
+    "REPAIRED (D020) verify.json recorded skipped gates as ok:true. link-integration and spout-enumeration wrote { ok = true; skipped = true } when their env vars were unset - the AGENTS.md rule 'missing prerequisite is blocked_external, never passed' violated inside the verification harness itself. Now a Blocked step writes ok:null, status='blocked_external', skipped=true and a reason, and the payload carries counts.blocked_external. The evidence file also lost its UTF-8 BOM (HEAD's verify.json failed strict JSON.parse) and gained gitHash + rustc, so a verdict can be attributed to a tree.",
     "The step name 'ndi-discovery' overpromises. It runs `cargo test -p flux-integrations --features ndi ndi::`, which selects exactly 2 tests (runtime_loads_and_initializes, discovery_returns_state_without_crash). crates/integrations/src/ndi.rs contains no other test. So the repeatable NDI evidence is 'the DLL loads and discovery does not crash' - the 'discovery of 5 live sources + live send/receive cross-process' claim came from an ad-hoc manual run that no test reproduces.",
     "clippy is neutered: ci.yml:31 runs `cargo clippy --workspace --all-targets -- -A warnings` (-A = allow), so it can only detect a compile failure, never a lint. The plain build already emits ~10 warnings, including dead fields in RuntimeGraph and a never-used flux_app_persistence_load.",
-    "xtask benchmark lies about what it measured (crates/xtask/src/main.rs:299-382). (a) `--profile` is parsed and echoed into the JSON but never used - resolution is hardcoded 1920x1080 at :331/:355 and the sample set is `.take(30)` fragment generators at :324, so `--profile ordinary` and a hypothetical `--profile 4k` do identical work. (b) Each timed iteration includes a full 1920x1080 readback (:371), so p50/p95 are render + an ~8 MB GPU->CPU copy, not render cost, and are not comparable to a frame budget. (c) With 12 samples, `times[len*95/100]` = index 11 = the single worst sample, so 'p95' is really max and 'p50' is index 6. The headline 'gen.concentric p95 21.49 ms' is one outlier of twelve."
+    "REMAINS OPEN (lane 8d) xtask benchmark lies about what it measured (crates/xtask/src/main.rs:299-387). (a) `--profile` is parsed and echoed into the JSON but never used - resolution is hardcoded 1920x1080 at :331/:355 and the sample set is `.take(30)` fragment generators at :324, so `--profile ordinary` and a hypothetical `--profile 4k` do identical work. (b) Each timed iteration includes a readback (:371) that preview_size() clamps to the 960x540 preview cap, so p50/p95 are render + a 2,073,600 B GPU->CPU copy (earlier notes here said ~8 MB; that was wrong), not render cost, and are not comparable to a frame budget. (c) With 12 samples, `times[len*95/100]` = index 11 = the single worst sample, so 'p95' is really max and 'p50' is index 6. The headline 'gen.concentric p95 21.49 ms' is one outlier of twelve."
   ],
-  "current_task": "2026-11-14 orientation complete: docs reconciled (D014-D019), 919->334 tracked files, CI-parity re-measured at e84fe67 (VERIFY: FAIL on fmt only). The fmt gate has since been cleared and its moved citations refreshed, so verify.ps1 no longer has an excuse to fail on step 1 - re-running it at the new HEAD is the open item.",
+  "current_task": "2026-11-15: the repo's own checking machinery is being made truthful. 8a cleared the four-day fmt gate and refreshed the citations it moved; 8b repaired the two verify.ps1 defects D019 found plus a third it uncovered (see D020), and the full harness now ends VERIFY: PASS / exit 0 at 75da874 with 15 passed, 0 failed, 2 blocked_external. Open: 8d - make `xtask benchmark` honour --profile, separate render from readback timing, and rename its fake p50/p95.",
   "delivered": [
     "Engine + GPU renderer + 217-entry catalog (all shaders compile on GPU, 0 failures)",
     "Tauri 2 desktop GUI over a vanilla ES-module node-graph editor (CommandHost typed surface; builds+launches; GUI acceptance flow tested)",
@@ -137,10 +139,10 @@
     "Live source/sink interfaces (NDI/Spout/Syphon contracts) - discovery and enumeration only",
     "Windows capture: real WASAPI endpoint + PnP camera enumeration (enumeration only, no capture)",
     "Redacted diagnostics report; docs (user guide, file/protocol formats, implementation architecture, performance readiness)",
-    "CI workflow + infrastructure/verify.ps1 - the pipeline exists and 13 of 15 steps pass. The run ended VERIFY: FAIL on the fmt step at e84fe67; that step now passes, but the full script has not been re-run since (see ci_defects_found_2026_11_14)"
+    "CI workflow + infrastructure/verify.ps1 - the pipeline exists and, measured at 75da874 on 2026-11-15, the full script ends VERIFY: PASS / exit 0 with 15 steps passing, 0 failing and 2 blocked_external. CI itself still does not consume verify.json; it runs its own steps and only uploads implementation/evidence/**"
   ],
   "known_gaps": [
-    "verify.ps1's 'integration-tests' Step still masks two of its three exit codes, and still records skipped gates as ok:true - both open in infrastructure/verify.ps1 (see ci_defects_found_2026_11_14 items 2 and 3).",
+    "REMAINS: xtask benchmark still ignores --profile and still times a readback inside the render (crates/xtask/src/main.rs:299-387) - that is lane 8d. DONE (D020): verify.ps1's masked chained step and its ok:true skipped gates were repaired, and the full harness was re-run at 75da874.",
     "OSC receive is never routed into the LiveOsc command, and the desktop process opens no UDP listener — the two halves exist and are unconnected. This is the highest-value gap for live use, and it is a wiring job, not a missing subsystem.",
     "No wgpu->NDI/Spout frame path; the senders emit a test pattern",
     "No live audio input at all: crates/audio has no device dependency and crates/platform only enumerates. ASIO appears once in the tree, in Link's build script.",
@@ -162,12 +164,12 @@
     "cargo run -p xtask -- benchmark --profile ordinary",
     "cargo run -p xtask --bin export_shaders",
     "node apps/max-for-live/check-maxpat.cjs",
-    "infrastructure\\verify.ps1   (full, no -Quick; fmt no longer blocks it - expect VERIFY: PASS with link and spout skipped)"
+    "infrastructure\\verify.ps1   (full, no -Quick; measured PASS at 75da874 - 15 passed, 0 failed, 2 blocked_external, exit 0)"
   ],
   "further_reading": {
     "docs/IMPLEMENTATION-ARCHITECTURE.md": "how the code actually works, with a divergence register in section 8",
     "docs/PERFORMANCE-READINESS.md": "what still needs real hardware, and the shortest proving procedure per item",
     "docs/DISK-INVENTORY.md": "measured byte-for-byte inventory of the repo: what is committed, what is regenerable, what could be reclaimed",
-    "implementation/DECISIONS.md D014-D019": "the Nov 10-13 work that had no decision record, the audit findings, and the 2026-11-14 re-measurement"
+    "implementation/DECISIONS.md D014-D020": "the Nov 10-13 work that had no decision record, the audit findings, the 2026-11-14 re-measurement, and the 2026-11-15 harness repair"
   }
 }

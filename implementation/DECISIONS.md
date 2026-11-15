@@ -264,6 +264,9 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    Link and Spout gates when their env vars are unset — the exact "missing prerequisite is
    `blocked_external`, never `passed`" rule from AGENTS.md, violated inside the harness that
    is supposed to enforce it.
+   **Both defects discharged in D020.** The chained step is now three steps; the skipped
+   gates are `ok = null` + `status = 'blocked_external'`; repairing them exposed a second
+   leak (`$LASTEXITCODE` carrying into a step that runs no command), also fixed.
 3. **Some step names describe more than their tests prove.** `ndi-discovery` runs
    `cargo test -p flux-integrations --features ndi ndi::`, which selects 2 tests
    (`runtime_loads_and_initializes`, `discovery_returns_state_without_crash`); `ndi.rs`
@@ -277,9 +280,11 @@ Three conclusions follow, and they change how the earlier evidence should be rea
    `--profile` is parsed and written into the JSON but never read again: resolution is
    hardcoded 1920×1080 (`:331`, `:355`) and the sample set is the first 30 fragment
    generators (`:324`), so no profile changes the work. Every timed iteration wraps a full
-   1920×1080 `read_preview` (`:371`), so the numbers are render **plus** an ~8 MB GPU→CPU
+   1920×1080 `read_preview` (`:371`), so the numbers are render **plus** a GPU→CPU
    copy and are not a frame-budget measurement. And with 12 samples, `times[len*95/100]`
    is index 11 — the single worst sample — so the field labelled `p95ms` is really `max`.
+   (The copy size stated here was first written as "~8 MB" and is wrong: `read_preview`
+   downsamples to the 960×540 preview cap, ~2 MB. See D020.)
 
 Performance, for the record: on the ordinary label the benchmark puts the median worst-sample
 at 4.98 ms across 30 single generators at 1920×1080, with one row above a 16.6 ms budget
@@ -288,4 +293,70 @@ Each row is one generator on one frame. Nothing in the tree times a multi-node D
 `preview_perf.rs` renders `chain_graph("gen.plasma", &[])` — a generator with zero effects —
 at 320×180, 352×198, 640×360 and 960×540 only. That missing number, not this one, decides
 whether Flux is performable. See `docs/PERFORMANCE-READINESS.md` gate F3.
+
+## D020 — 2026-11-15 the verification harness itself was repaired
+
+D019 conclusion 2 found that `infrastructure/verify.ps1` could record a passing step for
+failing work, and left the defect in place. This is the record of removing it, and of the
+second masking bug that only surfaced while proving the first.
+
+### What was wrong, and how each item was established
+
+| # | Defect | How it was proved | Now |
+|---|---|---|---|
+| 1 | `Step 'integration-tests'` chained three `cargo test` runs with `;`; `Step` read `$LASTEXITCODE` once after the whole block, so the verdict was `dag_parallel`'s alone. | Falsification, not argument: a block of `failing cargo fmt --all -- --check; passing xtask doctor` recorded `ok=True exit=0` while that same `cargo fmt` run alone exits 1. | Split into `integration-producer-tests`, `integration-export-matrix`, `integration-dag-parallel` — one command per block. |
+| 2 | **`$LASTEXITCODE` leaks across steps.** `Step` read the variable without clearing it first, so a block that launched no external process at all was judged on whatever the *previous* step left behind. | Reproduced in a standalone `Step`-semantics harness, using `powershell -NoProfile -Command "exit N"` as the fake commands so real exit codes were exercised: step A failing made step B, which ran nothing, record `ok=true`. | `Step` sets `$global:LASTEXITCODE = 0` on entry and coerces `$null` to 0, so a step can only be judged on the command it actually ran. |
+| 3 | Skipped gates wrote `{ ok = true; skipped = true }` for Link and Spout when their env vars were unset — AGENTS.md's own "missing prerequisite is `blocked_external`, never `passed`" violated inside the tool meant to enforce it. | Read the committed `verify.json`: `link-integration.ok === true`. | `Blocked` writes `ok = null`, `status = 'blocked_external'`, `skipped = true`, `reason`. In this run both show `ok=null`, and `counts.blocked_external = 2` — they are neither passes nor failures. |
+| 4 | `Set-Content -Encoding UTF8` under Windows PowerShell prepends a BOM, so the committed machine-readable evidence failed strict `JSON.parse`. | Measured on HEAD's file: byte 0 is `0xFEFF`. | `WriteAllText` with `UTF8Encoding($false)`; the regenerated file parses with no BOM. |
+
+### What the evidence carries now
+
+`verify.json` gained `gitHash` (short SHA), `rustc`, `quick`, and `counts`
+(`passed` / `failed` / `blocked_external`), plus a per-step `exit` code. The hash is the
+point: without it a verdict cannot be attributed to a tree, which is exactly how an
+evidence file and a HEAD that fails its own CI sit next to each other for four days without
+anyway to tell which tree said what. This partly discharges gate F1's pass condition
+("Each evidence file names the commit SHA", `docs/PERFORMANCE-READINESS.md:620`) for
+`verify.json` alone — F1 also asks for the binary's mtime, and for the other 25 files.
+The summary line now prints the three counts before `VERIFY: PASS|FAIL`.
+
+Two PowerShell traps were hit on the way, and both produced a *silent* wrong answer rather
+than an error, so they are worth recording here: `$name:` inside a double-quoted string is
+a drive-qualified variable reference, not `$name` followed by a colon (fixed to `${name}`);
+and a syntax error inside a scriptblock is only raised when it is invoked, so the edits
+were checked with a throwaway `[scriptblock]::Create(Get-Content -Raw)` parse gate before
+spending a full suite run on them. That gate was scratch, not a committed tool.
+
+### Measured result at `75da874` (the fmt-clearing commit)
+
+| | |
+|---|---|
+| `infrastructure/verify.ps1` (full, bare) | `VERIFY: PASS`, process exit 0 |
+| steps | 17 total: **passed=15, failed=0, blocked_external=2** (`link-integration`, `spout-enumeration`) |
+| `verify.json` | parses strictly, no BOM, `gitHash = 75da874`, `rustc 1.99.0 (b940084d7 2026-09-28)` |
+
+This is the first recorded run in this repository where the harness that defines CI
+parity exits 0 end to end. It is a statement about the tree at `75da874` on this host
+(RTX 2080 Ti / Vulkan / driver 560.94), and nothing else.
+
+### Not changed here
+
+- **`ndi-discovery` still overpromises its name.** It runs `ndi::`, which selects the 2
+  tests that prove the DLL loads and discovery does not crash. Renaming the step is a
+  docs-and-labelling job, not a harness-correctness one, so it is left open.
+- **`xtask benchmark --profile X` still ignores X** (D019 conclusion 4). That is the next
+  unit of work; the harness now reports it truthfully, but the number itself is still
+  render-plus-readback at a hardcoded 1920×1080.
+- CI does not consume `verify.json`. `.github/workflows/ci.yml` runs its own steps and
+  only uploads `implementation/evidence/**`; so this repair makes the *local* gate
+  truthful, and the Actions job is unaffected except that the artifact it uploads now has
+  the new shape.
+- D019's "~8 MB GPU→CPU copy" in conclusion 4 is **wrong**, and the correct number is
+  ~2 MB: `read_preview` downsamples through `preview_size()` (`crates/render/src/preview.rs:11`),
+  capped by `PREVIEW_MAX_W = 960` / `PREVIEW_MAX_H = 540` (`:7-8`), so a 1920×1080 render
+  reads back 960×540×4 = 2,073,600 B. The defect it was describing — the benchmark times a
+  readback it should not — stands; only its magnitude was overstated. The wrong number is
+  corrected here rather than left to the benchmark rework, because a reader of
+  `PERFORMANCE-READINESS.md` or `STATE.json` should not have to find D020 first to learn
+  that the figure they are quoting is wrong.
 
