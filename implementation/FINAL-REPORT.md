@@ -45,8 +45,8 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   before the suite even started, which is why the green local result and the red CI result
 >   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
 >   workspace suite behind the reformat reported 196 passed / 0 failed at that commit; it is
->   **214 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59`'s 204 +8 D022's, +1
->   D027's capability-report guard, +2 D028's ledger-routing guards, +7 D031's provenance tests). **The full `verify.ps1` run has now been
+>   **214 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59` was already 204 —
+>   196 +8 D022's — and from there +1 D027's capability-report guard, +2 D028's ledger-routing guards, +7 D031's provenance tests). **The full `verify.ps1` run has now been
 >   repeated, and it passes:** measured 2026-11-15 at HEAD `75da874` it exited 0 with
 >   `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external (`link-integration`,
 >   `spout-enumeration`), re-measured identically at `90d9e59`. D027 re-keyed both gates on
