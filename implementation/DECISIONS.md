@@ -1592,6 +1592,13 @@ filed under another commit.
   `stops_at_the_top_of_the_file` (1 failed / 6 passed). Making the header tier return `stamped_*`
   reddens `a_writer_stamp_and_a_typed_header_stay_apart` and `a_full_sha_matches_a_short_head`
   (2 failed / 5 passed). Both restored; `grep -c MUTATION` on the file is 0 and the seven are green.
+- The full CI-parity harness re-ran at `f867b72` itself — clean tree, `FLUX_ABLETON_LINK_LIB`
+  removed with `env -u` — and measured `VERIFY: PASS` / exit 0 / **passed=17 failed=0
+  blocked_external=0**; `verify.json` carries `gitHash f867b72` with `gitDirty false`, and the
+  `link-integration` step printed `abl_link.lib resolved: _upstream/link/build/Release` and executed
+  all 7 tests ok, the D030 poll-guard among them. `cargo run -q -p xtask -- evidence` (exit 0) then
+  restamped the manifest at that head — so the tier split above is what it measured at its own
+  commit, not a stamp inherited from its parent.
 
 ### Not measured
 
