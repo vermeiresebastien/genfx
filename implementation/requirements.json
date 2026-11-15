@@ -3708,10 +3708,11 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
-        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+        "implementation/evidence/capture.txt (WASAPI + PnP enumeration only: no device was ever taken from)",
+        "crates/app persistence tests (relink survives a moved file, on fixture media)",
+        "crates/tests export_matrix tests (fixture input -> probeable file)"
       ],
-      "blocker": null
+      "blocker": "no live source has ever been taken into an export; enumeration is all capture.txt records, the export tests consume fixture media, and the timestamps the AC aligns are the fixture's"
     },
     {
       "id": "AT058",
@@ -3721,23 +3722,24 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
-        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+        "apps/spout-bridge (SpoutDX sender + spout_shim.dll over SpoutLibrary) + crates/integrations/src/spout.rs",
+        "implementation/evidence/spout-send-dx.txt (83 frames through a real D3D11 sender, 2026-11-09)",
+        "implementation/evidence/spout-2026-11-15.txt (bounded enumeration answers 0 senders: no peer on this host today)"
       ],
-      "blocker": null
+      "blocker": "no independent consumer has confirmed a Flux frame: the 2026-11-15 enumeration answers 0 senders, Flux's enumerator does not see its own DX sender, and capability_report() returns verified=false for spout in every build"
     },
     {
       "id": "AT059",
       "title": "Actual macOS Syphon send/receive and loss/reconnect; ownership and orientation correct.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "blocked_external",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations bridge tests (decode/seq/epoch/staleness)",
-        "apps/max-for-live/check-maxpat.cjs (source patch structure)"
+        "crates/integrations/Cargo.toml:29 (`syphon = []`: the feature names no code)",
+        "crates/integrations/src/live.rs (protocol_status reports syphon unavailable off-macOS)"
       ],
-      "blocker": null
+      "blocker": "needs macOS and an adapter that does not exist in this tree; the `syphon` feature is an empty flag, so no OS change alone unblocks it. Smallest resume step: write a `crates/integrations/src/syphon.rs` sender/receiver behind that flag and run `cargo test -p flux-integrations --features syphon syphon::` on macOS"
     },
     {
       "id": "AT060",
@@ -3761,23 +3763,23 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout",
-        "implementation/evidence/spout-registry.txt (bounded enumeration verified)"
+        "crates/integrations bridge tests (6: decode, non-bridge reject, sequence wrap, epoch, staleness, feature mapping)",
+        "apps/max-for-live/check-maxpat.cjs (structural: audio bridge, midi bridge, 52-byte OSC encoder)",
+        "crates/app/src/control.rs OSC UDP loopback tests (real socket -> document edit, 2026-11-15)"
       ],
-      "blocker": null
+      "blocker": "the OSC bytes are Flux's own encoder meeting Flux's own listener; no Max host has ever sent one, and `multiple instances` is asserted in-process by the epoch test rather than by two live patches"
     },
     {
       "id": "AT062",
       "title": "Real packaged `.amxd` in Live; audio/MIDI unchanged through pass-through, macros automate, Set reopen restores.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "blocked_external",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout",
-        "implementation/evidence/spout-registry.txt (bounded enumeration verified)"
+        "apps/max-for-live (two .maxpat + bridge-osc.js; no .amxd exists in the tree)"
       ],
-      "blocker": null
+      "blocker": "no .amxd exists, so pass-through, macro automation and Set-reopen are each unexercised; the missing prerequisite is a manual save, not a missing machine. Smallest resume step: open apps/max-for-live/*.maxpat in Max 8, Save As Max Audio/MIDI Effect, load the result in Live and count packets with `flux osc 9000` (BLOCKERS.md:36-40; no CLI path exists, so the ledger has no status for \"blocked on a human clicking Save\")"
     },
     {
       "id": "AT063",
@@ -3787,10 +3789,11 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` only",
-        "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build)"
+        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` build, run here 13x on 2026-11-15",
+        "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 failures of set_playing_reflected_in_state at crates/integrations/src/link.rs:203)",
+        "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build; playing=false throughout, so start/stop is not shown cross-process)"
       ],
-      "blocker": "peer/tempo/phase/start-stop asserted by feature-gated tests only (no FLUX_ABLETON_LINK_LIB build on this host today); Max transport and seek/loop asserted by nothing, and no real Link host has ever joined"
+      "blocker": "peer/tempo/phase/start-stop are asserted only in-process (both sessions in one process) and the step is not run-independent - 2 of 13 invocations failed at crates/integrations/src/link.rs:203 on 2026-11-15; Max transport and seek/loop are asserted by nothing, and no real Link host has ever joined"
     },
     {
       "id": "AT064",

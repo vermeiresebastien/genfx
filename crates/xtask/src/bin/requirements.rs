@@ -364,11 +364,30 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             "implemented_unverified",
             vec!["implementation/evidence/capture.txt (real WASAPI+PnP enumeration)".into()],
         ),
-        "AT057" | "AT058" | "AT059" => (
+        "AT057" => (
             "implemented_unverified",
             vec![
-                "crates/integrations bridge tests (decode/seq/epoch/staleness)".into(),
-                "apps/max-for-live/check-maxpat.cjs (source patch structure)".into(),
+                "implementation/evidence/capture.txt (WASAPI + PnP enumeration only: no device was ever taken from)".into(),
+                "crates/app persistence tests (relink survives a moved file, on fixture media)".into(),
+                "crates/tests export_matrix tests (fixture input -> probeable file)".into(),
+            ],
+        ),
+        "AT058" => (
+            "implemented_unverified",
+            vec![
+                "apps/spout-bridge (SpoutDX sender + spout_shim.dll over SpoutLibrary) + crates/integrations/src/spout.rs".into(),
+                "implementation/evidence/spout-send-dx.txt (83 frames through a real D3D11 sender, 2026-11-09)".into(),
+                "implementation/evidence/spout-2026-11-15.txt (bounded enumeration answers 0 senders: no peer on this host today)".into(),
+            ],
+        ),
+        // No Syphon adapter exists. `syphon = []` is a flag with no code behind it,
+        // so this row cannot read `implemented_unverified` even though the
+        // capability and protocol rows answer for the protocol.
+        "AT059" => (
+            "blocked_external",
+            vec![
+                "crates/integrations/Cargo.toml:29 (`syphon = []`: the feature names no code)".into(),
+                "crates/integrations/src/live.rs (protocol_status reports syphon unavailable off-macOS)".into(),
             ],
         ),
         "AT060" => (
@@ -379,25 +398,35 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
                 "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)".into(),
             ],
         ),
-        "AT061" | "AT062" => (
+        "AT061" => (
             "implemented_unverified",
             vec![
-                "apps/spout-bridge (C++ shim over SpoutLibrary) + crates/integrations spout".into(),
-                "implementation/evidence/spout-registry.txt (bounded enumeration verified)".into(),
+                "crates/integrations bridge tests (6: decode, non-bridge reject, sequence wrap, epoch, staleness, feature mapping)".into(),
+                "apps/max-for-live/check-maxpat.cjs (structural: audio bridge, midi bridge, 52-byte OSC encoder)".into(),
+                "crates/app/src/control.rs OSC UDP loopback tests (real socket -> document edit, 2026-11-15)".into(),
+            ],
+        ),
+        // The `.maxpat` files are not a `.amxd`, and nothing in the tree packages one.
+        "AT062" => (
+            "blocked_external",
+            vec![
+                "apps/max-for-live (two .maxpat + bridge-osc.js; no .amxd exists in the tree)".into(),
             ],
         ),
         // Ableton Link: adapter built from upstream; tempo/beat/phase/peer
         // discovery, single-master tempo arbitration, and start/stop propagation
-        // asserted by 6 tests that only exist inside a `link` feature build, which
-        // this host cannot run without FLUX_ABLETON_LINK_LIB. Licensing resolved
-        // (product not sold; DECISIONS D012). The AC's Max-integration and seek/loop
-        // clauses are asserted by nothing, so the record cannot read `verified` —
-        // which is also what implementation/BLOCKERS.md:26-31 already says.
+        // asserted by 6 tests that exist only inside a `link` feature build. That
+        // build ran here for the first time on 2026-11-15 (D027): 11 of 13
+        // invocations clean, 2 failures of `set_playing_reflected_in_state`.
+        // Licensing resolved (product not sold; DECISIONS D012). The AC's
+        // Max-integration and seek/loop clauses are asserted by nothing, so the
+        // record cannot read `verified` — which is what implementation/BLOCKERS.md:26-35 says.
         "AT063" => (
             "implemented_unverified",
             vec![
-                "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` only".into(),
-                "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build)".into(),
+                "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` build, run here 13x on 2026-11-15".into(),
+                "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 failures of set_playing_reflected_in_state at crates/integrations/src/link.rs:203)".into(),
+                "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build; playing=false throughout, so start/stop is not shown cross-process)".into(),
             ],
         ),
         "AT052" | "AT053" => (
@@ -435,11 +464,33 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
     }
 }
 
-/// Which clause of an acceptance test keeps it from `verified`. Only named for
-/// records whose status would otherwise read as a bare `implemented_unverified`
-/// with no explanation; `blocked_external` belongs in `blocker_for` instead.
+/// Which clause of an acceptance test keeps it from `verified`, or what external
+/// prerequisite keeps a `blocked_external` record from running at all. Requirement
+/// and generator rows use `blocker_for`; this is the only blocker hook acceptance
+/// records have, so a bare `implemented_unverified` with no explanation is the gap
+/// it exists to close.
 fn at_blocker(id: &str) -> Option<&'static str> {
     match id {
+        // Capture is enumeration-only: the AC's subject is a take that has never
+        // happened, and relink is proven on fixture files rather than on a capture.
+        "AT057" => Some(
+            "no live source has ever been taken into an export; enumeration is all capture.txt \
+             records, the export tests consume fixture media, and the timestamps the AC aligns \
+             are the fixture's",
+        ),
+        "AT058" => Some(
+            "no independent consumer has confirmed a Flux frame: the 2026-11-15 enumeration \
+             answers 0 senders, Flux's enumerator does not see its own DX sender, and \
+             capability_report() returns verified=false for spout in every build",
+        ),
+        // Not a missing runtime - missing code. The row exists in the capability
+        // report and the protocol status, and nowhere else.
+        "AT059" => Some(
+            "needs macOS and an adapter that does not exist in this tree; the `syphon` feature \
+             is an empty flag, so no OS change alone unblocks it. Smallest resume step: write a \
+             `crates/integrations/src/syphon.rs` sender/receiver behind that flag and run \
+             `cargo test -p flux-integrations --features syphon syphon::` on macOS",
+        ),
         // Four clauses in this AC; only the first is measured. The rest need a
         // host without the NDI runtime, and a consumer that is not our own CLI.
         "AT060" => Some(
@@ -447,14 +498,74 @@ fn at_blocker(id: &str) -> Option<&'static str> {
              missing-runtime behavior unmeasured, and there is no wgpu->NDI path so a Flux render \
              is never what is sent",
         ),
-        // The 6 link tests do assert single-master arbitration and phase, but only
-        // inside a feature build this host does not run, and no test or evidence
-        // file touches the AC's Max-transport or seek/loop clauses.
+        "AT061" => Some(
+            "the OSC bytes are Flux's own encoder meeting Flux's own listener; no Max host has \
+             ever sent one, and `multiple instances` is asserted in-process by the epoch test \
+             rather than by two live patches",
+        ),
+        "AT062" => Some(
+            "no .amxd exists, so pass-through, macro automation and Set-reopen are each \
+             unexercised; the missing prerequisite is a manual save, not a missing machine. \
+             Smallest resume step: open apps/max-for-live/*.maxpat in Max 8, Save As \
+             Max Audio/MIDI Effect, load the result in Live and count packets with `flux osc 9000` \
+             (BLOCKERS.md:36-40; no CLI path exists, so the ledger has no status for \
+             \"blocked on a human clicking Save\")",
+        ),
+        // The 6 link tests do assert single-master arbitration and phase, and since
+        // D027 they run here - but every one holds both sessions in a single process,
+        // and no test or evidence file touches the AC's Max-transport or seek/loop
+        // clauses. The step is also not run-independent.
         "AT063" => Some(
-            "peer/tempo/phase/start-stop asserted by feature-gated tests only (no FLUX_ABLETON_LINK_LIB \
-             build on this host today); Max transport and seek/loop asserted by nothing, and no real \
-             Link host has ever joined",
+            "peer/tempo/phase/start-stop are asserted only in-process (both sessions in one \
+             process) and the step is not run-independent - 2 of 13 invocations failed at \
+             crates/integrations/src/link.rs:203 on 2026-11-15; Max transport and seek/loop are \
+             asserted by nothing, and no real Link host has ever joined",
         ),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod evidence_routing {
+    use super::at_status;
+
+    fn evidence(id: &str) -> String {
+        at_status(id).1.join(" | ").to_lowercase()
+    }
+
+    /// These five acceptance records were one `match` arm until D028, which meant
+    /// Spout's evidence was cited by a Max AC and vice versa. A grouped arm cannot
+    /// fail loudly, so the subject of each row is asserted here instead.
+    #[test]
+    fn each_record_cites_its_own_subject() {
+        let cases: [(&str, &[&str], &[&str]); 5] = [
+            (
+                "AT057",
+                &["capture", "export"],
+                &["spout", "syphon", "check-maxpat"],
+            ),
+            ("AT058", &["spout"], &["max", "syphon", "ndi"]),
+            ("AT059", &["syphon"], &["spout", "max", "ndi"]),
+            ("AT061", &["bridge", "maxpat"], &["spout", "syphon"]),
+            ("AT062", &["amxd"], &["spout", "syphon"]),
+        ];
+        for (id, must, must_not) in cases {
+            let e = evidence(id);
+            assert!(!e.is_empty(), "{id} cites nothing at all");
+            for m in must {
+                assert!(e.contains(m), "{id} lost its own subject {m:?}: {e}");
+            }
+            for n in must_not {
+                assert!(!e.contains(n), "{id} cites {n:?} evidence: {e}");
+            }
+        }
+    }
+
+    /// `syphon = []` is a flag with no adapter behind it, and no `.amxd` exists, so
+    /// neither row may read `implemented_unverified`: that says something was built.
+    #[test]
+    fn absent_code_is_blocked_not_implemented() {
+        assert_eq!(at_status("AT059").0, "blocked_external");
+        assert_eq!(at_status("AT062").0, "blocked_external");
     }
 }
