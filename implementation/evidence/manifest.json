@@ -1,12 +1,12 @@
 {
   "ok": true,
-  "headAtRun": "97d2ae2",
+  "headAtRun": "cf95a2f",
   "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
   "recheckCommand": "cargo run -q -p xtask -- evidence",
   "counts": {
-    "files": 29,
+    "files": 31,
     "stamped": 9,
-    "unattributed": 20,
+    "unattributed": 22,
     "missing_provenance": 0
   },
   "missingProvenance": [],
@@ -29,10 +29,10 @@
     {
       "path": "target/debug/flux.exe",
       "exists": true,
-      "bytes": 10214400,
-      "mtimeUnix": 1794756765,
-      "mtimeUtc": "2026-11-15T15:32:45Z",
-      "sha256": "25e7f09520f4c293693f077450f09bc589873d414d1f7d0edd5a4031516e395a"
+      "bytes": 10214912,
+      "mtimeUnix": 1794762239,
+      "mtimeUtc": "2026-11-15T17:03:59Z",
+      "sha256": "5d0f46b27a43f1ccbc1b33a8a5212752e0ceadd850655717130f9e14ab564137"
     },
     {
       "path": "target/release/flux-desktop.exe",
@@ -46,9 +46,9 @@
       "path": "target/debug/flux-desktop.exe",
       "exists": true,
       "bytes": 23891456,
-      "mtimeUnix": 1794760160,
-      "mtimeUtc": "2026-11-15T16:29:20Z",
-      "sha256": "ec1ab90c57ecfa4539dfd63b09f125c954192e0b18139537f552c303aae36145"
+      "mtimeUnix": 1794762285,
+      "mtimeUtc": "2026-11-15T17:04:45Z",
+      "sha256": "872d0d39362fd78f11b5d76b65a7d7d266176ba54023e89b6e545f62845c1390"
     }
   ],
   "files": [
@@ -72,10 +72,10 @@
     },
     {
       "file": "catalog.json",
-      "bytes": 621,
-      "mtimeUnix": 1794760138,
-      "mtimeUtc": "2026-11-15T16:28:58Z",
-      "gitHash": "97d2ae2",
+      "bytes": 620,
+      "mtimeUnix": 1794762231,
+      "mtimeUtc": "2026-11-15T17:03:51Z",
+      "gitHash": "cf95a2f",
       "producer": "xtask",
       "attribution": "stamped_current"
     },
@@ -108,10 +108,10 @@
     },
     {
       "file": "doctor.json",
-      "bytes": 1405,
-      "mtimeUnix": 1794760139,
-      "mtimeUtc": "2026-11-15T16:28:59Z",
-      "gitHash": "97d2ae2",
+      "bytes": 1404,
+      "mtimeUnix": 1794762232,
+      "mtimeUtc": "2026-11-15T17:03:52Z",
+      "gitHash": "cf95a2f",
       "producer": "xtask",
       "attribution": "stamped_current"
     },
@@ -126,10 +126,10 @@
     },
     {
       "file": "fixtures.json",
-      "bytes": 649,
-      "mtimeUnix": 1794760143,
-      "mtimeUtc": "2026-11-15T16:29:03Z",
-      "gitHash": "97d2ae2",
+      "bytes": 648,
+      "mtimeUnix": 1794762236,
+      "mtimeUtc": "2026-11-15T17:03:56Z",
+      "gitHash": "cf95a2f",
       "producer": "xtask",
       "attribution": "stamped_current"
     },
@@ -138,6 +138,15 @@
       "bytes": 398725,
       "mtimeUnix": 1794216785,
       "mtimeUtc": "2026-11-09T09:33:05Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
+      "file": "link-2026-11-15.txt",
+      "bytes": 4595,
+      "mtimeUnix": 1794762137,
+      "mtimeUtc": "2026-11-15T17:02:17Z",
       "gitHash": null,
       "producer": "hand-captured (no writer in the tree)",
       "attribution": "unattributed"
@@ -162,10 +171,10 @@
     },
     {
       "file": "manifest.json",
-      "bytes": 9725,
-      "mtimeUnix": 1794759353,
-      "mtimeUtc": "2026-11-15T16:15:53Z",
-      "gitHash": "e110381",
+      "bytes": 10217,
+      "mtimeUnix": 1794760189,
+      "mtimeUtc": "2026-11-15T16:29:49Z",
+      "gitHash": "97d2ae2",
       "producer": "xtask",
       "attribution": "stamped_other_commit"
     },
@@ -242,6 +251,15 @@
       "attribution": "stamped_other_commit"
     },
     {
+      "file": "spout-2026-11-15.txt",
+      "bytes": 4332,
+      "mtimeUnix": 1794762104,
+      "mtimeUtc": "2026-11-15T17:01:44Z",
+      "gitHash": null,
+      "producer": "hand-captured (no writer in the tree)",
+      "attribution": "unattributed"
+    },
+    {
       "file": "spout-registry.txt",
       "bytes": 1286,
       "mtimeUnix": 1794238100,
@@ -279,19 +297,19 @@
     },
     {
       "file": "test-gpu.json",
-      "bytes": 807,
-      "mtimeUnix": 1794760141,
-      "mtimeUtc": "2026-11-15T16:29:01Z",
-      "gitHash": "97d2ae2",
+      "bytes": 806,
+      "mtimeUnix": 1794762235,
+      "mtimeUtc": "2026-11-15T17:03:55Z",
+      "gitHash": "cf95a2f",
       "producer": "xtask",
       "attribution": "stamped_current"
     },
     {
       "file": "verify.json",
-      "bytes": 3896,
-      "mtimeUnix": 1794760164,
-      "mtimeUtc": "2026-11-15T16:29:24Z",
-      "gitHash": "97d2ae2",
+      "bytes": 3737,
+      "mtimeUnix": 1794762306,
+      "mtimeUtc": "2026-11-15T17:05:06Z",
+      "gitHash": "cf95a2f",
       "producer": "hand-captured (no writer in the tree)",
       "attribution": "stamped_current"
     },
@@ -315,11 +333,11 @@
     }
   ],
   "provenance": {
-    "gitHash": "97d2ae2",
-    "gitHashFull": "97d2ae2179aef83599466daa964b88777f918e79",
-    "gitDirty": false,
+    "gitHash": "cf95a2f",
+    "gitHashFull": "cf95a2f5f10e796ab5c580d8890b85196fe29cc6",
+    "gitDirty": true,
     "gitDirtyScope": "working tree, excluding implementation/evidence/",
-    "generatedAtUtc": "2026-11-15T16:29:49Z",
+    "generatedAtUtc": "2026-11-15T17:34:08Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
       "mtimeUnix": 1794760137,

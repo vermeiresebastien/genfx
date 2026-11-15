@@ -1,0 +1,68 @@
+# provenance (F1): gitHash cf95a2f, working tree DIRTY (lane 13: crates/integrations/src/lib.rs,
+#         crates/integrations/src/tests.rs, crates/app/src/main.rs, infrastructure/verify.ps1
+#         and five status docs modified, none committed at capture time)
+# command:  cargo test -p flux-integrations --features link link::
+#           (the same command infrastructure/verify.ps1 runs as its `link-integration` step)
+# prerequisite: FLUX_ABLETON_LINK_LIB=D:\Projects\visual\genfx\_upstream\link\build\Release
+#           -> abl_link.lib, 19,502,302 bytes, mtime 2026-11-09T12:50
+#           _upstream/ is gitignored (.gitignore:4): this is the Ableton Link clone built during
+#           D012's lane on 2026-11-09 and left on this machine. A fresh clone CANNOT reproduce
+#           these runs until it builds abl_link.lib the same way.
+# CLI row from the same feature build: target/debug/flux.exe, 10,565,120 bytes,
+#           mtime 2026-11-15T17:00Z, sha256 2041e4d6a582da71... (first 16 hex)
+# host: Windows 10 19045, RTX 2080 Ti
+# measured: 2026-11-15 -- the first time any of these 6 assertions has ever run in this
+#           repository's recorded history; every prior claim about them was about code that
+#           was compiled, not executed.
+
+--------------------------------------------------------------------------------
+1. The six assertions, as named (first run of the day, verbose)
+--------------------------------------------------------------------------------
+test link::tests::clock_advances ... ok
+test link::tests::session_creates_enabled_with_start_stop ... ok
+test link::tests::set_playing_reflected_in_state ... ok
+test link::tests::single_master_tempo_wins_across_peers ... ok
+test link::tests::start_stop_propagates_to_peer ... ok
+test link::tests::two_sessions_discover_and_share_tempo ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 2.15s
+
+--------------------------------------------------------------------------------
+2. Thirteen repeat runs, because one pass is not a gate
+--------------------------------------------------------------------------------
+batch A (2 runs)  : 1 clean, 1 FAILED  (set_playing_reflected_in_state)
+batch B (5 runs)  : 5 clean
+batch C (6 runs)  : 5 clean, 1 FAILED  (set_playing_reflected_in_state)
+                    run1 exit=0 ok 6 passed | run2 exit=0 ok 6 passed | run3 exit=101 FAILED 5/1
+                    run4 exit=0 ok 6 passed | run5 exit=0 ok 6 passed | run6 exit=0 ok 6 passed
+total             : 11 clean / 2 failed out of 13  (~15 % of invocations go red)
+
+Both failures are the same assertion, crates/integrations/src/link.rs:203:
+
+    s.set_playing(false);
+    assert!(!s.state().playing);        # panicked, i.e. still playing
+
+The group holds a process-wide mutex (link.rs:167 LINK_NET) and each test's sessions are
+dropped before the next test starts, so this is not two tests writing one Link session at the
+same time. The candidate mechanism -- Link aligns a *start* to a quantum boundary while a stop
+is committed at `clock_micros()` now (link.rs:131-143), so a read-back can still observe the
+previous state -- is a reading of that code, NOT a measurement made here. Establishing it, and
+deciding whether the flake is the test's or the adapter's, is open work.
+
+--------------------------------------------------------------------------------
+3. What this does and does not license
+--------------------------------------------------------------------------------
+PROVEN here: the `link` feature builds against the real upstream library on this host, and the
+six assertions execute and mostly pass.
+
+NOT proven, and not claimed by the `link` row of `flux integrations`:
+  - Any Ableton Live involvement. Every test above creates both sessions inside one process;
+    "peers" means Flux-to-Flux. No Live peer has ever been observed anywhere in this repo's
+    evidence, and no evidence file contains the word Live.
+  - Start/stop propagation across processes. The 2026-11-09 cross-process artifact
+    (evidence/link-a.txt, link-b.txt, 421 bytes each) shows each process going peers 0->1 with
+    `playing=false` printed on every single line, so it evidences discovery and tempo only.
+  - AT063's other clauses: "Max/conditional Link transport" and "seek/loop behavior" are
+    asserted by nothing in any configuration (VERIFICATION.md:94).
+  - Run-independence. A gate that fails 2 times in 13 cannot be wired into CI as a hard step
+    without accepting a red run on an unchanged tree; it stays behind FLUX_ABLETON_LINK_LIB,
+    which CI does not set.

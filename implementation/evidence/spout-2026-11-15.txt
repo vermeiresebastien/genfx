@@ -1,0 +1,67 @@
+# provenance (F1): gitHash cf95a2f, working tree DIRTY (lane 13: crates/integrations/src/lib.rs,
+#         crates/integrations/src/tests.rs, crates/app/src/main.rs, infrastructure/verify.ps1
+#         and five status docs modified, none committed at capture time)
+# binary: target/debug/flux.exe, 10,293,248 bytes, mtime 2026-11-15T17:00Z,
+#         sha256 828cf3f7223187d2... (first 16 hex)
+# built with: cargo build -p flux-app --features spout   (NOT the default-feature build)
+# shim: apps/spout-bridge/spout_shim.dll, 13,312 bytes, mtime 2026-11-09T16:27 (not rebuilt)
+#       apps/spout-bridge/SpoutLibrary.dll, 296,960 bytes, mtime 2026-11-09T12:49 (not rebuilt)
+# host: Windows 10 19045, RTX 2080 Ti
+# measured: 2026-11-15, replacing the 2026-11-09 claim in spout-registry.txt that was never re-run
+# command used for the adapter's own assertions:
+#         cargo test -q -p flux-integrations --features spout spout:: -- --nocapture
+
+--------------------------------------------------------------------------------
+1. Enumeration from the repository root (no FLUX_SPOUT_SHIM in the environment)
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe spout
+Spout sender registry: 0 sender(s)
+exit 0
+
+The shim resolved without the env var because crates/integrations/src/spout.rs:46-50 also
+tries the relative candidate "apps/spout-bridge/spout_shim.dll", which resolves from the cwd.
+No timeout line was printed, so the bounded query returned an empty registry rather than
+giving up -- that distinction is the whole content of this result.
+
+--------------------------------------------------------------------------------
+2. Same binary, a cwd where no candidate resolves
+--------------------------------------------------------------------------------
+$ (cd target/debug && ./flux.exe spout)
+flux: FluxError { code: SdkMissing, subsystem: "spout", severity: Error,
+      message: "spout: spout_shim.dll not found (set FLUX_SPOUT_SHIM, or build apps/spout-bridge)" }
+exit 1
+
+Repaired this lane. Before it, the same path printed "spout_shim.dll not found" and returned
+Ok, i.e. exit 0 -- `flux ndi-loopback`'s defect class (D023) in the spout command. An empty
+registry is still exit 0: finding nothing is an answer, failing to load is not.
+
+--------------------------------------------------------------------------------
+3. The adapter's own test, both ways
+--------------------------------------------------------------------------------
+FLUX_SPOUT_SHIM unset:
+    spout_shim.dll not present; skipping
+    test result: ok. 1 passed; 0 failed; ... finished in 0.00s        exit 0
+FLUX_SPOUT_SHIM=D:\Projects\visual\genfx\apps\spout-bridge\spout_shim.dll:
+    test result: ok. 1 passed; 0 failed; ... finished in 0.01s        exit 0   (no skip line)
+
+Section 3 is why infrastructure/verify.ps1 now resolves an absolute shim path and exports it
+before running the step. spout::tests::shim_loads_when_present returns early when the runtime
+is absent and cargo still reports a pass, and its cwd is the package directory
+(crates/integrations), where the adapter's relative candidate does NOT resolve -- so a probe
+from the repo root that only asked "is the file there" would have driven the step green while
+the test skipped. The step now runs the assertions or is recorded blocked_external.
+
+--------------------------------------------------------------------------------
+4. What the shipping report says (feature build)
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe integrations | grep spout
+spout  available=true implemented=true verified=false  (sender enumeration re-measured
+        2026-11-15 ... 0 senders ... CreateSender/SendImage fail through a bare offscreen
+        WGL context ... AT058 unmet ...)
+
+NOT proven by this file, and not claimed: any Flux sender existing (CreateSender/SendImage
+still fail on this host), any third-party consumer receiving anything from Flux, resize /
+alpha / adapter behaviour, and anything at all about Syphon (macOS). It also says nothing about
+the 2026-11-09 "VERIFIED: sender enumeration" line in spout-registry.txt, which recorded no
+count: today's run shows the call path works and the registry is empty, which is consistent
+with that line and proves nothing beyond it.

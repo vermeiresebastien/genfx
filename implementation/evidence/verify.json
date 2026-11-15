@@ -1,16 +1,21 @@
 {
-    "generatedAt":  "2026-11-15T16:29:24.5690811Z",
-    "gitHash":  "97d2ae2",
-    "gitDirty":  false,
+    "generatedAt":  "2026-11-15T17:05:06.0892961Z",
+    "gitHash":  "cf95a2f",
+    "gitDirty":  true,
     "gitDirtyScope":  "working tree, excluding implementation/evidence/",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  false,
     "ok":  true,
     "counts":  {
-                   "blocked_external":  2,
+                   "blocked_external":  0,
                    "failed":  0,
-                   "passed":  15
+                   "passed":  17
                },
+    "external":  {
+                     "ndiRuntime":  true,
+                     "abletonLinkLib":  true,
+                     "spoutShim":  true
+                 },
     "steps":  {
                   "fmt":  {
                               "exit":  0,
@@ -69,20 +74,16 @@
                                     "ok":  true
                                 },
                   "link-integration":  {
-                                           "ok":  null,
-                                           "skipped":  true,
-                                           "status":  "blocked_external",
-                                           "reason":  "FLUX_ABLETON_LINK_LIB unset"
+                                           "exit":  0,
+                                           "ok":  true
                                        },
                   "ndi-runtime-loads":  {
                                             "exit":  0,
                                             "ok":  true
                                         },
                   "spout-enumeration":  {
-                                            "ok":  null,
-                                            "skipped":  true,
-                                            "status":  "blocked_external",
-                                            "reason":  "FLUX_SPOUT_SHIM unset"
+                                            "exit":  0,
+                                            "ok":  true
                                         }
               }
 }

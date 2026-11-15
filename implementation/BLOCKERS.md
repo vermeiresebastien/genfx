@@ -19,20 +19,20 @@
   `flux spout-send-dx` broadcasts real frames via a SpoutDX D3D11 sender — 83 frames sent
   (`evidence/spout-send-dx.txt`). Because the SpoutDX DLL form fails to load on this host
   (ERROR_INVALID_DLL/182), the sender runs as the `spout_sender.exe` helper (same code;
-  verified `device OK` + `SendImage=1`). Sender *enumeration* works via `spout_shim.dll`.
+  verified `device OK` + `SendImage=1`). Enumeration via `spout_shim.dll` ran 2026-11-15: 0 senders.
   Not interoperating here: Flux's enumerator doesn't see the DX sender (different Spout2
   registration path); a production fix is to compile SpoutDX into the Flux binary directly.
   Syphon is macOS-only.
-- **Ableton Link** (R015, AT063): **supported integration — built from upstream and
-  verified locally** (two-process peer discovery + tempo/beat/phase/start-stop, see
-  evidence/link-*.txt). **Licensing resolved**: the product owner has stated Flux is not
-  sold/distributed commercially, so the GPLv2-or-later terms are acceptable (DECISIONS
-  D012). No blocker remains, but the assertions are not all the same strength: single-master
-  arbitration is asserted only by a feature-gated test (`crates/integrations/src/link.rs:249`
-  `single_master_tempo_wins_across_peers`) that a plain build never compiles, and the acceptance
-  test's Max/conditional-transport and seek/loop clauses are asserted by nothing at all. AT063 is
-  therefore `implemented_unverified` in the generated ledger, which the generator itself now says
-  (DECISIONS D025).
+- **Ableton Link** (R015, AT063): **supported integration, built from upstream, and run here
+  since 2026-11-15** (D027 keyed the gate on `abl_link.lib`): the 6 assertions executed for the
+  first time in this repo's recorded history — 11 of 13 invocations clean, 2 failures of
+  `set_playing_reflected_in_state` at `link.rs:203` (`evidence/link-2026-11-15.txt`). Two-process
+  discovery and tempo/beat/phase are a 2026-11-09 artifact (`evidence/link-a.txt`, `link-b.txt`),
+  and those transcripts print `playing=false` on every line, so they do not show cross-process
+  start/stop. Licensing is resolved (D012), so no external blocker remains. Single-master is
+  asserted only by `link.rs:249` `single_master_tempo_wins_across_peers`, which a plain build
+  never compiles, and the acceptance test's Max/conditional-transport and seek/loop clauses are
+  asserted by nothing — hence AT063 `implemented_unverified`, as the generator now says (D025).
 - **Max for Live**: source `.maxpat` devices are now **fully pre-wired** (node.script
   bridge-osc.js + loadbang + all connections) and structural checks pass. Remaining step:
   save each as `.amxd` via Max's GUI *Save As → Max Audio/MIDI Effect* (Max is
@@ -51,8 +51,8 @@
 - **Windows capture**: WASAPI endpoint + PnP camera enumeration is real and verified on
   this host (5 mics, 6 loopback endpoints, 1 camera). Live frame/audio *capture* needs a
   device + OS permission, which this headless run could not exercise.
-- **Ableton Link**: `flux link` runs a real session; two processes discover and sync.
-  "Single-master" arbitration and seek/loop over Link are not yet asserted.
+- **Ableton Link**: `flux link` runs a real session; two processes discover and sync, in a
+  `link` feature build. Single-master is asserted too, but only by `link.rs:249`; seek/loop are not.
 - **GUI**: Tauri 2 + web UI builds, links, and launches (dev + release); library/preview/
   inspector/timeline verified via screenshot and the GUI-backend e2e test.
 - **SDF/particle producers**: correct and deterministic CPU implementations; not realtime

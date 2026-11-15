@@ -17,24 +17,34 @@ license, what is reused, and the resulting Flux decision.
   product owner has stated Flux is not sold/distributed commercially, so the GPLv2-or-later
   terms are acceptable (DECISIONS D012). Link is a **supported integration**; the feature
   flag remains only so SDK-less machines build cleanly.
-- **Verification:** two `abl_link` instances (and two separate processes) discover each
-  other, agree on tempo/beat/phase, arbitrate a single tempo proposer, and propagate
-  start/stop (6 tests + cross-process evidence `evidence/link-a.txt`, `link-b.txt`).
+- **Verification (re-measured 2026-11-15, D027):** the 6 tests all hold both sessions in one
+  process, and they ran here for the first time — 11 of 13 invocations clean, 2 failures of
+  `set_playing_reflected_in_state` (`crates/integrations/src/link.rs:203`), so the group is not
+  run-independent and is not wired into CI. The 2026-11-09 cross-process pair
+  (`evidence/link-a.txt`, `link-b.txt`) proves discovery and tempo/beat/phase only: those
+  transcripts print `playing=false` on every line, so they evidence no start/stop.
 
 ## Spout2
 - **URL:** https://github.com/leadedge/Spout2
 - **Commit:** `6b68a5b4fdeca6130b851e5f9366467a844860e5` (Version 2.007.018, 2026-10-10)
 - **License:** BSD-2-Clause (`LICENSE`, Lynn Jarvis)
 - **Reused (planned):** shared-texture sender/receiver + DX11 interop behind feature
-  `spout` on Windows. Requires a built Spout2 DLL and a live DX11 device — not available
-  in this headless run. Adapter contract + capability status are present; live
-  sender/receiver is `blocked_external` until a Windows graphics session exists.
-- **Runtime status (2026-11-09):** the prebuilt `SpoutLibrary.{dll,lib}` (x64) is present.
-  A C++ `extern "C"` shim (`apps/spout-bridge/spout_shim.cpp`, linked against
-  `SpoutLibrary.lib`) exposes a flat ABI; `crates/integrations/src/spout.rs` (feature
-  `spout`) runtime-loads it and **verifies sender enumeration**. `GetSenderCount` can
-  block when no sender exists; `SendImage` needs a bound GL context (shim returns 0,
-  never fakes success). Evidence: `evidence/spout-registry.txt`.
+  `spout` on Windows. Requires a built Spout2 DLL and a live GL/DX device; the adapter
+  contract and capability status are present. The 2026-11-09 closer, "live sender/receiver
+  is `blocked_external` until a Windows graphics session exists", is superseded on the send
+  side only: `flux spout-send-dx` pushed 83 frames through a SpoutDX D3D11 sender running as
+  the `spout_sender.exe` helper (`evidence/spout-send-dx.txt`).
+- **Runtime status (2026-11-09; enumeration re-measured 2026-11-15):** the prebuilt
+  `SpoutLibrary.{dll,lib}` (x64) is present, and a C++ `extern "C"` shim
+  (`apps/spout-bridge/spout_shim.cpp`, linked against `SpoutLibrary.lib`) exposes a flat ABI.
+  Both the library and the built `spout_shim.dll` are gitignored — this host has them, a fresh
+  clone does not. `crates/integrations/src/spout.rs` (feature `spout`) runtime-loads the shim,
+  and its enumeration call answers: **0 senders** on 2026-11-15
+  (`evidence/spout-2026-11-15.txt`). An empty registry is not interop, so
+  `capability_report()` answers `verified: false` for spout in every build (D027) rather than
+  the old `cfg!(feature = "spout")`. `GetSenderCount` can block when no sender exists;
+  `SendImage` needs a bound GL context (the shim returns 0 and never fakes success). Older
+  evidence: `evidence/spout-registry.txt`.
 
 ## obs-ndi (reference only)
 - **URL:** https://github.com/Palakis/obs-ndi
@@ -43,10 +53,15 @@ license, what is reused, and the resulting Flux decision.
 - **Reused:** none (not vendored). Consulted for NDI discovery/lifecycle/timestamp
   patterns. It does **not** replace the official NDI SDK/runtime, which carries its own
   license and redistribution terms.
-- **Runtime status:** the official NDI runtime (`Processing.NDI.Lib.x64.dll` v5.5.1) **is
-  installed on this host** (Resolume Arena). Flux runtime-loads it and verifies discovery
-  (`crates/integrations/src/ndi.rs`, feature `ndi`); live send/receive still needs the full
-  header ABI + an active stream.
+- **Runtime status (re-measured 2026-11-15, D023):** the official NDI runtime
+  (`Processing.NDI.Lib.x64.dll` v5.5.1) is installed here (Resolume Arena); Flux runtime-loads
+  it (`crates/integrations/src/ndi.rs`, feature `ndi`) and verifies discovery. **Headers:** the
+  shim compiles against official SDK headers from `ndi-sdk` 0.2.0 in the **cargo registry**
+  (`apps/ndi-bridge/build_shim.bat:7`) — no Cargo.toml declares it, and `ndi_shim.dll` is
+  gitignored (`.gitignore:53`), so a fresh clone rebuilds neither the headers nor the DLL. The
+  2026-11-09 caveat "needs the full header ABI + an active stream" is discharged for synthetic
+  640×360 frames, same-process and cross-process (`evidence/ndi-2026-11-15.txt`); a Flux render
+  still never crosses this path, and no third-party consumer has received from Flux.
 
 ## Syphon
 - **URL:** https://github.com/Syphon/Syphon-Framework
@@ -66,11 +81,14 @@ license, what is reused, and the resulting Flux decision.
 - **NDI runtime present**: `C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll`
   (v5.5.1, 64-bit), with `Processing.NDI.Lib.Licenses.txt`. It exports 117 `NDIlib_*`
   functions including discovery (`NDIlib_initialize`, `NDIlib_find_create2`,
-  `NDIlib_find_get_current_sources`, `NDIlib_find_wait_for_sources`). **No SDK headers
-  are shipped**, so Flux loads the DLL at runtime and defines only the small, stable
-  structs it needs for discovery (`NDIlib_find_create_t`, `NDIlib_source_t`) — never
-  guessing opaque capture layouts. Sending/receiving live frames remains gated on the
-  full header set + a live stream.
+  `NDIlib_find_get_current_sources`, `NDIlib_find_wait_for_sources`). **No SDK headers are
+  shipped**, so `crates/integrations/src/ndi.rs` defines only the small, stable structs it needs
+  for discovery (`NDIlib_find_create_t`, `NDIlib_source_t`) — never guessing opaque layouts. That
+  is still true of the repository: the headers the shim compiles against sit in the cargo
+  registry (`apps/ndi-bridge/build_shim.bat:7`), and so does the gitignored prebuilt
+  `ndi_shim.dll`. The 2026-11-09 closer — that send/receive "remains gated on the full header
+  set + a live stream" — is discharged for synthetic 640×360 frames, same-process and
+  cross-process (`evidence/ndi-2026-11-15.txt`, D023).
 - **Spout2 prebuilt binary present**: `SPOUTSDK/SpoutLibrary/Binaries/SpoutLibrary.{dll,lib}`
   (x64, BSD-2), exposing a **C++ pure-virtual** interface (`SendImage`/`ReceiveImage`/
   `GetSenderCount`…). Wrapping it needs a small C++ `extern "C"` shim plus a live GL/DX

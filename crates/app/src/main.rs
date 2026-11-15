@@ -816,9 +816,14 @@ fn cmd_spout() -> FluxResult<()> {
     #[cfg(feature = "spout")]
     {
         use flux_integrations::spout::SpoutRuntime;
+        // Same rule as `flux ndi` (D023): a shim that cannot be loaded is a missing
+        // prerequisite, not a result. An empty registry is a result and still exits 0.
         let Some(rt) = SpoutRuntime::load() else {
-            println!("spout_shim.dll not found (set FLUX_SPOUT_SHIM, or build apps/spout-bridge).");
-            return Ok(());
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "spout",
+                "spout: spout_shim.dll not found (set FLUX_SPOUT_SHIM, or build apps/spout-bridge)",
+            ));
         };
         let (senders, timed_out) = rt.senders_timeout(std::time::Duration::from_secs(3));
         if timed_out {

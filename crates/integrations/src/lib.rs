@@ -28,8 +28,14 @@ pub struct IntegrationCapability {
     pub limitation: String,
 }
 
-/// Report the current state of every external integration. Never derives
-/// `implemented`/`verified` from mere presence.
+/// Report the current state of every external integration.
+///
+/// `available` and `implemented` describe **this binary**: a feature compiled out is not a
+/// capability the running process has, so those two track the build configuration honestly.
+/// `verified` does not belong to that rule — it claims a measurement happened, and no build
+/// configuration performs one. It is a constant per row, identical in every build, and the
+/// row's `limitation` carries the date and the artifact the claim rests on. A prerequisite that
+/// is merely absent is `false`, never a pass.
 pub fn capability_report() -> Vec<IntegrationCapability> {
     vec![
         IntegrationCapability {
@@ -60,8 +66,8 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             id: "ndi".into(),
             available: cfg!(feature = "ndi"),
             implemented: cfg!(feature = "ndi"),
-            // Not derived from `cfg!`, which is this function's own rule: the work is
-            // verified and stays verified regardless of how this binary was configured.
+            // A constant, not a build artifact, per this function's doc: the transport was
+            // measured and stays measured regardless of how this binary was configured.
             // Basis: `flux ndi-loopback` and `flux ndi-send` -> `flux ndi-recv`, both
             // measured 2026-11-15 and saved to
             // `implementation/evidence/ndi-2026-11-15.txt`.
@@ -76,16 +82,29 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
                  ndi_io"
                     .into()
             } else {
-                "built without feature `ndi`".into()
+                "built without feature `ndi`; the 2026-11-15 transport measurement \
+                 (`implementation/evidence/ndi-2026-11-15.txt`) was made in a `--features ndi` \
+                 build, so this process can do no NDI at all"
+                    .into()
             },
         },
         IntegrationCapability {
             id: "spout".into(),
             available: cfg!(feature = "spout"),
             implemented: cfg!(feature = "spout"),
-            verified: cfg!(feature = "spout"),
+            // False in every build. Re-measured 2026-11-15: the shim loads, the bounded
+            // enumeration runs and answers 0 senders, and the send path still does not work
+            // on this host. A call path that finds nothing to talk to is not verification.
+            verified: false,
             limitation: if cfg!(feature = "spout") {
-                "sender enumeration verified; offscreen-GL SendImage fails on this host (needs wgpu/DX shared-texture path)"
+                "sender enumeration re-measured 2026-11-15 \
+                 (implementation/evidence/spout-2026-11-15.txt): the shim loads and the bounded \
+                 query returns 0 senders without timing out, so the call path works and there is \
+                 nothing on this machine to interoperate with; `CreateSender`/`SendImage` fail \
+                 through a bare offscreen WGL context, so Flux has no sender at all until a \
+                 wgpu/DX11 shared-texture path exists; AT058 (actual Windows Spout send/receive \
+                 with an independent sender/consumer) is unmet, and no third-party receiver has \
+                 ever confirmed a Flux frame"
                     .into()
             } else {
                 "built without feature `spout` (C++ shim over SpoutLibrary available when enabled)"
@@ -111,9 +130,24 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
                 .map(|p| p.available)
                 .unwrap_or(false),
             implemented: true,
-            verified: cfg!(feature = "link"),
+            // False in every build. The 6 assertions ran on 2026-11-15 in a `link` feature
+            // build and passed, but every one is two sessions inside one process, one of them
+            // failed on a repeat run, AT063's Max-transport and seek/loop clauses are asserted
+            // by nothing in any configuration, and no Ableton Live peer has ever been observed.
+            verified: false,
             limitation: if cfg!(feature = "link") {
-                "built+verified locally; GPLv2+ redistribution constraint".into()
+                "peer discovery, tempo convergence, single-master arbitration, start/stop \
+                 propagation, clock advance and enable are asserted by 6 tests that exist only \
+                 in a `link` feature build; the group ran 13 times on 2026-11-15 against the \
+                 vendored abl_link.lib (implementation/evidence/link-2026-11-15.txt): 11 clean \
+                 and 2 failures of `set_playing_reflected_in_state` at link.rs:203, so the gate \
+                 is not run-independent; every test holds both sessions in one process, the \
+                 2026-11-09 cross-process artifact (evidence/link-a.txt + link-b.txt) shows \
+                 peers 0->1 with `playing=false` on every line, so it evidences discovery and \
+                 tempo rather than start/stop, and no Live interop has been observed; AT063's \
+                 Max-transport and seek/loop clauses are unasserted; GPLv2+ redistribution \
+                 constraint"
+                    .into()
             } else {
                 "Ableton Link not built (feature `link` off)".into()
             },

@@ -97,3 +97,23 @@ fn a_seek_packet_cannot_carry_its_seconds() {
         other => panic!("expected a seek, got {other:?}"),
     }
 }
+
+/// `capability_report()` is the answer `flux integrations` gives. A `cfg!`-derived `verified`
+/// makes that answer depend on how the binary was compiled instead of on whether anything was
+/// measured, and no runtime test can see it: the row reads `false` in a default build and `true`
+/// in a feature build, and each build only ever observes its own value passing. So the invariant
+/// is checked against the source, the way `apps/max-for-live/check-maxpat.cjs` checks the patch.
+#[test]
+fn capability_report_never_derives_verified_from_a_build_feature() {
+    let offender = include_str!("lib.rs")
+        .lines()
+        .map(str::trim)
+        .find(|line| line.contains("verified:") && line.contains("cfg!"))
+        .map(str::to_string);
+    assert!(
+        offender.is_none(),
+        "capability_report() derives `verified` from a build feature: {offender:?}. A feature \
+         flag is not evidence — state a measured value, or set it false and put what is missing \
+         in that row's `limitation`."
+    );
+}

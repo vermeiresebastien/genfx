@@ -231,12 +231,12 @@ enumerates `(key: &'static str, Manifest, body: &'static str)` tuples from nine 
 | `flux.*` utility nodes | `utility.rs:7-181` | 9 |
 | | **total `Catalog::entries`** | **217** |
 
-DIVERGENCE: `README.md:15` and `implementation/FINAL-REPORT.md:9,15,19,36,65,153` say
-**216**. The code produces **217**. `catalog_row_count()` (`catalog/src/lib.rs:28-34`)
-filters out rows tagged `R007` — all 9 utility rows are (`utility.rs:20,35,55,93,126,145,
-159,168,175`) — so it returns **208**, which matches `implementation/requirements.json`
-`counts`: 28 effects + 24 families + 156 generators = 208. The "216" is a stale count that
-survived one added row.
+DIVERGENCE (partly closed 2026-11-15): `README.md:15` now says **217**; the stale "216" survives
+only in `FINAL-REPORT.md` :71, :77, :81, :100, :102, :278 (its own :15-16 flags them). The code
+produces **217**. `catalog_row_count()` (`catalog/src/lib.rs:28-34`) filters out rows tagged `R007`
+— all 9 utility rows are (`utility.rs:20,35,55,93,126,145,159,168,175`) — so it returns **208**,
+which matches `implementation/requirements.json` `counts`: 28 effects + 24 families +
+156 generators = 208. The "216" is a stale count that survived one added row.
 
 `Catalog::get` is a linear scan over `entries` (`manifest.rs:208-210`) — see §4.5 for why
 that matters.
@@ -409,9 +409,9 @@ or a dummy (`:384-389`), renders with `LoadOp::Clear(TRANSPARENT)` and a
 `draw(0..3)` bufferless triangle (`:445-465`), and if the output node never wrote, copies
 the last node's texture as a fallback (`:475-499`).
 
-DIVERGENCE (two places, both stale): `render/src/graph_exec.rs:2` module doc says
-"ping-ponged targets", and `README.md:22` says "graph execution with ping-pong targets".
-The code is a true DAG; `implementation/DECISIONS.md:116` already records the migration.
+DIVERGENCE (one of two, and it moved): `render/src/graph_exec.rs:2` module doc still says
+"ping-ponged targets" — `README.md:22`, which this paragraph also used to cite, now reads "one
+render target per node". The code is a true DAG; `implementation/DECISIONS.md:116` records the migration.
 
 ### 4.3 Pipeline creation and the Naga guard
 
@@ -866,8 +866,8 @@ Divergences between code and the markdown, ordered by how much they will mislead
 
 | Doc claim | Reality in code |
 |---|---|
-| `README.md:22` "graph execution with ping-pong targets"; `graph_exec.rs:2` module doc "ping-ponged" | True DAG, one texture per node (`graph_exec.rs:24-28, 327-330`); `DECISIONS.md:116` already records the migration |
-| `README.md:15`, `FINAL-REPORT.md` ×6 "216 entries" | 217 |
+| `README.md:22` "graph execution with ping-pong targets" — **corrected 2026-11-15**, it now reads "one render target per node"; `graph_exec.rs:2` module doc still says "ping-ponged" | True DAG, one texture per node (`graph_exec.rs:24-28, 327-330`); `DECISIONS.md:116` already records the migration |
+| `README.md:15` "216 entries" — **corrected**, it prints **217**; the stale six are now only in `implementation/FINAL-REPORT.md` (`:71, :77, :81, :100, :102, :278`, flagged by its own corrections box) | 217 |
 | `spec/ARCHITECTURE.md:66` native 960×540 staging ring, binary channel, never base64 | No ring, no reuse, per-frame bind groups (`graph_exec.rs:391-443`); base64 PNG still returned (`src-tauri/src/lib.rs:95-100, 396-401`) |
 | `spec/ARCHITECTURE.md:199` texture pool keyed by size/format/usage, ping-pong for blur/fluid/feedback | No pool; targets are allocated per activation and keyed only on graph shape (`graph_exec.rs:82-91`) |
 | `implementation/COMPLETION_PLAN.md:95` "ping-pong execution" | Same as row 1 |

@@ -71,6 +71,32 @@ function Test-NdiRuntime {
     return $false
 }
 
+# Same question for Ableton Link: the `link` feature needs a directory holding
+# abl_link.lib, because crates/integrations/build.rs:16 panics without FLUX_ABLETON_LINK_LIB.
+# An env var that is set but points nowhere is not a prerequisite, so the file is checked.
+function Test-LinkLib {
+    if (-not $env:FLUX_ABLETON_LINK_LIB) { return $false }
+    return Test-Path -LiteralPath (Join-Path $env:FLUX_ABLETON_LINK_LIB 'abl_link.lib') -PathType Leaf
+}
+
+# And for Spout: the adapter (crates/integrations/src/spout.rs:44-55) tries FLUX_SPOUT_SHIM,
+# then 'spout_shim.dll', then apps/spout-bridge/spout_shim.dll. Gating on the env var alone
+# made the step report blocked_external for six days on a host that had the shim in the tree
+# the whole time -- a blocker claim about a variable rather than about the machine. But the
+# two relative candidates are resolved by the *test binary*, whose cwd cargo sets to
+# crates/integrations, not to the repo root: probed from here they read present while the test
+# silently skips (measured: "spout_shim.dll not present; skipping"). So the probe resolves an
+# absolute path and exports it, which is the only candidate both processes agree on.
+function Resolve-SpoutShim {
+    if ($env:FLUX_SPOUT_SHIM -and (Test-Path -LiteralPath $env:FLUX_SPOUT_SHIM -PathType Leaf)) {
+        return (Resolve-Path -LiteralPath $env:FLUX_SPOUT_SHIM).Path
+    }
+    foreach ($p in @('spout_shim.dll', 'apps/spout-bridge/spout_shim.dll')) {
+        if (Test-Path -LiteralPath $p -PathType Leaf) { return (Join-Path $root $p) }
+    }
+    return $null
+}
+
 Step 'fmt' { cargo fmt --all -- --check }
 Step 'unit-tests' { cargo test -p flux-domain -p flux-catalog -p flux-engine -p flux-media -p flux-audio -p flux-render -p flux-integrations -p flux-app --lib -- --test-threads=1 }
 if (-not $Quick) {
@@ -89,11 +115,11 @@ Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
-# Optional Ableton Link check — only when a prebuilt abl_link.lib is available.
-if ($env:FLUX_ABLETON_LINK_LIB) {
+# Optional Ableton Link check — runs when a prebuilt abl_link.lib is reachable.
+if (Test-LinkLib) {
     Step 'link-integration' { cargo test -p flux-integrations --features link link:: }
 } else {
-    Blocked 'link-integration' 'FLUX_ABLETON_LINK_LIB unset'
+    Blocked 'link-integration' 'FLUX_ABLETON_LINK_LIB unset, or no abl_link.lib in that directory'
 }
 # NDI. Renamed 2026-11-15 (D023): it used to be called 'ndi-discovery', which is what the
 # two tests *do*, not what they *prove*. The ndi:: filter selects exactly
@@ -111,11 +137,19 @@ if (Test-NdiRuntime) {
     Step 'ndi-feature-compiles' { cargo test -p flux-integrations --features ndi --no-run }
     Blocked 'ndi-runtime-loads' 'NDI runtime DLL absent (FLUX_NDI_LIB unset, no NDI 6 Tools or Resolume Arena install, bare name not on PATH)'
 }
-# Spout2 — runs when the C++ shim DLL is available; test skips cleanly otherwise.
-if ($env:FLUX_SPOUT_SHIM) {
+# Spout2 — runs when the shim DLL is reachable by the adapter's own candidate list.
+# What the step asserts, read exactly: spout::tests::shim_loads_when_present loads
+# spout_shim.dll and calls senders_timeout(2s), then asserts the call returned within 4s
+# (and returned no names if it timed out). It is a bounded-enumeration smoke test, not a
+# sender interop: 0 senders is a pass. Like its ndi sibling it returns early when the shim
+# is absent -- the resolve above is what stops that from being recorded as a pass.
+$spoutShim = Resolve-SpoutShim
+if ($spoutShim) {
+    Write-Host ('spout shim resolved: ' + $spoutShim)
+    $env:FLUX_SPOUT_SHIM = $spoutShim
     Step 'spout-enumeration' { cargo test -p flux-integrations --features spout spout:: }
 } else {
-    Blocked 'spout-enumeration' 'FLUX_SPOUT_SHIM unset'
+    Blocked 'spout-enumeration' 'no spout_shim.dll (FLUX_SPOUT_SHIM unset, none beside the binary, apps/spout-bridge/spout_shim.dll missing)'
 }
 
 $passed = @($results.GetEnumerator() | Where-Object { $_.Value.ok -eq $true }).Count
@@ -146,6 +180,14 @@ $payload = [ordered]@{
     quick = [bool]$Quick
     ok = $ok
     counts = @{ passed = $passed; failed = $failed; blocked_external = $blocked }
+    # Which prerequisites this host could actually reach. The step list alone cannot say
+    # it: a blocked step and an absent SDK look the same, and a step that ran because a
+    # vendored library happened to be in the tree looks the same as one that ran on CI.
+    external = @{
+        ndiRuntime = (Test-NdiRuntime)
+        abletonLinkLib = (Test-LinkLib)
+        spoutShim = [bool]$spoutShim
+    }
     steps = $results
 } | ConvertTo-Json -Depth 6
 # Windows PowerShell's Set-Content -Encoding UTF8 prepends a BOM, and the committed
