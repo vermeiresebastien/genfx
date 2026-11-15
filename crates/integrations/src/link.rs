@@ -193,14 +193,53 @@ mod tests {
         assert!(t1 > t0, "clock advanced {t0} -> {t1}");
     }
 
+    // A commit is not guaranteed to be visible in the capture that immediately follows
+    // it: the SDK refreshes the merged session state asynchronously, so a read-back can
+    // still carry the previous value for a few ms. Measured 2026-11-15, converging on
+    // the second capture - see implementation/evidence/link-flake-2026-11-15.txt.
+    const PLAY_VISIBLE_MS: u64 = 250;
+
+    // Poll state().playing until it reads `want`: Some(elapsed ms) on convergence, None
+    // when the bound expires. Returning None is what keeps the callers below able to fail.
+    fn wait_playing(s: &LinkSession, want: bool, ms: u64) -> Option<u64> {
+        let start = Instant::now();
+        loop {
+            if s.state().playing == want {
+                return Some(start.elapsed().as_millis() as u64);
+            }
+            if start.elapsed() > Duration::from_millis(ms) {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
     #[test]
     fn set_playing_reflected_in_state() {
         let _g = lock_net();
         let s = LinkSession::new(120.0).unwrap();
         s.set_playing(true);
-        assert!(s.state().playing, "playing after set_playing(true)");
+        let up = wait_playing(&s, true, PLAY_VISIBLE_MS);
+        assert!(
+            up.is_some(),
+            "start never visible within {PLAY_VISIBLE_MS} ms"
+        );
         s.set_playing(false);
-        assert!(!s.state().playing);
+        let down = wait_playing(&s, false, PLAY_VISIBLE_MS);
+        assert!(
+            down.is_some(),
+            "stop never visible within {PLAY_VISIBLE_MS} ms"
+        );
+    }
+
+    #[test]
+    fn wait_playing_reports_a_timeout_when_nothing_changes() {
+        let _g = lock_net();
+        let s = LinkSession::new(120.0).unwrap();
+        assert!(
+            wait_playing(&s, true, 60).is_none(),
+            "no commit means the wanted state never arrives"
+        );
     }
 
     #[test]
@@ -294,7 +333,10 @@ mod tests {
             std::thread::sleep(Duration::from_millis(100));
         }
         assert!(b_playing, "start propagated to peer");
-        assert!(a.state().playing, "initiator is playing");
+        assert!(
+            wait_playing(&a, true, PLAY_VISIBLE_MS).is_some(),
+            "initiator is playing"
+        );
 
         a.set_playing(false);
         let deadline = Instant::now() + Duration::from_secs(5);

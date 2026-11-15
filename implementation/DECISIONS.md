@@ -812,7 +812,7 @@ Two acceptance records claimed more than their evidence, in the same way the NDI
 | record | at HEAD | after | the gap |
 |---|---|---|---|
 | AT060 — "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior" | `verified` | `implemented_unverified` + blocker | one of four clauses is measured (loopback, re-measured today); release counts, stride/timestamps and the missing-runtime path on a host without NDI are not, and there is still no wgpu→NDI producer |
-| AT063 — "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion" | `verified` | `implemented_unverified` + blocker | `crates/integrations/src/link.rs:249` does assert single-master arbitration, but only inside a `--features link` build, and the AC's Max-transport and seek/loop clauses are asserted by nothing — which is exactly what `BLOCKERS.md:26-35` and `:54-55` had already said. The ledger was the outlier, not the blockers file. |
+| AT063 — "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion" | `verified` | `implemented_unverified` + blocker | `crates/integrations/src/link.rs:288` (then `:249`) does assert single-master arbitration, but only inside a `--features link` build, and the AC's Max-transport and seek/loop clauses are asserted by nothing — which is exactly what `BLOCKERS.md:26-35` and `:54-55` had already said. The ledger was the outlier, not the blockers file. |
 
 A hand-edit would have survived until the next `cargo run -p xtask --bin requirements`, i.e. until
 the next gate run. The generator now produces the claim its own evidence supports, and the
@@ -1140,7 +1140,7 @@ because a vendored library happened to be on the machine is not a step that ran 
 ### What running the Link gate for the first time found
 
 13 invocations of `cargo test -p flux-integrations --features link link::` today: **11 clean, 2
-failures**, both `set_playing_reflected_in_state` at `crates/integrations/src/link.rs:203`
+failures**, both `set_playing_reflected_in_state` at `cf95a2f`'s `crates/integrations/src/link.rs:203`
 (`assertion failed: !s.state().playing`, immediately after `set_playing(false)`). So the first
 execution of these assertions in this repository's history found a defect in them. Transcript:
 `implementation/evidence/link-2026-11-15.txt` — including the fact that `_upstream/` is
@@ -1257,7 +1257,7 @@ arm, as do AT071/AT072 and AT049/AT050 — and silent everywhere else.
 - **AT063** — status unchanged, blocker falsified. It said "no `FLUX_ABLETON_LINK_LIB` build on
   this host today", which D027 made untrue that afternoon; it now says the tests hold both
   sessions in one process, that the step is not run-independent (2 of 13 failed at
-  `crates/integrations/src/link.rs:203`), and `link-2026-11-15.txt` is cited as evidence.
+  `crates/integrations/src/link.rs:203` as it then was), and `link-2026-11-15.txt` is cited as evidence.
 
 `spec/TASKS.md:302` asks a `blocked_external` record to carry the missing item *and* the smallest
 command that would resume verification, so both new blockers name a resume step.
@@ -1372,13 +1372,13 @@ decided that step. `evidence/verify.json` now carries it. The pointer-keyed befo
 only in scratch logs (`target/verify-7ecc1f1.log` and siblings), which is why the 16-0-1 figure is
 quoted in this record rather than stored beside it.
 
-What that run also changed is the flake tally. `link::` has now executed 16 times today: the 13
+What that run also changed is the flake tally. `link::` had by then executed 16 times today: the 13
 invocations D027 counted (11 clean, 2 red), plus the harness run at `cf95a2f`, plus the two at
 `7ecc1f1` and `7235afd` — and `set_playing_reflected_in_state` passed in all three harness
-executions. Three consecutive clean runs is not a mechanism and not a fix; the assertion at
-`crates/integrations/src/link.rs:203` is still untouched, still not wired into CI, and still the
-only known red in the suite. It stays open with its rate attached: 2 failures in 16, both at the
-same line, none of them in a run where the gate had to find its own library.
+executions. Three consecutive clean runs is not a mechanism and not a fix, so D029 left the
+assertion at `crates/integrations/src/link.rs:203` untouched, with its rate attached: 2 failures in
+16, both at the same line, none of them in a run where the gate had to find its own library. That is
+the state D030 inherited, and the record below is what D030 did with it.
 
 ### Citation churn
 
@@ -1399,3 +1399,121 @@ checked, not assumed.
   the run, with the source change committed after. No claim in that record needed editing.
 - The seven feature-off CLI branches that print and return `Ok` are untouched, and the
   requirements-ledger freshness gate D028 documented is still a gap in both harnesses.
+
+## D030 — 2026-11-15 the Link flake had a mechanism, and the test was asserting a property Link does not deliver
+
+**Decision:** `set_playing_reflected_in_state` stops asserting that a commit is visible in the
+capture taken immediately after it, and instead waits, within a 250 ms bound, for the state to
+converge. The assertion is not deleted, not marked `#[ignore]`, and not given a longer deadline
+than the measurement justifies. The mechanism is written down as what was read out of the vendored
+SDK, with the parts that remain inferred named as such. Transcript:
+`implementation/evidence/link-flake-2026-11-15.txt`.
+
+### Why this was still open when D029 closed
+
+D027 executed the Link gate for the first time and found 2 red in 13 runs; D029 re-counted it at 2
+red in 16 and refused to touch it, correctly, because "three consecutive clean runs is not a
+mechanism and not a fix". What was missing was not courage but data: without knowing *why* the read
+was stale, any change to the assertion would have been a guess dressed as a repair. Four cheap
+experiments supplied it, all against `f49bb20`:
+
+| # | what ran | what came back |
+|---|---|---|
+| 1 | 20 group runs of `link::` | 18 clean, 2 red (runs 12 and 19) — reproduces D027's rate |
+| 2 | 20 runs of only `set_playing_reflected_in_state` | 19 clean, 1 red — so the group, the mutex and the previous test's sessions are all exonerated |
+| 3 | 24 iterations: commit stop, read 20 ms later | 24 of 24 already stopped, `visible_after_ms=Some(0)`, 0 stuck after 2.6 s |
+| 4 | 40 iterations in the test's own back-to-back shape | 1 red after the stop, recovering on the first re-poll (`recovery_ms=Some(0)`), **and 1 red in the other direction** (`playing_after_start=false`); `peers=0` throughout |
+
+Measured, therefore: the window needs the read to be back-to-back with the commit; it is ~2.5-10 %
+depending on which sample is counted; when it hits, the next read is already correct; the committed
+value is never lost; and it goes wrong in both directions. `Ableton Live 12 Suite` was running on
+the host and bound nothing on UDP 20806, so no external peer is in any of those numbers.
+
+### What the SDK does, and why D027's guess was the wrong guess
+
+`abl_link_commit_app_session_state` lands in `Controller::setClientState`
+(`_upstream/link/include/ableton/link/Controller.hpp:207-226`), which updates the shared client
+state synchronously under a mutex and then hands *the same* `IncomingClientState` to the IO thread.
+On that thread `handleClientState` reaches :443-459, and :457 writes
+`currentClientState.startStopState = *clientState.startStopState` with no timestamp preference —
+unlike the synchronous path at :219-223 and `handleRtClientState` at :472-491, both of which first
+call `selectPreferredStartStopState` (:85-92), which keeps the incoming value only if its timestamp
+is strictly greater. Two commits issued inside one IO-thread cycle therefore let the older
+announcement land after the newer write and regress it for as long as it takes the newer handler to
+run. Read from the code, and it explains the symmetry of experiment 4, which D027's
+quantum-boundary hypothesis (`link-2026-11-15.txt:46-48`) cannot: this adapter commits start and
+stop through one identical call, so a start-only alignment rule could not produce a start-direction
+miss.
+
+Reasoned, not measured: that the regression is specifically this interleaving. No timestamp was
+logged from inside the SDK and upstream was not modified. Stated as the best-supported explanation,
+not as a demonstrated one.
+
+### The change, and what it still fails on
+
+`crates/integrations/src/link.rs:200-234` adds `PLAY_VISIBLE_MS = 250` and `wait_playing(s, want,
+ms)` returning `Some(elapsed)` or `None`; both directions of the test use it, and
+`start_stop_propagates_to_peer`'s read of its own initiator (:336-339) no longer asserts instantly
+either. A seventh test, `wait_playing_reports_a_timeout_when_nothing_changes` (:235-243), commits
+nothing and requires `None` — without it, a helper that always returned `Some` would leave every
+other claim in this record untested. The bound is load-bearing by measurement rather than by
+argument: commenting the commit call out of `set_playing` (:140) turns the gate red with
+`start never visible within 250 ms` and exit 101, which is the negative control a repair whose
+whole content is "wait instead of assert" owes the reader.
+
+After it: 30 group runs clean, 20 isolated runs clean, 52 consecutive clean invocations in total
+against 18/20 and 19/20 before. `cargo test --workspace -- --test-threads=1` is still 207 passed /
+0 failed / exit 0 across 40 result lines, because `link.rs` is `#![cfg(feature = "link")]` whole and
+none of its assertions ever entered that count.
+
+### What this does not buy
+
+- The flake was never the transport, so nothing about Link got more reliable. What changed is that
+  the suite no longer asserts immediacy, which the SDK does not guarantee. A UI that reads
+  `state()` on the line after its own start/stop click can still see the previous value for a few
+  milliseconds. Nothing in Flux does that today — the CLI prints on a timer, the desktop re-pulls a
+  snapshot — so it is recorded as a property of the adapter rather than papered over as a green
+  suite.
+- 52 clean runs against a ~5 % base rate is roughly 2.6 expected pre-fix failures, so the clean
+  tally is consistent with the fix and is not proof of it. The proof used here is the control.
+- The step is still not a CI step: `_upstream/` is gitignored, so a fresh clone cannot build the
+  feature and records `blocked_external` (D027's rule, unchanged by this).
+- AT063 is still `implemented_unverified` and its blocker still says so: single-process peers, no
+  real Live host, Max-transport and seek/loop asserted by nothing. D030 removes a defect from the
+  gate, not a clause from the acceptance test.
+
+### Files changed
+
+| file | change |
+|---|---|
+| `crates/integrations/src/link.rs` | +45/-3: `PLAY_VISIBLE_MS`, `wait_playing`, both directions bounded, the initiator read bounded, +1 timeout guard test |
+| `crates/xtask/src/bin/requirements.rs` | AT063 evidence and blocker rewritten against the measurement, line-count neutral so `evidence_routing` stays at :528-571 |
+| `implementation/requirements.json` | regenerated; the diff is the AT063 record and nothing else (3 lines each way) |
+| `implementation/evidence/link-flake-2026-11-15.txt` | new transcript: rates, probes, the SDK reading, the negative control, the limits |
+| `implementation/BLOCKERS.md`, `UPSTREAM.md`, `FINAL-REPORT.md`, `STATE.json`, `docs/PERFORMANCE-READINESS.md` | the flake's sentence in each, rewritten; `link.rs:249` to `:288` wherever a row points at live code |
+
+### Citation churn
+
+`link.rs` grew net 42 lines (+45/-3, of which rustfmt's reflow of three `assert!` macros is 9), so
+every citation into it below the first insertion moved by +39 and below the second by +42. The one
+citation below the second is `single_master_tempo_wins_across_peers`, `:249` to `:288`, re-resolved
+in `docs/PERFORMANCE-READINESS.md:240`, `implementation/BLOCKERS.md:33` and `:55`, `implementation/STATE.json:82`
+and here at :815 (marked "then `:249`"). The pre-fix `:203` became a historical line number,
+qualified "as it then stood" or pinned to `cf95a2f` wherever a record keeps quoting it — here at
+:1143, :1260 and :1379, in `FINAL-REPORT.md` (whose own 6→7 counts at :228, :238 and :252 were this
+lane's drift, now fixed), in the ledger's AT063 row and in `UPSTREAM.md`. Here at :919 "AT063's six
+tests" stays: it is D027's count of the day it ran. Two numbers were checked and not touched —
+`link.rs:131-143` (`set_playing`) and `link.rs:167` (`LINK_NET`) both sit above the insertions.
+`requirements.rs` and `requirements.json` were kept line-count neutral by construction, so `:424`,
+`:512`, `:528-571` and `requirements.json:3785` were re-checked, not assumed. No captured
+transcript was rewritten: `link-2026-11-15.txt` still says `:203`, because that is where the line was.
+
+### Not changed here
+
+- The scratch probe (`crates/integrations/tests/link_stop_probe.rs`) is deleted, not promoted: its
+  durable half is sections 1-2 of the transcript, and a test that prints instead of asserting is
+  not a gate.
+- Upstream is untouched. Patching `Controller.hpp` would fix the staleness rather than the claim
+  about it, and this repo wraps upstream, it does not fork it.
+- `wait_peers` and the two 5 s cross-peer deadlines stay as they were: they wait on discovery,
+  which is a different clock and a different failure.

@@ -24,15 +24,15 @@
   registration path); a production fix is to compile SpoutDX into the Flux binary directly.
   Syphon is macOS-only.
 - **Ableton Link** (R015, AT063): **supported integration, built from upstream, and run here
-  since 2026-11-15** (D027 keyed the gate on `abl_link.lib`): the 6 assertions executed for the
-  first time in this repo's recorded history — 11 of 13 invocations clean, 2 failures of
-  `set_playing_reflected_in_state` at `link.rs:203` (`evidence/link-2026-11-15.txt`). Two-process
-  discovery and tempo/beat/phase are a 2026-11-09 artifact (`evidence/link-a.txt`, `link-b.txt`),
-  and those transcripts print `playing=false` on every line, so they do not show cross-process
-  start/stop. Licensing is resolved (D012), so no external blocker remains. Single-master is
-  asserted only by `link.rs:249` `single_master_tempo_wins_across_peers`, which a plain build
-  never compiles, and the acceptance test's Max/conditional-transport and seek/loop clauses are
-  asserted by nothing — hence AT063 `implemented_unverified`, as the generator now says (D025).
+  since 2026-11-15** (D027 keyed the gate on `abl_link.lib`): the assertions executed for the
+  first time in this repo's history, 2 of the first 13 invocations red. D030 established the
+  mechanism (`evidence/link-flake-2026-11-15.txt`: the SDK's IO-thread handler re-writes client
+  state without a timestamp guard) and bounded the read-back — 7 assertions now, 52 clean runs.
+  Cross-process discovery and tempo are a 2026-11-09 artifact (`link-a.txt`, `link-b.txt`) printing
+  `playing=false` on every line, so cross-process start/stop stays unevidenced. Licensing is
+  resolved (D012). Single-master is asserted only by `link.rs:288`, which a plain build never
+  compiles, and the AC's Max-transport and seek/loop clauses are asserted by nothing — hence
+  AT063 `implemented_unverified`, as the generator now says (D025).
 - **Max for Live**: source `.maxpat` devices are now **fully pre-wired** (node.script
   bridge-osc.js + loadbang + all connections) and structural checks pass. Remaining step:
   save each as `.amxd` via Max's GUI *Save As → Max Audio/MIDI Effect* (Max is
@@ -52,7 +52,7 @@
   this host (5 mics, 6 loopback endpoints, 1 camera). Live frame/audio *capture* needs a
   device + OS permission, which this headless run could not exercise.
 - **Ableton Link**: `flux link` runs a real session; two processes discover and sync, in a
-  `link` feature build. Single-master is asserted too, but only by `link.rs:249`; seek/loop are not.
+  `link` feature build. Single-master is asserted too, but only by `link.rs:288`; seek/loop are not.
 - **GUI**: Tauri 2 + web UI builds, links, and launches (dev + release); library/preview/
   inspector/timeline verified via screenshot and the GUI-backend e2e test.
 - **SDF/particle producers**: correct and deterministic CPU implementations; not realtime

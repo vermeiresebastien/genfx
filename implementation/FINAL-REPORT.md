@@ -225,7 +225,7 @@ wgpu device via a DX11 shared texture (SpoutDX) — is a larger interop task, so
 send is reported as a limitation, and the enumeration half is a 2026-11-09 measurement that
 nothing on this host has repeated. **Syphon**: macOS-only.
 
-### 6a. Ableton Link — supported; 6 assertions ran here 2026-11-15, 11 of 13 invocations clean
+### 6a. Ableton Link — supported; 7 tests ran here 2026-11-15, 52 clean after D030
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton
 Link was the only external integration buildable on this host without a proprietary SDK.
 A thin raw-FFI adapter (`crates/integrations/src/link.rs`, feature `link`) wraps the
@@ -235,9 +235,9 @@ official `abl_link` C API, built from `https://github.com/Ableton/link @ 5ba907a
 commercially, so Link's GPLv2-or-later terms are acceptable. The redistribution constraint
 is lifted for this project; Link is a supported integration.
 
-Assertions that exist in the tree — all 6 ran on this host on 2026-11-15, each of them holding
+Assertions that exist in the tree — all 7 ran on this host on 2026-11-15, each of them holding
 both sessions in one process; see the caveat below:
-- 6 automated tests: enable + start/stop sync, clock advance, set/read playing,
+- 7 automated tests: enable + start/stop sync, clock advance, set/read playing, D030's poll guard,
   **two sessions discovering each other and converging on tempo**, **single-master tempo
   arbitration** (one proposer's tempo adopted by the peer), and **start/stop propagation**.
 - **Cross-process**: two `flux.exe link` processes saw `peers=0 → peers=1` and shared a
@@ -249,21 +249,21 @@ Build: set `FLUX_ABLETON_LINK_LIB` (dir containing `abl_link.lib`) and
 `cargo build --features link`. With the feature off, `protocol_status` reports
 `unavailable` truthfully (SDK-less machines still build).
 
-**What the list above does not cover (re-measured 2026-11-15).** All 6 tests exist only inside a
+**What the list above does not cover (re-measured 2026-11-15).** All 7 tests exist only inside a
 `--features link` build, and `link-integration` was recorded `blocked_external` in every run this
 repository has ever recorded — not because `abl_link.lib` is missing (it is built and sitting in
 the gitignored `_upstream/`, dated 2026-11-09) but because the gate keyed on
 `FLUX_ABLETON_LINK_LIB` being set. D027 keys it on the variable *and* the file, and with it
 exported the group ran here for the first time: 13 invocations, **11 clean and 2 failures of
-`set_playing_reflected_in_state`** (`crates/integrations/src/link.rs:203`, the assertion that a
-`set_playing(false)` is reflected in the state read back afterwards). The test was deliberately not
-weakened; a gate that goes red twice in thirteen runs cannot be a hard CI step, which is why CI —
-which does not set that variable — still records it blocked. The acceptance test's remaining
-clauses (Max / conditional Link transport, seek/loop, "no control-as-audio confusion") are asserted
-by nothing. That is why AT063 still reads `implemented_unverified` in
-`implementation/requirements.json`: the generator arm was corrected
-(`crates/xtask/src/bin/requirements.rs`), because that file is regenerated and a hand-edit would be
-overwritten by the next `cargo run -p xtask --bin requirements` (DECISIONS D025).
+`set_playing_reflected_in_state`** (`crates/integrations/src/link.rs:203` as it then stood: the
+assertion that a `set_playing(false)` shows in the state captured on the very next line). D030
+measured why, and bounded the read-back instead of weakening it — the SDK re-writes its client
+state from its own IO thread with no timestamp preference (`evidence/link-flake-2026-11-15.txt`).
+A gate that went red twice in thirteen runs is still no hard CI step, so CI — which sets none of
+these variables — records it blocked, and the acceptance test's remaining clauses (Max /
+conditional Link transport, seek/loop, "no control-as-audio confusion") are still asserted by
+nothing, which is why AT063 reads `implemented_unverified`: corrected in the generator arm
+(`crates/xtask/src/bin/requirements.rs`), as a hand-edit is undone by the next regeneration (D025).
 
 ### 6c. Vision/models (G170–G177) — real inference verified (AT075 + AT077)
 Model-backed conditional nodes have a real **model registry** (present/missing/incompatible;

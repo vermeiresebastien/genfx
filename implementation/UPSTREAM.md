@@ -17,12 +17,12 @@ license, what is reused, and the resulting Flux decision.
   product owner has stated Flux is not sold/distributed commercially, so the GPLv2-or-later
   terms are acceptable (DECISIONS D012). Link is a **supported integration**; the feature
   flag remains only so SDK-less machines build cleanly.
-- **Verification (re-measured 2026-11-15, D027):** the 6 tests all hold both sessions in one
-  process, and they ran here for the first time — 11 of 13 invocations clean, 2 failures of
-  `set_playing_reflected_in_state` (`crates/integrations/src/link.rs:203`), so the group is not
-  run-independent and is not wired into CI. The 2026-11-09 cross-process pair
-  (`evidence/link-a.txt`, `link-b.txt`) proves discovery and tempo/beat/phase only: those
-  transcripts print `playing=false` on every line, so they evidence no start/stop.
+- **Verification (re-measured 2026-11-15, D027 then D030):** the 7 tests all hold both sessions in
+  one process, and they ran here for the first time under D027 — 11 of 13 invocations clean, 2 red
+  at `link.rs:203` as it then stood. D030 found the cause (the SDK re-writes its client state from
+  the IO thread with no timestamp preference, `evidence/link-flake-2026-11-15.txt`) and bounded the
+  read-back; 52 clean runs since. The 2026-11-09 pair (`link-a.txt`, `link-b.txt`) proves discovery
+  and tempo only: those transcripts print `playing=false` on every line, so they evidence no start/stop.
 
 ## Spout2
 - **URL:** https://github.com/leadedge/Spout2

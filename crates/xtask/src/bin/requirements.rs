@@ -424,8 +424,8 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         "AT063" => (
             "implemented_unverified",
             vec![
-                "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` build, run here 13x on 2026-11-15".into(),
-                "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 failures of set_playing_reflected_in_state at crates/integrations/src/link.rs:203)".into(),
+                "crates/integrations link tests (7: discovery, tempo convergence, single-master, start/stop, clock, enable, poll guard) - feature `link` build, run here on 2026-11-15".into(),
+                "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 red at crates/integrations/src/link.rs:203 as it then was) + link-flake-2026-11-15.txt (mechanism, and 52 clean post-fix runs)".into(),
                 "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build; playing=false throughout, so start/stop is not shown cross-process)".into(),
             ],
         ),
@@ -511,15 +511,15 @@ fn at_blocker(id: &str) -> Option<&'static str> {
              (BLOCKERS.md:36-40; no CLI path exists, so the ledger has no status for \
              \"blocked on a human clicking Save\")",
         ),
-        // The 6 link tests do assert single-master arbitration and phase, and since
+        // The 7 link tests do assert single-master arbitration and phase, and since
         // D027 they run here - but every one holds both sessions in a single process,
         // and no test or evidence file touches the AC's Max-transport or seek/loop
-        // clauses. The step is also not run-independent.
+        // clauses. D030 found the flake was the test, not the transport.
         "AT063" => Some(
             "peer/tempo/phase/start-stop are asserted only in-process (both sessions in one \
-             process) and the step is not run-independent - 2 of 13 invocations failed at \
-             crates/integrations/src/link.rs:203 on 2026-11-15; Max transport and seek/loop are \
-             asserted by nothing, and no real Link host has ever joined",
+             process); Max transport and seek/loop are asserted by nothing, and no real Link \
+             host has ever joined. D030 bounded the read-back rather than fixing it: a capture \
+             taken in the same instant as a commit can still return the previous value.",
         ),
         _ => None,
     }

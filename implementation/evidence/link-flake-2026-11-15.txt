@@ -1,0 +1,172 @@
+# provenance (F1): gitHash f49bb20, working tree DIRTY at capture time (the repair itself is
+#         in crates/integrations/src/link.rs, +45/-3, uncommitted when sections 1-4 ran; the
+#         pre-fix rows were produced against HEAD's link.rs restored into the same path, and
+#         the post-fix rows against the repaired file - both from this dirty tree)
+# command:  cargo test -p flux-integrations --features link link::
+#           cargo test -p flux-integrations --features link link::tests::set_playing_reflected_in_state
+#           (infrastructure/verify.ps1 runs the first form as its `link-integration` step)
+# prerequisite: FLUX_ABLETON_LINK_LIB=D:\Projects\visual\genfx\_upstream\link\build\Release
+#           -> abl_link.lib. _upstream/ is gitignored (.gitignore:4), so a fresh clone cannot
+#           reproduce any row below until it builds the library the way D012 did on 2026-11-09.
+# host: Windows 10 19045, rustc 1.99.0 stable. Ableton Live 12 Suite WAS running on this host
+#           during section 1 (target/peer-probe.log proves it holds no UDP 20806 listener, and
+#           every row below reports peers=0, so no Live state is in any of these numbers).
+# measured: 2026-11-15, D030. Closes the open item that link-2026-11-15.txt:49 left as
+#           "a reading of that code, NOT a measurement made here".
+
+--------------------------------------------------------------------------------
+1. Rates, before the change, on the assertion as written
+--------------------------------------------------------------------------------
+The pre-fix test body was, in full:
+
+    s.set_playing(true);
+    assert!(s.state().playing, "playing after set_playing(true)");   // link.rs:201 at f49bb20
+    s.set_playing(false);
+    assert!(!s.state().playing);                                     // link.rs:203 at f49bb20
+
+  20 group runs (all 6 link assertions, --test-threads default)  target/link-flake-prefix.log
+      18 clean / 2 red - run 12 and run 19, exit 101, "5 passed; 1 failed"
+  20 isolated runs (only set_playing_reflected_in_state selected) target/link-flake-isolated.log
+      19 clean / 1 red - run 16, exit 101
+
+Both experiments are in the same transcript file; the isolated row is the one that matters,
+because it removes the group as a variable: the failure reproduces with 33 tests filtered out
+and no other LinkSession alive in the process. It is not sibling-test interference, and it is
+not the LINK_NET mutex (link.rs:167) leaving one test's session behind.
+
+--------------------------------------------------------------------------------
+2. The shape of the race, probed
+--------------------------------------------------------------------------------
+Probe A - the adapter's own commit, then a read 20 ms later, 24 iterations.
+  (target/stop-probe.log; scratch integration test, deleted after measuring)
+
+    probe 00: peers=0 beat=0.043 phase_at_stop=0.043 visible_after_ms=Some(0)
+    ... 24 identical rows ...
+    PROBE: 24 of 24 stop within 3 ms; 0 later []; 0 still playing after 2.6 s
+
+Probe B - the failing test's exact back-to-back shape, 40 iterations.
+  (target/stop-probe2.log; same scratch file)
+
+    probe 02: RED playing_after_start=true still_playing_after_stop=true recovery_ms=Some(0)
+    probe 15: clean playing_after_start=false beat_quartile=0.002 peers=0
+    ... 38 other clean rows ...
+    PROBE: 1 of 40 read playing right after the stop; 1 recovered [0]
+    PROBE: 0 never stopped within 4.2 s, beats []
+    PROBE: peers at end = 0
+
+Three things are measured here and none of them was known before:
+  - With 20 ms between commit and read, the stop is visible in 24 of 24. The race needs the
+    read to come back-to-back with the commit.
+  - Back-to-back, the read is wrong ~2.5 % of the time (probe B) and ~5-10 % of invocations
+    make it through the whole test red (section 1) - same order, different sample.
+  - When it goes red it is already right on the next read: recovery_ms=Some(0) with a 5 ms
+    poll step, i.e. sub-tick. It never failed to converge, in 40 tries or in the 2.6 s tail
+    check of probe A. The stale read is not a lost commit; it is a momentary regression.
+  - The same race also inverts on the way UP: probe 15 read playing_after_start=false. The
+    pre-fix test happened to assert the start instantaneously too (link.rs:201) and simply
+    got lucky in every one of the 40+ runs where that particular row did not land in it.
+
+--------------------------------------------------------------------------------
+3. Mechanism, read out of the vendored SDK
+--------------------------------------------------------------------------------
+_upstream/link/include/ableton/link/Controller.hpp:207-226 - `setClientState`, which is what
+`abl_link_commit_app_session_state` reaches (extensions/abl_link/src/abl_link.cpp:170, through
+include/ableton/Link.ipp:164-169):
+
+    mClientState.update( ...clientState.startStopState = *newClientState.startStopState... );
+    mIo->async([this, newClientState] { handleClientState(newClientState); });
+
+The first half is synchronous under a mutex (include/ableton/link/SessionState.hpp:71-83: both
+`update` and `get` take the same `mMutex` and touch the same `mState`), so a capture taken after
+a commit returns to the calling thread holding that commit. The second half hands the *same*
+IncomingClientState to the IO thread, where `handleClientState` (Controller.hpp:424) does, at
+:443-459:
+
+    if (mStartStopSyncEnabled && clientState.startStopState)
+    {
+      const auto newGhostTime =
+        mSessionState.ghostXForm.hostToGhost(clientState.startStopState->timestamp);
+      if (newGhostTime > mSessionState.startStopState.timestamp)
+      {
+        mClientState.update([&](ClientState& currentClientState) {
+          mSessionState.startStopState = ...mapStartStopStateFromClientToSession(...);
+          currentClientState.startStopState = *clientState.startStopState;   // :457
+        });
+      }
+    }
+
+:457 writes the client state with no timestamp preference at all, unlike the guarded
+`selectPreferredStartStopState` on the synchronous path (:219-223, whose definition at :85-92
+keeps the incoming value only if its timestamp is strictly greater) and unlike
+`handleRtClientState` (:472-491), which does call the selector before the same write at :486.
+The guard :443-448 does apply compares against `mSessionState` - which that same lambda then
+overwrites at :454 - so for two commits A then B issued faster than the IO thread drains them,
+the handler for A can run *after* B's synchronous update and write the session state back to
+A's value, until the handler for B runs and writes it forward again.
+
+That accounts for all four rows of section 2: a ~2.5-10 % window that closes within one poll
+tick, in both directions, with the committed value never actually lost, and with peers=0 so
+nothing about the network is involved. What was 2026-11-15's earlier guess - "Link aligns a
+start to a quantum boundary while a stop is committed at clock_micros() now, so a read-back can
+observe the previous state" (link-2026-11-15.txt:46-48) - is NOT the mechanism: this adapter
+commits start and stop through the identical call, and the direction of the error is symmetric.
+
+Status of this section: the code above is quoted from the tree, and the interleaving it permits
+is a reading of that code. It is consistent with every measurement in sections 1-2 and explains
+the one thing the earlier hypothesis could not (a start-direction miss), but it was not
+instrumented - no timestamp was logged from inside the SDK. Stated as the best-supported
+explanation, not as a proven one.
+
+--------------------------------------------------------------------------------
+4. The change, and what it is now able to fail on
+--------------------------------------------------------------------------------
+crates/integrations/src/link.rs:200-234 at the commit this transcript lands in: PLAY_VISIBLE_MS
+= 250, a `wait_playing(s, want, ms)` helper that polls state().playing and returns
+Some(elapsed ms) on convergence or None at the bound, and both directions of
+set_playing_reflected_in_state asserted through it. start_stop_propagates_to_peer's read of its
+own initiator (:337) got the same bound. Nothing left in the file asserts a transport state
+read back immediately after a commit - the two cross-peer polls already there use a 5 s deadline.
+
+  7 tests now, not 6: wait_playing_reports_a_timeout_when_nothing_changes (:235-243) commits
+  nothing and requires the helper to return None inside 60 ms. Without it, a helper that always
+  returned Some would keep this transcript's central claim untested.
+
+Non-vacuity of the repaired gate, measured by mutation rather than by argument. Run against the
+final formatted file (the line numbers below are the ones the change ships with):
+  abl_link_commit_app_session_state(...) commented out of set_playing (link.rs:140), same
+  command -
+    thread 'link::tests::set_playing_reflected_in_state' panicked at link.rs:223:9:
+      start never visible within 250 ms
+    thread 'link::tests::start_stop_propagates_to_peer' panicked at link.rs:335:9
+    test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 28 filtered out
+    cargo exit 101
+  Restored (`MUTATION-D030` grep count 0, git diff back to 45/3); the mutation exists only in
+  this paragraph and in no file.
+
+  Rates after the change, same host, same library, same commands:
+    30 group runs    : 30 clean, 0 red   target/link-flake-postfix.log
+    20 isolated runs : 20 clean, 0 red   target/link-flake-isolated.log (post-fix half)
+    plus 2 single runs used to compile-check the change                      : 2 clean
+  52 consecutive clean invocations, against 18/20 and 19/20 before.
+
+--------------------------------------------------------------------------------
+5. What this does and does not license
+--------------------------------------------------------------------------------
+PROVEN: the bound is load-bearing (section 4's mutation), the pre-fix failure is not caused by
+the group or by the mutex (section 1), the stale read converges sub-tick and in both directions
+(section 2), and 52 post-fix invocations are clean (section 4).
+
+NOT proven, and not claimed:
+  - That the SDK explanation in section 3 is the mechanism. It is the best-supported reading of
+    quoted code, uninstrumented.
+  - That the flake is gone. 52 runs at ~5 % is 0.7 expected pre-fix failures in the group half
+    alone; the change removes the assertion that was racing, so the honest claim is "the test
+    no longer asserts a property the SDK does not deliver", not "the transport is now reliable".
+  - What was already not proven and still is not (link-2026-11-15.txt:52-68 is unchanged on
+    this point): no Ableton Live peer has ever been observed in this repo's evidence, start/stop
+    propagation across processes is unevidenced, AT063's Max-transport and seek/loop clauses are
+    asserted by nothing, and the step still cannot run in CI because _upstream/ is gitignored.
+  - Consequence for consumers, flagged rather than fixed: a UI that reads `state()` immediately
+    after its own start/stop click can see the previous value for a few ms. Nothing in Flux does
+    that today (the CLI prints on a timer; the desktop preview re-pulls a snapshot), so this is
+    a documented property of the adapter, not a defect masked by the test change.

@@ -3789,11 +3789,11 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/integrations link tests (6: discovery, tempo convergence, single-master, start/stop, clock, enable) - feature `link` build, run here 13x on 2026-11-15",
-        "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 failures of set_playing_reflected_in_state at crates/integrations/src/link.rs:203)",
+        "crates/integrations link tests (7: discovery, tempo convergence, single-master, start/stop, clock, enable, poll guard) - feature `link` build, run here on 2026-11-15",
+        "implementation/evidence/link-2026-11-15.txt (11 of 13 invocations clean; 2 red at crates/integrations/src/link.rs:203 as it then was) + link-flake-2026-11-15.txt (mechanism, and 52 clean post-fix runs)",
         "implementation/evidence/link-a.txt + link-b.txt (cross-process peers=1, 2026-11-09 build; playing=false throughout, so start/stop is not shown cross-process)"
       ],
-      "blocker": "peer/tempo/phase/start-stop are asserted only in-process (both sessions in one process) and the step is not run-independent - 2 of 13 invocations failed at crates/integrations/src/link.rs:203 on 2026-11-15; Max transport and seek/loop are asserted by nothing, and no real Link host has ever joined"
+      "blocker": "peer/tempo/phase/start-stop are asserted only in-process (both sessions in one process); Max transport and seek/loop are asserted by nothing, and no real Link host has ever joined. D030 bounded the read-back rather than fixing it: a capture taken in the same instant as a commit can still return the previous value."
     },
     {
       "id": "AT064",
