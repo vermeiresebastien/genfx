@@ -1517,3 +1517,24 @@ transcript was rewritten: `link-2026-11-15.txt` still says `:203`, because that 
   about it, and this repo wraps upstream, it does not fork it.
 - `wait_peers` and the two 5 s cross-peer deadlines stay as they were: they wait on discovery,
   which is a different clock and a different failure.
+
+### Closing measurements
+
+The 52 clean runs above are the flake experiment, not the harness. The lane closed with the
+harness run the way a first-time user would meet it: `infrastructure/verify.ps1` full, at
+`519c286`, tree clean before the run, `FLUX_ABLETON_LINK_LIB` never exported into the shell. It
+printed `abl_link.lib resolved: D:\Projects\visual\genfx\_upstream\link\build\Release`, ran the
+`link-integration` step as seven assertions and seven oks, and finished `VERIFY: PASS` / exit 0 /
+**17 passed, 0 failed, 0 blocked_external**, with `verify.json` carrying `gitHash 519c286` and
+`gitDirty false`. That is D029's resolver earning its keep: the gate is now keyed on a file on
+disk, so the same command from a different shell gives the same verdict.
+
+`cargo run -q -p xtask -- evidence` then exit 0 restamped `manifest.json`: **32 files, 9 name their
+commit, 23 unattributed, 0 missing provenance**. The transcript this decision cites is the +1 file
+and the +1 unattributed, and it is the fourth of its kind: `link-flake-2026-11-15.txt` names
+`gitHash f49bb20` in its own `# provenance (F1)` header and still cannot be credited, because
+`cmd_evidence` extracts provenance from `.json` only (`crates/xtask/src/main.rs:183-193`). Lane 13
+counted three such files; the count it recorded was right then and is four now. Fixing the
+extractor to read a `# provenance` line out of text transcripts is a one-function change to a
+writer other lanes own, so it stays on the open list rather than being done under cover of a Link
+commit.
