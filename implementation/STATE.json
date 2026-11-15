@@ -37,6 +37,7 @@
       "passing_steps": "fmt, unit-tests (149 lib tests), integration-producer-tests (6), integration-export-matrix (6), integration-dag-parallel (4), golden (3), catalog, doctor, test-gpu, shaders-export, maxpat, fixtures, cli-build, gui-build, ndi-discovery",
       "skipped_steps": "link-integration (FLUX_ABLETON_LINK_LIB unset), spout-enumeration (FLUX_SPOUT_SHIM unset) - now recorded ok:null / status=blocked_external after the D020 harness repair",
       "evidence": "implementation/evidence/verify.json",
+      "re_run_at_head": "6d2130d (after D021) - bare run, same VERIFY: PASS / exit 0 / 15-0-2 counts; the committed file's gitHash is 6d2130d and only generatedAt + gitHash differ from the 75da874 run",
       "history": "at e84fe67 the same script ended VERIFY: FAIL on the fmt step alone, with 15 steps; the two harness defects in ci_defects_found_2026_11_14 were repaired before this PASS (D020)"
     },
     "gates_measured": {

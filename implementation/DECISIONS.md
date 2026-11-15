@@ -346,6 +346,12 @@ This is the first recorded run in this repository where the harness that defines
 parity exits 0 end to end. It is a statement about the tree at `75da874` on this host
 (RTX 2080 Ti / Vulkan / driver 560.94), and nothing else.
 
+The committed `verify.json` names a later tree: after D021 the harness was re-run bare at
+`6d2130d`, and the only fields that moved were `generatedAt` and `gitHash` — same
+`VERIFY: PASS`, exit 0, and 15/0/2 counts. That diff is itself the point of recording the
+hash: the file says which tree it speaks for, so a later reader can tell a re-run from a
+stale verdict.
+
 ### Not changed here
 
 - **`ndi-discovery` still overpromises its name.** It runs `ndi::`, which selects the 2
@@ -377,7 +383,7 @@ tree timed. All four are addressed here, and the first real numbers are recorded
 
 ### What the tool does now
 
-`BENCH_PROFILES` (`crates/xtask/src/main.rs:302-353`) maps a profile name to resolution, budget
+`BENCH_PROFILES` (`crates/xtask/src/main.rs:302-352`) maps a profile name to resolution, budget
 and graph. `ordinary` is 1920×1080 against 16.67 ms (`spec/VERIFICATION.md:138`); `4k` is
 3840×2160 against 33.33 ms (`:143`). An unknown profile exits 2 with the list of known names
 instead of silently benching the default, and a profile that names a node absent from the catalog

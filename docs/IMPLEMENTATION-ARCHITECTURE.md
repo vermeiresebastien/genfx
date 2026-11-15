@@ -444,7 +444,7 @@ into the downscaled RGBA8 texture, pads the row stride and blocks on
 native size, documented "Used by the exporter" (`:236-299`).
 
 **Verified: `read_preview` has exactly two callers** — `crates/render/src/tests.rs:164` and
-`crates/xtask/src/main.rs:371` (grep over the whole tree). The GUI and the exporter both go
+`crates/xtask/src/main.rs:477` (grep over the whole tree). The GUI and the exporter both go
 through `PreviewRenderer::render_single_frame` → `read_full`
 (`app/src/export.rs:319-610, 604`). The Rust-side 960×540 cap therefore does **not** bound
 the editor today. What bounds it is JavaScript: `apps/desktop/ui/main.js:185-191`
@@ -755,10 +755,10 @@ list** (`:51-94`), `fixtures` generates `fixtures/generated/{test_10s_60fps.mp4,
 test_2997.mp4, sine_1k_48k.wav}` via lavfi (`:96-161`), `catalog` lints duplicate ids and
 empty `implementation.path` (`:163-199`), `check` runs `cargo test -p` per package with a
 `--scope` filter (`:201-240`), `benchmark` takes a named profile from a `BENCH_PROFILES` table
-(`:302-353`) — `ordinary` (1920×1080, 16.67 ms budget) or `4k` (3840×2160, 33.33 ms) — and times
+(`:302-352`) — `ordinary` (1920×1080, 16.67 ms budget) or `4k` (3840×2160, 33.33 ms) — and times
 an 8-node merging generator→six-effect→output graph over 15 warm-up plus 120 sampled frames,
 reporting render and preview-copy separately with nearest-rank median/p95/p99, then sweeps 30
-(10 at 4K) single-generator graphs at 10 samples each with median/max only (`:496-660`); an
+(10 at 4K) single-generator graphs at 10 samples each with median/max only (`:496-656`); an
 unknown profile exits 2 rather than benching the default, and it exits 1 when the chain tail
 breaches the budget. `package` builds `flux-app --no-default-features` expecting
 `target/release/flux.exe` (`:775-806`). Two more
@@ -813,7 +813,7 @@ the native renderer uses).
 | GPU integration harness (metamorphic, skipping) | `crates/tests/src/lib.rs` | `14-16, 63-111, 218-349` |
 | GPU test serialisation lock (only two files) | `crates/tests/tests/dag_parallel.rs`, `node_editor.rs` | `10-17`, `15-19` |
 | Full-catalog GPU shader compile (panics without GPU) | `crates/render/src/tests.rs` | `13-33` |
-| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-49, 51-94, 242-287, 302-660` |
+| Evidence JSON writer | `crates/xtask/src/main.rs` | `18-49, 51-94, 242-287, 302-656` |
 | Requirements coverage generator | `crates/xtask/src/bin/requirements.rs` | `17-32` |
 | Tauri IPC surface (10 commands) | `apps/desktop/src-tauri/src/lib.rs` | `16-24, 32-47, 78, 95-98, 154-275, 308-349, 430-441` |
 | UI preview sizing (the effective cap) | `apps/desktop/ui/main.js` | `185-196, 198-215` |
@@ -853,7 +853,7 @@ Claims from the earlier survey that are **wrong as stated** (code is right):
    (`platform/src/lib.rs:54-79, 112-161`); camera *capture* is not implemented.
 7. **The 960×540 preview cap is not enforced by Rust in production.** `read_preview` has no
    production caller (`preview.rs:23-232`; callers are `render/src/tests.rs:164` and
-   `xtask/src/main.rs:371`); the effective limit is `main.js:185-196`.
+   `xtask/src/main.rs:477`); the effective limit is `main.js:185-196`.
 
 Divergences between code and the markdown, ordered by how much they will mislead:
 
