@@ -1682,7 +1682,8 @@ written here without provenance.
 `core.autocrlf=true` is not set by this repository — it comes from
 `file:C:/Program Files/Git/etc/gitconfig`, the system gitconfig — and there is no `.gitattributes`.
 Measured on this host: a fresh shallow clone checks `implementation/requirements.json` out with
-4049 CR bytes (the file is exactly 4049 lines), while this working tree has 0 because every writer
+4049 CR bytes, one per newline (the committed blob has 4049 newlines and no trailing one), while
+this working tree has 0 because every writer
 in the tree emits LF, and `crates/xtask/src/main.rs` clones at 1524 CR bytes for the same reason.
 The generator emits LF. So a raw byte-compare would have called a clean checkout stale on the first
 CI run, and the gate would have been switched off within a day. `--check` normalizes `\r\n` and
@@ -1704,10 +1705,19 @@ side are named, and if either side fails to parse — the worst case, a hand-edi
   already appeared in that count (it went from `running 2 tests` to `running 6`).
 - `cargo run -q -p xtask --bin requirements -- --check` on the tree at HEAD: exit 0, prints
   `requirements: …\implementation/requirements.json is fresh`, writes nothing.
-- Drift control, real hand-edit: one status in the committed ledger flipped to
-  `implemented_unverified` → exit **1**, report named `AT062.status` with both values, and the file
-  was NOT rewritten by the check (the subsequent no-flag run printed `wrote …` and produced a file
-  byte-identical to the pre-edit one — `cmp` exit 0, `git status` clean).
+- Two real mutations, both against the committed ledger rather than a fixture. A status flipped to
+  `implemented_unverified` → exit **1**, report named `AT062.status` with both values, and the check
+  did not rewrite the file (the subsequent no-flag run printed `wrote …` and produced a file
+  byte-identical to the pre-edit one — `cmp` exit 0, `git status` clean). The AT062 record then
+  deleted outright → exit 1 and `AT062: in this tree, not in the committed file`, which is the
+  one-sided-record branch exercised for real; the file was regenerated back to HEAD afterwards.
+- `infrastructure/verify.ps1` with the new step: **`VERIFY: PASS`, exit 0, passed=18 failed=0
+  blocked_external=0** — one step more than every run recorded before it. `verify.json` names
+  `requirements-freshness` with `{ exit: 0, ok: true }`, its printed line is
+  `requirements: …\implementation/requirements.json is fresh`, and the run resolved `abl_link.lib`
+  from `_upstream` with `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` both removed from the
+  environment. `gitDirty true` there is this record and `STATE.json` uncommitted while the gates
+  ran, both of them written from that run; the residue section below says what answers it.
 - Non-vacuity of the control: forcing `check_freshness()` to `return 0` at its first line left
   `committed_ledger_is_fresh` green and reddened exactly `one_status_flip_is_drift` (1 failed / 4
   passed — that probe ran on the five-test module, before the parse-fallback test below existed). A
@@ -1715,11 +1725,20 @@ side are named, and if either side fails to parse — the worst case, a hand-edi
   green.
 - `a_broken_ledger_is_located_not_panicked` exercises the parse-failure fallback, so that branch is
   not dead code with a comment claiming it works.
-- Not yet re-run: `infrastructure/verify.ps1`. Its new `requirements-freshness` step is one command
-  in one block, matching rule 1 of that script. The 18-step run at this commit is what the
-  follow-up commit that restamps the manifest records.
 
 ### What this does not close
+
+Two branches of `drift_lines` are reachable but were not exercised. The reverse one-sided arm — a
+record the committed file has and this tree no longer generates, printed as
+`AT0xx: in the committed file, not in this tree` — is the same two-map code as the deletion that was
+just measured, in the other direction, and saying that is not the same as measuring it. Neither was
+the `first differing line` fallback that fires when both sides parse, are semantically equal, and
+still differ byte-wise, which is what a reordered key would hit.
+
+The `infrastructure/verify.ps1` run above measured `gitDirty true`, because the uncommitted sources
+were this record and `STATE.json` — the two files that can only be written from that run's numbers;
+the clean-tree repeat is the paired evidence commit's job, unmeasured here. And no GitHub
+Actions run has been observed, so the `ci.yml` step is declared parity rather than evidence.
 
 The gate compares the artifact to its generator. It cannot compare either of them to reality: an
 `at_status()` arm that derives a confident wrong status from a path that exists will regenerate the
@@ -1739,7 +1758,7 @@ for a reader to infer.
 | `AGENTS.md` | the command enters Canonical commands (it now *is* CI parity); the harness trap that said "nothing in `ci.yml` or `verify.ps1` runs that command, so a hand-edit survives CI silently" is rewritten to what is true now |
 | `implementation/DECISIONS.md` | this record; D025's writer citation re-pointed; D029's `verify.ps1:200-202` re-pointed to `:201-203`; D031's "Not changed here" marked answered, not deleted |
 | `implementation/STATE.json` | `test_totals.passed` was still **204** while its own `measured` prose said 214 — D031 updated the sentence and left the field a machine reads; both now say 218 with the +4, plus a lane-18 handover paragraph. Its `verify.ps1:35`/`:81` citations are above the inserted step and did not move. |
-| `docs/PERFORMANCE-READINESS.md` | a seventh Test-totals run appended inside the existing row; the ledger's §1.4 line now names the `--check` mode. Held at 1076 lines, so its own inbound citations and the `IMPLEMENTATION-ARCHITECTURE.md:661`/`:875` targets do not move. |
+| `docs/PERFORMANCE-READINESS.md` | a seventh Test-totals run inside the Test totals row, and the 18-step CI-parity run inside the CI row, both appended without adding a line. Held at 1076 lines, so its own inbound citations and the `IMPLEMENTATION-ARCHITECTURE.md:661`/`:875` targets do not move. |
 | `docs/IMPLEMENTATION-ARCHITECTURE.md` | the catalog-is-authority sentence and the `xtask` bin inventory both name the comparison mode; 888 lines kept |
 | `implementation/FINAL-REPORT.md`, `README.md` | 214 → 218 with what the +4 are, inside the same number of lines (290 and 115) |
 
