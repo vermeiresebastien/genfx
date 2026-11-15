@@ -107,7 +107,9 @@ them first.
   19.57 ms), so one invocation is not a frame-budget verdict; and `presentation_misses` is
   `{measured: false}` because headless execution has no swapchain.
 - A gate pass **rewrites `implementation/evidence/*.json`**, which are tracked. A dirty tree
-  after verification is normal and is not a code change.
+  after verification is normal and is not a code change. Since D026, `gitDirty` in those files
+  is measured with `implementation/evidence/` excluded, so `gitDirty: true` means the *source*
+  was uncommitted — do not "fix" the exclusion by widening it back.
 
 ## Architecture rules that are not negotiable
 

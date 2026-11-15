@@ -129,8 +129,11 @@ if ($git) { $sha = (& git rev-parse --short HEAD | Select-Object -First 1) }
 # A gate that runs before its own tree is committed names its parent commit, which is how
 # `xtask evidence` came to report a fresh run as stamped_other_commit. Record the state of
 # the working tree so the SHA can be read correctly instead of trusted.
+# The evidence directory is excluded: every gate above rewrites tracked files in it, so an
+# unscoped check would call a clean tree dirty for reasons that have nothing to do with the
+# source being measured. Same scope xtask's provenance() uses.
 $dirty = $null
-if ($git) { $dirty = (@(& git status --porcelain).Count -gt 0) }
+if ($git) { $dirty = (@(& git status --porcelain -- ':(exclude,top)implementation/evidence').Count -gt 0) }
 
 $evidence = Join-Path $root 'implementation/evidence'
 New-Item -ItemType Directory -Force -Path $evidence | Out-Null
@@ -138,6 +141,7 @@ $payload = [ordered]@{
     generatedAt = (Get-Date).ToUniversalTime().ToString('o')
     gitHash = $sha
     gitDirty = $dirty
+    gitDirtyScope = 'working tree, excluding implementation/evidence/'
     rustc = (& rustc --version)
     quick = [bool]$Quick
     ok = $ok

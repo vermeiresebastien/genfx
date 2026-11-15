@@ -81,10 +81,17 @@ fn provenance() -> serde_json::Value {
         file_mtime_utc(p)
             .map(|(secs, utc)| json!({"path": p.display().to_string(), "mtimeUnix": secs, "mtimeUtc": utc}))
     });
+    // Dirt is a property of the source that was measured, not of this tool's own output.
+    // The gates run in sequence and each rewrites tracked files under
+    // implementation/evidence/, so an unscoped check reports the first writer of a run as
+    // clean and every writer after it as dirty at the same commit. The scope travels with
+    // the value because the exclusion is not guessable from the boolean.
+    let dirty_scope = ":(exclude,top)implementation/evidence";
     json!({
         "gitHash": git(&["rev-parse", "--short", "HEAD"]),
         "gitHashFull": git(&["rev-parse", "HEAD"]),
-        "gitDirty": git(&["status", "--porcelain"]).map(|s| !s.is_empty()),
+        "gitDirty": git(&["status", "--porcelain", "--", dirty_scope]).map(|s| !s.is_empty()),
+        "gitDirtyScope": "working tree, excluding implementation/evidence/",
         "generatedAtUtc": flux_domain::now_utc_pub(),
         "binary": binary,
         "host": json!({"os": std::env::consts::OS, "arch": std::env::consts::ARCH}),
@@ -254,6 +261,8 @@ fn cmd_evidence(_args: &[String]) -> i32 {
                 "mtimeUtc is a date, not a proof of provenance: a copy preserves it and a rebuild changes it for reasons unrelated to the source. The sha256 identifies the file on disk; two compiles of identical source will not hash equal on MSVC, so neither alone names a commit.",
                 "attribution=unattributed means nothing inside the file names a commit. These are hand-saved transcripts with no writer in the tree, including diagnostics.json, which `flux diagnostics` only prints.",
                 "stamped_other_commit is expected whenever a gate runs before its own work is committed; read provenance.gitDirty with it.",
+                "manifest.json's own row describes the manifest that was on disk when this scan ran — the writer cannot see the file it is about to produce. The provenance block of this payload is the first-party stamp for the current run.",
+                "provenance.gitDirty is measured on the working tree with implementation/evidence/ excluded, because a gate rewriting its own tracked evidence is not an uncommitted source change.",
             ],
             "binaries": binaries,
             "files": files,

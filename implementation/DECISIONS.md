@@ -707,7 +707,10 @@ names its **parent** commit, which is exactly what happened here: the `verify.js
 carried `gitHash: 3214caa` while HEAD was already `90d9e59`. Without the dirty flag that reads as
 tampering; with it, it reads as a re-run of the harness against the tree it started from. (The file
 has been rewritten since and now names `90d9e59` + `gitDirty: true` — the same shape one commit
-later, because this session keeps verifying before it keeps committing.)
+later, because this session keeps verifying before it keeps committing.) That sentence asked the
+flag to carry more than it could: it measured the whole working tree, so a gate that ran after
+another gate had rewritten its evidence called a clean tree dirty. D026 re-scoped it, and says what
+the field meant before that.
 
 `cargo run -p xtask -- evidence` then audits the directory and writes `manifest.json`: every file
 with bytes, mtime, the SHA it names, a `producer` and an `attribution` of `stamped_current` /
@@ -949,3 +952,73 @@ changed is that two of its ledger rows now claim less, and say which clause is m
   them is a decision about the command's contract, not a documentation repair.
 - The spec's acceptance text stays one human sentence per AC with one status field, so a four-clause
   AC can only ever be as verified as its weakest clause. Nothing in the schema expresses partials.
+
+## D026 — 2026-11-15 `gitDirty` was measuring the harness, not the source
+
+Committing D023–D025 made the tree clean for the first time in this sequence, which is the only
+condition under which a stamp can be read as anything but a confession. So
+`infrastructure/verify.ps1` ran again at `e110381` with an empty `git status` in front of it.
+
+### What the refresh said
+
+| evidence file | gitHash | gitDirty |
+|---|---|---|
+| `catalog.json` | `e110381` | **false** |
+| `doctor.json`, `test-gpu.json`, `fixtures.json`, `manifest.json`, `verify.json` | `e110381` | true |
+| `benchmark.json`, `package.json`, `soak-ordinary.json` | `90d9e59` | true |
+
+Six writers, one commit, one tree, two answers. Nothing was uncommitted but the evidence the run
+itself had just rewritten, and `catalog` — the first xtask writer in step order — ran before any of
+that existed. So the field D024 called load-bearing answered *did an earlier gate write a file
+before me*, not *was the source I measured at the commit I name*. Anyone who read it as the second
+thing would have to conclude that every stamp after the first gate in this repo was taken against
+unseen local edits, which is not true of a single one of them.
+
+The same pass caught a smaller mis-report. `manifest.json`'s own row said
+`90d9e59 / stamped_other_commit` inside a file whose `provenance` names `e110381`: `cmd_evidence`
+scans the directory and then writes into it, so the row describes the manifest that was on disk
+before the scan — a file that no longer exists. This one cannot be fixed by computing harder,
+because a writer cannot stat or size its own output before it produces it. The disposition is to
+stop implying otherwise, so the payload now carries a note: the self-row is the previous run's, the
+`provenance` block is this run's.
+
+### The change
+
+`crates/xtask/src/main.rs` measures dirt as
+`git status --porcelain -- ":(exclude,top)implementation/evidence"` and writes `gitDirtyScope`
+beside it, because an unqualified boolean with a hidden scope is how this entry came to exist.
+`infrastructure/verify.ps1` uses the same pathspec for `$dirty` and the same key in its payload.
+`cmd_evidence`'s `notes` gained the two sentences above.
+
+Probed before touching code, on the real tree: appending a newline to a tracked evidence file made
+unscoped `git status --porcelain` print 1 line and the excluded form print 0; restoring the file
+made both print 0. That is the whole mechanism, and the reason the fix is a pathspec rather than a
+second field.
+
+### Measured at this tree
+
+`cargo fmt --all -- --check` exit 0, no output. `cargo test --workspace -- --test-threads=1` exit 0
+— 204 passed / 0 failed / 0 ignored across 40 binaries. verify.ps1 parsed with `parse_errors=0`.
+The run that produced the table was `VERIFY: PASS`, exit 0, `steps: passed=15 failed=0
+blocked_external=2` — same verdict as D025's, same two blocked steps (`link-integration`,
+`spout-enumeration`).
+
+The table above is the only surviving proof of the defect, because the next refresh — at the commit
+carrying this change — is expected to report `gitDirty: false` for every writer on a tree whose
+`git status` still lists the evidence files it just wrote. That run is the end-to-end confirmation;
+this entry claims the mechanism, which was measured, and not the outcome, which was not.
+
+### Not changed here
+
+- Old stamps keep the old meaning. The single `gitDirty: false` committed before this change
+  (`catalog.json` at `e110381`) reads true under either rule, so no earlier claim flips.
+- `benchmark.json`, `package.json` and `soak-ordinary.json` stay `stamped_other_commit` at
+  `90d9e59`: this commit re-ran neither, and an evidence file is a measurement, not a date stamp to
+  refresh for appearances.
+- Untracked files still count as dirt. That is the case the field exists to catch; only this tool's
+  own output is excluded.
+- The citation re-derivation that went in with `e110381` belongs to D025's method, not this lane:
+  D025's own counts (81 internal, 161 code/spec) reproduced exactly, while `STATE.json` had been
+  crediting the sweep with 71. Re-measured here at 242 citations across the six status docs plus
+  `docs/IMPLEMENTATION-ARCHITECTURE.md`, 0 unresolved, 0 out of range, 0 blank targets;
+  `docs/USER-GUIDE.md` contributes none to either bucket.
