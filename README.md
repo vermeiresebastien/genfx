@@ -71,9 +71,9 @@ until the commit that reformats the tree, HEAD did **not** pass its own first CI
 (`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of it in
 `ci.yml` therefore never ran in GitHub Actions, even though all of it passed locally.
 It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is still
-green behind the reformat — 214 passed, 0 failed across 40 result lines (29 test binaries
-+ 11 doctests), re-measured 2026-11-15 on the D031 tree; it was 196 before the OSC receive
-bridge (D022) added 8, D027's guard test 1, D028's ledger-routing guards 2 and D031's 7.
+green behind the reformat — 218 passed, 0 failed across 40 result lines (29 test binaries
++ 11 doctests), re-measured 2026-11-15 on the D032 tree; it was 196 before the OSC receive
+bridge (D022) added 8, then +1 D027, +2 D028, +7 D031 and +4 D032's freshness guards.
 The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
 a single exit-code read, and recorded skipped SDK gates as passes. Both are fixed (D020),

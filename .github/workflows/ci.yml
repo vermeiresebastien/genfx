@@ -39,6 +39,11 @@ jobs:
         run: cargo run -q -p xtask -- test-gpu --profile baseline
       - name: Shader harness export (Naga validate)
         run: cargo run -q -p xtask --bin export_shaders
+      # Compares the committed ledger with what the generator produces, writes nothing.
+      # A Windows checkout materializes this file as CRLF (measured in a fresh clone of
+      # this repo) while the generator emits LF, so --check normalizes both sides first.
+      - name: Requirements ledger freshness (generated file matches its generator)
+        run: cargo run -q -p xtask --bin requirements -- --check
       - name: Max for Live patch structure
         run: node apps/max-for-live/check-maxpat.cjs
       - name: Media fixtures

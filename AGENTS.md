@@ -37,6 +37,7 @@ cargo run -q -p xtask -- catalog
 cargo run -q -p xtask -- doctor
 cargo run -q -p xtask -- test-gpu --profile baseline
 cargo run -q -p xtask --bin export_shaders
+cargo run -q -p xtask --bin requirements -- --check
 node apps/max-for-live/check-maxpat.cjs
 cargo build -p flux-desktop
 ```
@@ -107,13 +108,19 @@ them first.
   discovery list is still exit 0 because finding nothing is an answer.
 - **`implementation/requirements.json` is generated, so its statuses are code.** For acceptance
   rows the strings come from `at_status()` and `at_blocker()`; `blocker_for()` serves the
-  requirement and generator rows. A hand-edit of the JSON is undone by the next
-  `cargo run -q -p xtask --bin requirements` — but nothing in `ci.yml` or `infrastructure/verify.ps1`
-  runs that command, so a hand-edit or a stale status survives CI silently. When a status
-  overpromises, fix the generator arm (D025 did AT060 and AT063) and expect every line-number
-  citation below the changed record to shift by the number of lines the record grew — re-resolve
-  them rather than eyeballing, and remember a citation written as `requirements.json:3819, 3829`
-  has a second number a `file:NNN` regex never matches.
+  requirement and generator rows. Since D032 both harnesses run
+  `cargo run -q -p xtask --bin requirements -- --check`: it compares the committed bytes with what
+  the generator would produce and exits 1 naming the record and field, so a hand-edit — or a status
+  that drifted from the arm that is supposed to derive it — reddens CI instead of surviving
+  silently. Line endings are normalized on both sides for a reason: `core.autocrlf=true` comes from
+  the *system* gitconfig on the verifying host, so a fresh clone checks this file out as CRLF while
+  the generator emits LF, and an unnormalized byte-compare would report drift on a clean checkout.
+  `implementation/evidence/manifest.json` is deliberately **not** gated that way: it is a
+  measurement of the run that wrote it (mtimes, binary hashes, `gitDirty`), so a byte-compare would
+  fail with nothing broken. When a status overpromises, fix the generator arm (D025 did AT060 and
+  AT063) and expect every line-number citation below the changed record to shift by the number of
+  lines the record grew — re-resolve them rather than eyeballing, and remember a citation written
+  as `requirements.json:3819, 3829` has a second number a `file:NNN` regex never matches.
 - **A grouped `match` arm in that generator is a silent evidence-rotation bug** (D028). `"AT057" |
   "AT058" | "AT059" =>` gives one evidence list to a live take, Spout and Syphon, and nothing fails.
   Group only when the acceptance tests share a subject — AT067–AT070 are four clauses of one export

@@ -802,7 +802,7 @@ path" is no longer true of the tree on disk, and is now checkable rather than as
 Lane 3's leftover was stated as "ndi-discovery still names more than its 2 tests prove", and D023
 fixed that inside the harness. Following the same thread one level up found the identical defect
 shape in the status ledger: `implementation/requirements.json` is **generated** (`generatedBy:
-"cargo xtask report (requirements)"`, writer `crates/xtask/src/bin/requirements.rs:174`), and its
+"cargo xtask report (requirements)"`, writer `crates/xtask/src/bin/requirements.rs:584`, was `:174` until D032 separated generating from writing), and its
 AT060 row asserted `verified` because a `match` arm three hundred lines earlier says so.
 
 ### Why editing the JSON would have been the wrong repair
@@ -1133,7 +1133,7 @@ trusting the gate.
 `target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
 
 `verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
-(`infrastructure/verify.ps1:200-202`, was `:187-189`) so a run states which prerequisites it could reach. The
+(`infrastructure/verify.ps1:201-203`, was `:200-202` until D032 inserted a step above it) so a run states which prerequisites it could reach. The
 step list alone cannot: a blocked step and an absent SDK look identical, and a step that ran
 because a vendored library happened to be on the machine is not a step that ran on CI.
 
@@ -1650,3 +1650,108 @@ shipped product, so the "no production caller" point stands. The file is kept at
   neither is and the prose says so.
 - The `stamped` key keeps its old meaning (writer-injected only) rather than becoming
   stamped+header. A count that silently changes what it counts is how this lane started.
+
+## D032 — 2026-11-15 one generated file is now freshness-gated, and the other is documented as ungatable
+
+### The gap
+
+Four lanes in a row recorded the same open item, and D031's "Not changed here" asked for one
+decision covering both generated tracked files. `implementation/requirements.json` is written by
+`cargo run -q -p xtask --bin requirements`, its statuses are produced by `at_status()` /
+`at_blocker()` / `blocker_for()`, and neither `ci.yml` nor `infrastructure/verify.ps1` ran that
+command — so a hand-edit of the ledger, or a status that drifted away from the arm supposed to
+derive it, was invisible to every gate in the repo. The fix cannot be "run the generator in CI":
+that rewrites a tracked file during a verification step, which is how a green job ends up shipping a
+diff. The fix is a comparison that writes nothing.
+
+### The two files are not the same kind of object, so they get different treatment
+
+| file | what is in it | byte-gateable |
+|---|---|---|
+| `implementation/requirements.json` | a pure function of the tree: spec ids, catalog rows, statuses derived from paths that exist. No timestamp, no mtime, no git SHA; `generatedBy` is a fixed string. | **yes** — `--check`, now wired into both harnesses |
+| `implementation/evidence/manifest.json` | a measurement of the run that wrote it: per-file mtimes, sha256 of four binaries, `gitHash`/`gitDirty`, and a row describing the manifest that existed *before* the writer ran. | **no** — by construction, not by oversight |
+
+Gating the second would report drift on every second invocation of any gate with nothing broken, so
+it is documented inside its own `notes` array instead: the note now says the file is deliberately
+not freshness-gated, names the reason, and points at the command that gates the file that can be.
+`xtask evidence` keeps the weaker check it already had — exit 1 only when an xtask-owned file was
+written here without provenance.
+
+### CRLF is not a hypothetical here, and that decided the shape of the comparison
+
+`core.autocrlf=true` is not set by this repository — it comes from
+`file:C:/Program Files/Git/etc/gitconfig`, the system gitconfig — and there is no `.gitattributes`.
+Measured on this host: a fresh shallow clone checks `implementation/requirements.json` out with
+4049 CR bytes (the file is exactly 4049 lines), while this working tree has 0 because every writer
+in the tree emits LF, and `crates/xtask/src/main.rs` clones at 1524 CR bytes for the same reason.
+The generator emits LF. So a raw byte-compare would have called a clean checkout stale on the first
+CI run, and the gate would have been switched off within a day. `--check` normalizes `\r\n` and
+lone `\r` to `\n` on both sides before comparing, which is exactly the conversion git itself does on
+commit — content is compared, encoding is not.
+
+### What the gate says when it fails
+
+Record-level, not a byte offset: `AT062.status: committed "implemented_unverified", generated
+"blocked_external"`, up to 20 lines, plus the command that fixes it. Records present on only one
+side are named, and if either side fails to parse — the worst case, a hand-edit that broke the JSON
+— it falls back to the first differing line instead of panicking.
+
+### Measured
+
+- `cargo fmt --all -- --check` exit 0.
+- `cargo test --workspace -- --test-threads=1` exit 0 — **218 passed / 0 failed / 0 ignored across
+  the same 40 result lines**. The +4 are `mod freshness` in the `requirements` bin target, which
+  already appeared in that count (it went from `running 2 tests` to `running 6`).
+- `cargo run -q -p xtask --bin requirements -- --check` on the tree at HEAD: exit 0, prints
+  `requirements: …\implementation/requirements.json is fresh`, writes nothing.
+- Drift control, real hand-edit: one status in the committed ledger flipped to
+  `implemented_unverified` → exit **1**, report named `AT062.status` with both values, and the file
+  was NOT rewritten by the check (the subsequent no-flag run printed `wrote …` and produced a file
+  byte-identical to the pre-edit one — `cmp` exit 0, `git status` clean).
+- Non-vacuity of the control: forcing `check_freshness()` to `return 0` at its first line left
+  `committed_ledger_is_fresh` green and reddened exactly `one_status_flip_is_drift` (1 failed / 4
+  passed — that probe ran on the five-test module, before the parse-fallback test below existed). A
+  comparator that always says "fresh" therefore cannot pass the suite. Probe removed; all six are
+  green.
+- `a_broken_ledger_is_located_not_panicked` exercises the parse-failure fallback, so that branch is
+  not dead code with a comment claiming it works.
+- Not yet re-run: `infrastructure/verify.ps1`. Its new `requirements-freshness` step is one command
+  in one block, matching rule 1 of that script. The 18-step run at this commit is what the
+  follow-up commit that restamps the manifest records.
+
+### What this does not close
+
+The gate compares the artifact to its generator. It cannot compare either of them to reality: an
+`at_status()` arm that derives a confident wrong status from a path that exists will regenerate the
+same wrong bytes and pass. That is what `mod evidence_routing` is for, and it is a smaller claim
+than "the ledger is true". Nothing in either harness runs `xtask evidence`, so `manifest.json` is
+still only as fresh as the last person who typed it — now stated in the file itself rather than left
+for a reader to infer.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/xtask/src/bin/requirements.rs` | `main()` split into `generate()` (returns the bytes) + `main()` (owns the disk); `normalize_newlines`, `check_freshness`, `drift_lines`, `records_by_id`, `union_keys`, `short`, `first_diff_line`; `mod freshness` (4 tests). 571 → 802 lines, all of it below the last cited line. |
+| `crates/xtask/src/main.rs` | one existing `notes` element in `cmd_evidence` extended to state that `manifest.json` is deliberately not freshness-gated. Line count kept at 1524 so the eight citations D031 re-resolved did not move. |
+| `infrastructure/verify.ps1` | new `Step 'requirements-freshness'` after `shaders-export` (218 lines) |
+| `.github/workflows/ci.yml` | matching step, with the autocrlf reason in a comment above it |
+| `AGENTS.md` | the command enters Canonical commands (it now *is* CI parity); the harness trap that said "nothing in `ci.yml` or `verify.ps1` runs that command, so a hand-edit survives CI silently" is rewritten to what is true now |
+| `implementation/DECISIONS.md` | this record; D025's writer citation re-pointed; D029's `verify.ps1:200-202` re-pointed to `:201-203`; D031's "Not changed here" marked answered, not deleted |
+| `implementation/STATE.json` | `test_totals.passed` was still **204** while its own `measured` prose said 214 — D031 updated the sentence and left the field a machine reads; both now say 218 with the +4, plus a lane-18 handover paragraph. Its `verify.ps1:35`/`:81` citations are above the inserted step and did not move. |
+| `docs/PERFORMANCE-READINESS.md` | a seventh Test-totals run appended inside the existing row; the ledger's §1.4 line now names the `--check` mode. Held at 1076 lines, so its own inbound citations and the `IMPLEMENTATION-ARCHITECTURE.md:661`/`:875` targets do not move. |
+| `docs/IMPLEMENTATION-ARCHITECTURE.md` | the catalog-is-authority sentence and the `xtask` bin inventory both name the comparison mode; 888 lines kept |
+| `implementation/FINAL-REPORT.md`, `README.md` | 214 → 218 with what the +4 are, inside the same number of lines (290 and 115) |
+
+### Citation churn
+
+The refactor was laid out to keep inbound line numbers valid: `generate()` occupies exactly the
+span `main()` did (18-177), and `record`, `product_paths`, `blocker_for`, `task_status`,
+`at_status` (290-465), `at_blocker` (472-526) and `mod evidence_routing` (528-571) were not touched,
+so `requirements.rs:22-32`/`:26-32` (`IMPLEMENTATION-ARCHITECTURE.md:100`, `:330`), `:374`/`:393`/
+`:396`/`:424`/`:445`/`:453`/`:472`/`:494`/`:512` (`DECISIONS.md:825`, `:1284`,
+`PERFORMANCE-READINESS.md:245`, `:426`) and `:528-571` (`DECISIONS.md:1267`, `STATE.json:134`) are
+all still exact. Two citations did move and both are re-pointed rather than left: `DECISIONS.md:805`
+(cites `requirements.rs:174`, the writer, now `:584`) and `DECISIONS.md:1136` (cites
+`verify.ps1:200-202`, shifted by one inserted step to `:201-203`). `ci.yml:29`/`:31` and
+`verify.ps1:32`/`:35`/`:47-61`/`:77`/`:81`/`:99` sit above their insertions and are unchanged.

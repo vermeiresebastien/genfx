@@ -97,7 +97,7 @@ Shaders recover seconds with `time_seconds() = clock.x + clock.y`
 per node type → parameter UI (`apps/desktop/ui/view/inspector.js:300-306` switches on
 `decl.kind`), uniform packing (`catalog/src/pack.rs`), WGSL (`catalog/src/shader_gen.rs`),
 docs/tests (`crates/catalog/src/tests.rs`), and the requirement coverage report
-(`crates/xtask/src/bin/requirements.rs:22-32`, output `implementation/requirements.json`).
+(`crates/xtask/src/bin/requirements.rs:22-32`, output `implementation/requirements.json`, which both harnesses re-generate in memory and byte-compare with `--check` rather than trusting the committed file).
 There is no `.wgsl` file on disk for catalog nodes and no `build.rs` in `flux-catalog`;
 shader text is assembled at runtime.
 
@@ -770,9 +770,9 @@ unknown profile exits 2 rather than benching the default, and it exits 1 when th
 breaches the budget. `package` builds `flux-app --no-default-features` expecting
 `target/release/flux.exe` (`:1397-1524`). Two more
 bins exist: `requirements` (regenerates `implementation/requirements.json` from
-`spec/SPEC-INDEX.json` + the live catalog) and `export_shaders` (dumps
-`apps/shader-harness/shaders.json` and Naga-validates every shader with the same validator
-the native renderer uses).
+`spec/SPEC-INDEX.json` + the live catalog; `--check` compares instead of writing, which is the form
+both harnesses run) and `export_shaders` (dumps `apps/shader-harness/shaders.json` and
+Naga-validates every shader with the same validator the native renderer uses).
 
 ---
 

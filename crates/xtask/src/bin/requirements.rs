@@ -1,10 +1,10 @@
-//! Generate `implementation/requirements.json` from the spec index and the
-//! live catalog. Every R/FX/G/T/AT id becomes a record with real status and
-//! implementation paths; status is derived from evidence, never fabricated.
+//! Generate `implementation/requirements.json` from the spec index and the live
+//! catalog: every R/FX/G/T/AT id becomes a record whose status is derived from
+//! evidence, never fabricated. `--check` compares instead of writing (see main).
 
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -15,7 +15,7 @@ fn root() -> PathBuf {
         .to_path_buf()
 }
 
-fn main() {
+fn generate() -> String {
     let spec: Value = serde_json::from_str(
         &std::fs::read_to_string(root().join("spec/SPEC-INDEX.json")).unwrap(),
     )
@@ -171,9 +171,9 @@ fn main() {
         },
         "records": records,
     });
-    let path = root().join("implementation/requirements.json");
-    std::fs::write(&path, serde_json::to_string_pretty(&out).unwrap()).unwrap();
-    println!("wrote {}", path.display());
+    // generate() owns the bytes; main() owns the disk — either writes them or
+    // compares them against what is committed. Nothing here touches the file.
+    serde_json::to_string_pretty(&out).unwrap()
 }
 
 fn record(
@@ -567,5 +567,236 @@ mod evidence_routing {
     fn absent_code_is_blocked_not_implemented() {
         assert_eq!(at_status("AT059").0, "blocked_external");
         assert_eq!(at_status("AT062").0, "blocked_external");
+    }
+}
+
+/// No flag: write the ledger. `--check`: say whether the committed ledger is what
+/// this tree would produce, and write nothing. The second form exists because
+/// neither `ci.yml` nor `verify.ps1` used to run this generator at all, so a
+/// hand-edit of `requirements.json` — or a status that drifted away from the
+/// `at_status()` arm that is supposed to derive it — survived CI silently.
+fn main() {
+    let body = generate();
+    let path = root().join("implementation/requirements.json");
+    if std::env::args().any(|a| a == "--check") {
+        std::process::exit(check_freshness(&path, &body));
+    }
+    std::fs::write(&path, &body).unwrap();
+    println!("wrote {}", path.display());
+}
+
+/// Git can hand Windows a CRLF working tree while this generator always emits LF.
+/// That is an encoding of the same bytes, not a change of content, so both sides
+/// are normalised before they are compared — otherwise the gate fails a clean
+/// checkout and gets switched off.
+fn normalize_newlines(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// 0 = the file on disk is what this tree generates, 1 = it is not,
+/// 2 = there is no file to compare against.
+fn check_freshness(path: &Path, body: &str) -> i32 {
+    let on_disk = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("requirements: cannot read {}: {e}", path.display());
+            return 2;
+        }
+    };
+    let (committed, generated) = (normalize_newlines(&on_disk), normalize_newlines(body));
+    if committed == generated {
+        println!("requirements: {} is fresh", path.display());
+        return 0;
+    }
+    eprintln!(
+        "requirements: {} is not what this tree generates",
+        path.display()
+    );
+    let diffs = drift_lines(&committed, &generated);
+    for d in diffs.iter().take(20) {
+        eprintln!("  {d}");
+    }
+    if diffs.len() > 20 {
+        eprintln!("  ... and {} more", diffs.len() - 20);
+    }
+    eprintln!("  fix: cargo run -q -p xtask --bin requirements   (then commit the file)");
+    1
+}
+
+/// Named field paths, not a byte offset: the value of this message is knowing
+/// which record moved, and a diff of a 4 000-line pretty-printed JSON file tells
+/// you nothing you would not rather find by reading the generator.
+fn drift_lines(committed: &str, generated: &str) -> Vec<String> {
+    let parsed = serde_json::from_str::<Value>(committed)
+        .and_then(|a| serde_json::from_str::<Value>(generated).map(|b| (a, b)));
+    let (a, b) = match parsed {
+        Ok(v) => v,
+        Err(_) => {
+            return vec![format!(
+                "one side is not valid JSON; first differing line is {}",
+                first_diff_line(committed, generated)
+            )]
+        }
+    };
+    let mut out = vec![];
+    for key in union_keys(&a, &b) {
+        if key == "records" {
+            continue;
+        }
+        if a.get(&key) != b.get(&key) {
+            out.push(format!(
+                "{key}: committed {}, generated {}",
+                short(a.get(&key)),
+                short(b.get(&key))
+            ));
+        }
+    }
+    let (ca, cb) = (records_by_id(&a), records_by_id(&b));
+    for id in ca.keys().filter(|k| !cb.contains_key(k.as_str())) {
+        out.push(format!("{id}: in the committed file, not in this tree"));
+    }
+    for id in cb.keys().filter(|k| !ca.contains_key(k.as_str())) {
+        out.push(format!("{id}: in this tree, not in the committed file"));
+    }
+    for id in cb.keys().filter(|k| ca.contains_key(k.as_str())) {
+        let (x, y) = (ca.get(id).unwrap(), cb.get(id).unwrap());
+        if x == y {
+            continue;
+        }
+        for field in union_keys(x, y) {
+            if x.get(&field) != y.get(&field) {
+                out.push(format!(
+                    "{id}.{field}: committed {}, generated {}",
+                    short(x.get(&field)),
+                    short(y.get(&field))
+                ));
+            }
+        }
+    }
+    if out.is_empty() {
+        out.push(format!(
+            "first differing line is {}",
+            first_diff_line(committed, generated)
+        ));
+    }
+    out
+}
+
+fn records_by_id(v: &Value) -> BTreeMap<String, &Value> {
+    v["records"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|r| (r["id"].as_str().unwrap_or_default().to_string(), r))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn union_keys(a: &Value, b: &Value) -> Vec<String> {
+    let keys = |v: &Value| -> Vec<String> {
+        v.as_object()
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default()
+    };
+    keys(a)
+        .into_iter()
+        .chain(keys(b))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn short(v: Option<&Value>) -> String {
+    match v {
+        None => "absent".to_string(),
+        Some(v) => {
+            let s = v.to_string();
+            let n = s.chars().count();
+            if n > 96 {
+                format!("'{}...'", s.chars().take(96).collect::<String>())
+            } else {
+                s
+            }
+        }
+    }
+}
+
+fn first_diff_line(a: &str, b: &str) -> usize {
+    a.lines()
+        .zip(b.lines())
+        .position(|(x, y)| x != y)
+        .map(|i| i + 1)
+        .unwrap_or_else(|| a.lines().count().min(b.lines().count()) + 1)
+}
+
+#[cfg(test)]
+mod freshness {
+    use super::{check_freshness, generate, normalize_newlines, root};
+    use std::path::PathBuf;
+
+    fn scratch(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "flux-requirements-{name}-{}.json",
+            std::process::id()
+        ))
+    }
+
+    /// The gate is only worth having if the committed ledger really is what the
+    /// generator produces; this is the same assertion CI makes, inside the suite.
+    #[test]
+    fn committed_ledger_is_fresh() {
+        let path = root().join("implementation/requirements.json");
+        assert_eq!(
+            check_freshness(&path, &generate()),
+            0,
+            "{} is not what `cargo run -q -p xtask --bin requirements` produces",
+            path.display()
+        );
+    }
+
+    /// Control for the control: without a mutation that must be caught, a check
+    /// that always returns 0 would look exactly like a passing freshness gate.
+    #[test]
+    fn one_status_flip_is_drift() {
+        let body = generate();
+        let marker = "\"status\": \"implemented_unverified\"";
+        let flipped = body.replacen(marker, "\"status\": \"verified\"", 1);
+        assert_ne!(
+            flipped, body,
+            "no record was flipped — this control proves nothing"
+        );
+        assert_eq!(
+            normalize_newlines(&flipped).lines().count(),
+            normalize_newlines(&body).lines().count(),
+            "the flip changed the shape of the file, not a status"
+        );
+        let path = scratch("drift");
+        std::fs::write(&path, &flipped).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// CRLF in the working tree is git's doing, not a hand-edit.
+    #[test]
+    fn crlf_is_not_drift() {
+        let body = generate();
+        let path = scratch("crlf");
+        std::fs::write(&path, body.replace('\n', "\r\n")).unwrap();
+        assert_eq!(check_freshness(&path, &body), 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A hand-edit that breaks the syntax is the worst case, so the report still
+    /// has to say where the file diverges instead of panicking on a parse.
+    #[test]
+    fn a_broken_ledger_is_located_not_panicked() {
+        let body = generate();
+        let cut = body.chars().count() / 2;
+        let broken = body.chars().take(cut).collect::<String>() + "\"trailing\": ,}";
+        let path = scratch("broken");
+        std::fs::write(&path, &broken).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
     }
 }
