@@ -1915,3 +1915,151 @@ D032's churn list were untouched because no script or workflow changed here. `do
 `implementation/` keep the line counts their own inbound citations depend on; DECISIONS.md grows only
 below 1302, where nothing is cited.
 
+
+## D034 — 2026-11-15 the last two unexercised report branches are driven, and one of them prints a truncation
+
+### What D033 left, and why it was still worth driving
+
+D033's own "What this does not close" named two report shapes with no invocation behind them:
+the top-level key loop in `drift_lines` (`specVersion`, `generatedBy`, `counts` — reached only if
+one of those moves, and nothing had ever moved one), and the `... and N more` cap in
+`check_freshness`, which no mutation in D028-D033 had reached because every control produced one or
+two drifts. Both are cheap to drive and both were saying something the code had not admitted.
+
+### `counts` is a derived summary, so a disagreement there is invisible to the record loop
+
+`counts` is computed from the spec arrays at `crates/xtask/src/bin/requirements.rs:165-170` while
+`records` is built from the same arrays one loop lower, so the two are separate derivations of the
+same source and can disagree. The per-record loop cannot see that class at all: it walks ids present
+on both sides, and a summary-only edit changes no id. Before this lane, a hand-edit of the summary
+block reported `first differing line is N` — the fallback, true but useless, since the whole point of
+the message is to name what moved. Now:
+
+```
+counts: committed {"product":24,"effects":28,"effectFamilies":24,"generators":156,"tasks":28,"acceptance":84}, generated {"product":24,"effects":28,"effectFamilies":24,"generators":156,"tasks":28,"acceptance":85}
+```
+
+printed, by `check_freshness`, with two leading spaces of its own (`eprintln!("  {d}")`). Each side is
+91 characters, so `short()` leaves it intact and unquoted; a value over 96 would arrive as an opening
+`'`, the first 96 characters, then `...'` — which is how you can tell the two apart in a CI log.
+
+### Twenty-five drifts is the size at which the cap becomes observable
+
+`check_freshness` prints `diffs.iter().take(20)` and then `... and {} more`
+(`crates/xtask/src/bin/requirements.rs:616-621`). Nothing produced more than two drifts until now, so
+that `if` had never been evaluated. The new test mutates `status` on the first 25 records — the field
+the gate exists to police, not a harmless scalar, so a comparator that special-cased status would
+still be caught — and the run with `--nocapture` prints exactly 20 rows (`FX001` first, then
+`R001`-`R019`) followed by `... and 5 more`. `FX001` first is not the order of the file: `records`
+is indexed into a `BTreeMap` by id (`:685`), so the report walks ids in sorted order while the ledger's
+own order is `R001`-`R024`, `FX001` twenty-fifth. That is worth knowing before reading a truncation,
+because it decides which rows the cap drops — here `R020`-`R024`, the five with no room. Counting the
+printed rows with a `^  R0` filter gives 19 and is wrong: the cap counts drift rows, not record ids
+matching a pattern.
+
+The test asserts `drift_lines().len() == 25` and that every row is a `<id>.status` carrying both
+values; it does not assert the printed cap. That is deliberate: the cap is display code inside a
+function that returns an exit code, and a test that re-derived the message text from the constant
+would be a tautology. What behaviour *is* on the line is the alternative the cap protects against —
+collapsing 25 real drifts into the line-number fallback — so the test asserts 25 named rows and
+`!report.iter().any(|r| r.starts_with("first differing line"))`.
+
+### A 96-character cap is now part of the contract, on purpose
+
+`short()` truncates any reported value past 96 chars (`crates/xtask/src/bin/requirements.rs:715-724`),
+and the real `counts` object is 91 — so the assertion that the row names `"acceptance"` on both sides
+also asserts that the summary block still fits inside the message. If a spec category ever grows to
+four digits, or an eighth key is added,
+that test goes red and someone has to decide whether to widen `short()` or report `counts` field by
+field. That is a better moment to have the conversation than a CI failure whose report says
+`counts: committed {"product":24,...` and nothing about what moved.
+
+### A native crash in the same tree, recorded separately from this lane
+
+The first `cargo test --workspace -- --test-threads=1` on the D034 tree did not finish. It got
+through 11 result lines and started a 12th binary, `-p flux-render --lib`, which died inside
+`tests::row_stride_matches_preview_copy` with `exit code: 0xc0000005, STATUS_ACCESS_VIOLATION`, which
+cargo surfaces as exit 139 and an `error: test failed, to rerun pass` note; the whole run stops there,
+so 28 of the 40 result lines never appear — the other 17 test binaries and all 11 doctests. The test is
+six lines of source
+(`crates/render/src/tests.rs:176-181`): a 100x10 RGBA `render_offscreen`, an assert that the readback
+is `100 * 10 * 4` bytes. Nothing in this lane can reach it — the two new tests mutate a `String` of
+JSON in memory and a temp file.
+
+Probes, before any re-run of the suite: the same binary alone ten times, `--test-threads=1`,
+`cargo test -q -p flux-render --lib` → **10 exits of 0, 8 passed each time**, the stride test among
+them. So it is not deterministic in isolation, and there is no mechanism here. What is true is only
+what was measured: one workspace-length run produced a native fault inside a test whose whole body is a
+GPU render and a readback, ten short runs did not, and the repo has no prior record of
+`STATUS_ACCESS_VIOLATION` anywhere in its docs, evidence
+or transcripts (`grep` over `*.md`, `*.json`, `*.txt` for `STATUS_ACCESS_VIOLATION`, `0xc0000005`,
+`exit code: 139`, `signal: 11`: zero files). The temptation in this repository's own history — D027
+guessed a quantum boundary for the Link flake and D030 had to read the vendored SDK to find the real
+race — is the reason this paragraph stops at the counts.
+
+### Measured
+
+- `cargo test -q -p xtask --bin requirements -- --test-threads=1` — exit 0, **10 passed / 0 failed**
+  (was 8).
+- `cargo test --workspace -- --test-threads=1` — the first invocation on this tree exited 139 at
+  `flux-render` (above). The second, with nothing changed between them, and a third after this
+  record's doc comment had landed in the source, both exited 0 at **222 passed / 0 failed / 0 ignored
+  across the same 40 result lines** (29 test binaries + 11 doctests), with
+  `tests::row_stride_matches_preview_copy` `ok` inside each, and both D034 tests `ok` inside each. The
+  runs went to scratch logs under the gitignored `target/`, so no line number in them is evidence
+  anyone can re-open: this paragraph is
+  the record, and the re-runnable claim is the command above. So the crash reproduced 0 times in 10
+  short runs and 1 time in 3 long ones, and the +2 over D033's 220 are
+  these two tests, in the `requirements` bin target that has been one of those 40 lines since D028.
+- Probe A, the top-level key loop switched off with a local `const PROBE_SKIP_TOP_LEVEL: bool =
+  true`: **9 passed / 1 failed**, `freshness::a_hand_edited_counts_block_is_named` panicking at the
+  reported line 898, which is the `assert!` starting at `crates/xtask/src/bin/requirements.rs:897` in
+  the file as committed — one line of difference, which is the one `const` the probe added above it.
+  The probe files were not kept, so that arithmetic cannot be re-derived; what was re-derived is the
+  committed number, read off the reverted file rather than computed from the panic. Probe B, the per-field loop replaced by a single generic
+  `{id}: differs` row: **9 passed / 1 failed**, `twenty_five_drifts_are_counted_record_by_record` at
+  reported 944, which was `:940` in the file the probe ran against and is `:943` in the tree as
+  committed — this lane's own doc comment later added three lines above it, which is the churn rule
+  biting inside a single lane rather than across two. That is worth noting on its own: probe B still
+  produced exactly 25
+  rows, so the `report.len() == 25` assertion passed under a broken comparator and it was the
+  "every row names `<id>.status` with both values" assertion that caught it. A count alone would not
+  have. Both probes reverted and the module re-measured at 10 passed; `git diff --stat` was then 83
+  insertions and 0 deletions, which is how the revert was verified rather than trusted. The three
+  comment lines added after that check make the committed diff 86 / 0.
+- The truncation itself, observed rather than asserted: `cargo test -q -p xtask --bin requirements
+  freshness::twenty_five_drifts_are_counted_record_by_record -- --exact --nocapture` — exit 0, and its
+  block prints 20 rows, then `  ... and 5 more`, then the fix line. The same over
+  `freshness::a_hand_edited_counts_block_is_named` prints the one `counts:` row quoted above. Those
+  two numbers were re-taken that way after an earlier transcription of a whole-module `--nocapture`
+  run, where ten tests print their drift blocks one under another and the row identities got
+  attributed to the wrong block; `--exact` makes that impossible.
+- `cargo fmt --all -- --check` exit 0. `requirements.rs` 870 → 956 lines, every added line below the
+  last inbound citation into the file (`:584`, `:528-571`), so nothing re-points.
+- `cargo run -q -p xtask --bin requirements -- --check` exit 0, "is fresh": the ledger is untouched,
+  because both tests build their divergent copies in memory and in `std::env::temp_dir()`.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/xtask/src/bin/requirements.rs` | `mod freshness` gains `a_hand_edited_counts_block_is_named` and `twenty_five_drifts_are_counted_record_by_record`. 870 → 956 lines, all of it inside the block appended after the last pre-existing line, plus three doc-comment lines above the second test. No comparator or `check_freshness` logic changed, and the two probes exist only in this document. |
+| `implementation/DECISIONS.md` | this record. |
+| `implementation/STATE.json`, `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | 220 → 222 with what the +2 are, and D034 entered in the lane handover in place of the residue D033 named. The truncated run is recorded in the three places that state a suite total and what it does not prove — `test_totals.caveat`, `known_gaps[15]`, `FINAL-REPORT.md`'s "green but weak" bullet and the `PERFORMANCE-READINESS` test-totals row — and not in `README.md`, which gets the number and nothing about how one invocation died. |
+| `AGENTS.md` | the `STATUS_ACCESS_VIOLATION` shape added to the suite caveat, because a future agent who sees exit 139 after 11 result lines will otherwise assume their own change broke the build; and the harness-scope bullet's totals moved 220 → 222 with its D028-D033 range re-labelled D028-D034, so the count in that bullet stays the count the workspace run prints. |
+
+### Citation churn
+
+`requirements.rs` grows only at the end (870 → 956), below `:584` and `:528-571`, so no citation into
+it moves. The probe panics were reported at `:898` and `:944`, which are the probe-modified files;
+this record cites the committed lines `:897` and `:940` beside them rather than the raw numbers,
+because a line number taken from a source that no longer exists is the kind of citation this repo has
+had to re-resolve before. This record is written at DECISIONS.md `:1919` and below; the deepest line
+any other file cites into it is `:1267`, re-read after the edit. `FINAL-REPORT.md` stays at 290 lines
+and `docs/PERFORMANCE-READINESS.md` at 1076 — both forced by citations *above* the ones this lane
+edits (`FINAL-REPORT.md:22` → `:151-152`, `STATE.json:157`/`:163` ceilings), so their edits are
+in-place reflows rather than appends. `README.md` stays at 118. `STATE.json` goes 187 → 188: the crash
+is a `known_gaps` element, which cannot be folded into a prose field without losing the pointer that
+`test_totals.caveat` now uses, and nothing in the tree cites a STATE.json line deeper than `:163`, so
+the +1 at `:166` re-points nothing — each of those five numbers was read back off the file, not
+assumed from the edit.

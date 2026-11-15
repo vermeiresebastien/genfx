@@ -867,4 +867,90 @@ mod freshness {
         assert_eq!(check_freshness(&path, &body), 1);
         let _ = std::fs::remove_file(&path);
     }
+
+    /// The last report branch with no invocation behind it. `counts` is derived
+    /// from the spec arrays rather than from the records, so a hand-edit of the
+    /// summary block is drift the per-record loop cannot see at all — and the
+    /// 96-char `short()` cap is asserted against here on purpose: if that block
+    /// ever grows past it, the report stops naming the field it is complaining
+    /// about, which is a defect in the report, not in the ledger.
+    #[test]
+    fn a_hand_edited_counts_block_is_named() {
+        let body = normalize_newlines(&generate());
+        let mut committed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let acceptance = committed["counts"]["acceptance"]
+            .as_u64()
+            .expect("counts.acceptance is not a number");
+        committed["counts"]["acceptance"] = serde_json::json!(acceptance - 1);
+        let edited = serde_json::to_string_pretty(&committed).unwrap();
+        assert_ne!(
+            normalize_newlines(&edited),
+            body,
+            "no counts field was changed — this control proves nothing"
+        );
+        let report = drift_lines(&edited, &body);
+        assert_eq!(
+            report.len(),
+            1,
+            "a summary-only edit must not drag record rows with it: {report:?}"
+        );
+        assert!(
+            report[0].starts_with("counts: committed {")
+                && report[0].contains(&format!("\"acceptance\":{}", acceptance - 1))
+                && report[0].contains(&format!("\"acceptance\":{acceptance}")),
+            "the top-level row must name both sides without truncating them: {}",
+            report[0]
+        );
+        let path = scratch("counts");
+        std::fs::write(&path, &edited).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Twenty-five mutated records have to produce twenty-five rows rather than
+    /// collapsing to the line-number fallback: that is the difference between
+    /// "the generator stopped writing these fields, by id" and "these bytes
+    /// differ somewhere". The rows come out in sorted-id order, because
+    /// `records_by_id` is a `BTreeMap` — `FX001` first, though the ledger lists
+    /// it twenty-fifth — so which five the cap drops is not the file's last five.
+    /// It is also the only mutation so far large enough to
+    /// reach the 20-line cap in `check_freshness`, whose `... and 5 more` line
+    /// is display code and therefore observed with `--nocapture`, not asserted.
+    #[test]
+    fn twenty_five_drifts_are_counted_record_by_record() {
+        let body = normalize_newlines(&generate());
+        let mut committed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        {
+            let recs = committed["records"]
+                .as_array_mut()
+                .expect("records is not an array");
+            for rec in recs.iter_mut().take(25) {
+                rec["status"] = serde_json::json!("verified_by_probe");
+            }
+        }
+        let edited = serde_json::to_string_pretty(&committed).unwrap();
+        assert_ne!(
+            normalize_newlines(&edited),
+            body,
+            "no record status was changed — this control proves nothing"
+        );
+        let report = drift_lines(&edited, &body);
+        assert_eq!(
+            report.len(),
+            25,
+            "one row per mutated record, not the fallback: {report:?}"
+        );
+        assert!(
+            report
+                .iter()
+                .all(|r| r.contains(".status: committed \"verified_by_probe\"")),
+            "every row should be a record.status with both values: {:?}",
+            &report[..2]
+        );
+        assert!(!report.iter().any(|r| r.starts_with("first differing line")));
+        let path = scratch("truncation");
+        std::fs::write(&path, &edited).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
 }

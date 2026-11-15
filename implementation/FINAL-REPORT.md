@@ -22,9 +22,9 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   at `FINAL-REPORT.md:151-152` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
 >   ("**No SDK headers are shipped**"). Both are true of this tree: the headers the shim
 >   compiles against sit in this machine's cargo registry, not in the repository.
-> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15 (D033): 220 passed,
->   0 failed across 40 result lines (29 test binaries + 11 doctests) — and 14 of those passes
->   are GPU tests that early-return with no device. `golden.rs` asserts file sizes, not pixels.
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15 (D034): 222 passed,
+>   0 failed across 40 result lines (29 test binaries + 11 doctests) — and 14 of those passes are
+>   GPU tests that early-return with no device. `golden.rs` asserts file sizes, not pixels, and D034 records one run that died mid-suite with a native access violation before the remaining binaries ran.
 > - **"live control bridge -> engine commands" was the optimistic line, and it is now
 >   the accurate one — half of it.** Since D022 the Flux Desktop process binds the OSC
 >   port itself and applies `param` addresses to the document (measured by UDP loopback,
@@ -45,8 +45,8 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   before the suite even started, which is why the green local result and the red CI result
 >   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
 >   workspace suite behind the reformat reported 196 passed / 0 failed at that commit; it is
->   **220 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59` was already 204 —
->   196 +8 D022's — then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033). **The full `verify.ps1`
+>   **222 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59` was already 204 —
+>   196 +8 D022's — then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034). **The full `verify.ps1`
 >   run has now been repeated, and it passes:** measured at HEAD `75da874` it exited 0 with
 >   `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external (`link-integration`,
 >   `spout-enumeration`), re-measured identically at `90d9e59`. D027 re-keyed both gates on
