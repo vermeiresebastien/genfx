@@ -13,11 +13,11 @@
     "maxUniformBindingSize": 65536
   },
   "provenance": {
-    "gitHash": "a91ebda",
-    "gitHashFull": "a91ebdae61a7f4c629b8d21d80d33a76e5c47c39",
+    "gitHash": "7adb5e6",
+    "gitHashFull": "7adb5e694e92c8d94e3a0610628a7fb23b0a5bb5",
     "gitDirty": false,
     "gitDirtyScope": "working tree, excluding implementation/evidence/",
-    "generatedAtUtc": "2026-11-15T20:40:35Z",
+    "generatedAtUtc": "2026-11-15T22:09:54Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
       "mtimeUnix": 1794774257,

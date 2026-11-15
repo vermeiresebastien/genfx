@@ -1857,6 +1857,24 @@ reordered file needs to know where it diverges, not that something is wrong.
 - The first control run also caught the test written backwards: with `dropped` as the committed
   side it reported `AT062: in this tree, not in the committed file`, which is the arm D032 had
   already measured by hand. Swapping the arguments is what made it test the unexercised direction.
+- `infrastructure/verify.ps1`, full, clean tree, `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM`
+  removed from the environment, run at `7adb5e6` — the commit that contains these records, so
+  `gitDirty` is false and the evidence names a head that already holds this paragraph.
+  **`VERIFY: PASS` / exit 0 / 18 passed, 0 failed, 0 blocked_external**, `generatedAt`
+  `2026-11-15T22:10:42Z`, `gitHash 7adb5e6`, all three `external` probes true, and zero
+  occurrences of `FAILED` or `error[` in the whole log. `requirements-freshness` recorded
+  `{ exit: 0, ok: true }` while printing `requirements: …implementation/requirements.json is
+  fresh` — the same gate, on a tree whose generator had just grown two tests, which is the point:
+  `generate()` is unchanged, so adding tests to the file that generates the ledger must not move
+  the ledger. `unit-tests` ran 158 lib tests (34 app, 14 audio, 16 catalog, 30 domain, 22 engine,
+  28 integrations, 6 media, 8 render), `link-integration` 7, `ndi-runtime-loads` 2,
+  `spout-enumeration` 1. What that list does not contain is worth naming: `unit-tests` is scoped to
+  eight `-p … --lib` packages, so the eight `requirements` bin tests this record adds run in CI's
+  `cargo test --workspace` and in no `verify.ps1` step — true of D028's, D031's and D032's bin
+  tests too, and unchanged here.
+- `cargo run -q -p xtask -- evidence` exit 0 afterwards at that head: **32 files, 9 stamped by
+  their writer, 4 naming a commit in a header, 19 unattributed, 0 missing provenance**,
+  `headAtRun 7adb5e6`, `provenance.gitDirty false`, `generatedAtUtc 2026-11-15T22:11:39Z`.
 
 ### What this does not close
 
@@ -1876,7 +1894,9 @@ that residue belongs to `mod evidence_routing`, not to this one.
 |---|---|
 | `crates/xtask/src/bin/requirements.rs` | `mod freshness` gains `a_record_only_in_the_committed_file_is_named` and `equal_meaning_in_different_order_reports_a_line`, and imports `drift_lines` alongside `check_freshness`. 802 → 870 lines, all of it below the last cited line. No comparator logic changed. |
 | `implementation/DECISIONS.md` | this record; D032's residue paragraph put in the past tense and marked answered rather than deleted, one orphaned wrap in its CRLF section fixed, and "1302 and below" corrected to "and later" in its churn list. |
-| `implementation/STATE.json`, `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | 218 → 220 with what the +2 are, and D033 entered wherever the lane handover lists what D032 left open: STATE's `test_totals.passed` field and its `measured` prose (which had disagreed once before, in D031), README's totals clause, FINAL-REPORT §0's two totals, PERFORMANCE-READINESS §"Test totals" as an eighth chronologically-labelled run. `STATE.json` stays at 187 lines, `README.md` at 117, `FINAL-REPORT.md` at 290 and `PERFORMANCE-READINESS.md` at 1076, so no inbound `:NNN` citation in any of them moved — FINAL-REPORT lost a date clause and two parentheticals to pay for the third number, because a wrapped bullet cannot grow without pushing §6b's `:146` and `:151-152` down. The remaining 218s in the tree are D032's own Measured rows in DECISIONS/STATE/P-R, which are dated runs at a named commit, not present-tense totals. |
+| `implementation/FINAL-REPORT.md`, `README.md`, `docs/PERFORMANCE-READINESS.md` | the `7adb5e6` run added beside `a91ebda`'s wherever the harness timeline is kept, and the `verify.ps1` row cites D019/D032/**D033** now. |
+| `AGENTS.md` | new harness bullet: `verify.ps1`'s `unit-tests` step is eight `--lib` packages (158 tests), the workspace suite is 220, so **no step in the script executes a test that lives in a `[[bin]]` target** — which is where every D028-D033 guard sits. Found while measuring this lane's own "18 passed" claim, not invented as a caveat; nothing was changed to fix it, because the fix (a workspace step in `verify.ps1`) duplicates `ci.yml` and doubles the run. |
+| `implementation/STATE.json`, `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | 218 → 220 with what the +2 are, and D033 entered wherever the lane handover lists what D032 left open: STATE's `test_totals.passed` field and its `measured` prose (which had disagreed once before, in D031), its `at_head`/`counts`/`passing_steps`/`re_run_lanes` and a lane-19 paragraph, README's totals clause, FINAL-REPORT §0's two totals, PERFORMANCE-READINESS §"Test totals" as an eighth chronologically-labelled run. `STATE.json` stays at 187 lines, `FINAL-REPORT.md` at 290 and `PERFORMANCE-READINESS.md` at 1076, so no inbound `:NNN` citation in them moved — FINAL-REPORT lost a date clause and two parentheticals to pay for the third number, because a wrapped bullet cannot grow without pushing §6b's `:146` and `:151-152` down. `README.md` grew one line at 91-93, below the highest citation into it anywhere in the tree (`README.md:60`). The remaining 218s in the tree are D032's own Measured rows in DECISIONS/STATE/P-R, which are dated runs at a named commit, not present-tense totals. |
 
 ### Citation churn
 

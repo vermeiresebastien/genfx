@@ -101,6 +101,12 @@ them first.
   Closed 2026-11-15 (D027): `verified` is a per-row constant there, and a source test
   (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
   **read the `limitation` string, not the boolean.**
+- **A green `verify.ps1` does not mean the workspace suite ran.** Its `unit-tests` step is eight
+  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 220 across 40
+  result lines. Every test inside a `[[bin]]` target (the `requirements` and `xtask` guards D028
+  through D033 add) is therefore executed by CI's workspace run and by **no** step in this script.
+  So after adding one, the honest claim is "`cargo test -p xtask --bin requirements` passes" plus a
+  workspace run; `VERIFY: PASS` alone cannot see it.
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting
   as a pass.** `flux ndi-loopback` did that for its whole life: it subscribed with the bare
   sender name, NDI advertises `{machine} ({sender})`, so the match could never happen, the

@@ -53,7 +53,7 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   machine state — the spout shim resolves itself, and Link needed its directory exported until
 >   D029 taught that gate to search — at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
 >   0 blocked_external**, the first with nothing blocked. D032 added `requirements-freshness`:
->   18-0-0 at `a91ebda`. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
+>   18-0-0 at `a91ebda` (D032) and again at `7adb5e6` (D033), both `gitDirty false`. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
 > - **§1 is a dated inventory: its numbers are the 2026-11-09 capture, and several have moved.**
 >   The catalog is **217 entries**, not 216 — re-measured at `90d9e59` today: `flux doctor` prints
 >   `catalog entries: 217`, `xtask test-gpu --profile baseline` reported "compiled 217 shaders, 0
