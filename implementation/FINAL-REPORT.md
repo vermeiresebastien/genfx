@@ -17,14 +17,14 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 > - **"§6b NDI — fully working (discovery, send, receive verified)" is wrong about the
 >   frame.** The send/receive tests broadcast a synthetic 640×360 gradient built in
 >   `crates/app/src/main.rs`; no wgpu frame has ever crossed that boundary, and feature
->   `ndi` is off by default. Discovery of 5 live sources is real. This also contradicts
->   the blockers paragraph at `FINAL-REPORT.md:149-152` (which lists NDI as
->   `blocked_external`) and `implementation/UPSTREAM.md:46-49` (which says no SDK
->   headers are shipped). Reconciliation: vendored headers and discovery are real;
->   live Flux output is not.
-> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15: 204
->   passed, 0 failed across 40 test binaries — and 14 of those passes are GPU tests that
->   return early when no device is created. `golden.rs` asserts file sizes, not pixels.
+>   `ndi` is off by default. Discovery really did run — the "5 live sources" was that
+>   afternoon's LAN and reads 0 today (§6b). This also contradicts the blockers paragraph
+>   at `FINAL-REPORT.md:151-152` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
+>   ("**No SDK headers are shipped**"). Both are true of this tree: the headers the shim
+>   compiles against sit in this machine's cargo registry, not in the repository.
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15: 207 passed,
+>   0 failed across 40 result lines (29 test binaries + 11 doctests) — and 14 of those passes
+>   are GPU tests that early-return with no device. `golden.rs` asserts file sizes, not pixels.
 > - **"live control bridge -> engine commands" was the optimistic line, and it is now
 >   the accurate one — half of it.** Since D022 the Flux Desktop process binds the OSC
 >   port itself and applies `param` addresses to the document (measured by UDP loopback,
@@ -45,15 +45,15 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   before the suite even started, which is why the green local result and the red CI result
 >   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
 >   workspace suite behind the reformat reported 196 passed / 0 failed at that commit; it is
->   **204 passed / 0 failed / 0 ignored across 40 binaries** at `90d9e59`, the +8 being D022's.
->   **The full
->   `verify.ps1` run has now been repeated, and it passes:** measured 2026-11-15 at HEAD
->   `75da874` it exited 0 with `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external
->   (`link-integration`, `spout-enumeration`), and re-measured identically at `90d9e59` with a
->   dirty tree. The two harness defects D019 found in that
->   script — the chained step that masked exit codes, and skipped gates recorded as
->   `ok: true` — were repaired first, along with a third `$LASTEXITCODE` leak the repair
->   exposed. See D019 and D020.
+>   **207 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59`'s 204 +8 D022's, +1
+>   D027's capability-report guard test, +2 D028's ledger-routing guard tests). **The full `verify.ps1` run has now been
+>   repeated, and it passes:** measured 2026-11-15 at HEAD `75da874` it exited 0 with
+>   `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external (`link-integration`,
+>   `spout-enumeration`), re-measured identically at `90d9e59`. D027 re-keyed both gates on
+>   machine state — the spout shim resolves itself, Link still needs `FLUX_ABLETON_LINK_LIB`
+>   exported — and at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
+>   0 blocked_external**, the first recorded run with no blocked step. The two defects D019
+>   found in that script were repaired first (D020), along with a third `$LASTEXITCODE` leak.
 > - **§1 is a dated inventory: its numbers are the 2026-11-09 capture, and several have moved.**
 >   The catalog is **217 entries**, not 216 — re-measured at `90d9e59` today: `flux doctor` prints
 >   `catalog entries: 217`, `xtask test-gpu --profile baseline` reported "compiled 217 shaders, 0
@@ -148,10 +148,11 @@ Release CLI `target/release/flux.exe`; dev GUI `target/debug/flux-desktop.exe`. 
 installer (no identity configured).
 
 ## 6. Explicit blockers (not faked)
-Third-party NDI/Spout2 interop, a second machine for NDI over a real network, Ableton
-Link license terms for commercial distribution, Max `.amxd` host: interfaces + capability
-records present, `blocked_external`. The NDI and Spout2 runtimes *are* installed on this
-host (`Processing.NDI.Lib.x64.dll`, `apps/ndi-bridge/ndi_shim.dll`,
+Third-party NDI/Spout2 interop, a second machine for NDI over a real network, Max `.amxd` host:
+interfaces + capability records present, `blocked_external`. Ableton Link's license terms were a
+blocker only until D012 lifted them, and D027 retired `blocked_external` on the Link and Spout
+gates — they are now keyed on machine state and ran. The NDI and Spout2 runtimes *are* installed
+on this host (`Processing.NDI.Lib.x64.dll`, `apps/ndi-bridge/ndi_shim.dll`,
 `apps/spout-bridge/SpoutLibrary.dll` + `spout_shim.dll`), so "NDI SDK blocked" would be
 false — what is blocked is the evidence that a non-Flux peer can consume a Flux frame, and
 there is no Flux-frame producer to send (§6b). Syphon is macOS-only and this is a Windows
@@ -161,9 +162,16 @@ realtime at 4K.
 
 ### 6b. NDI — transport verified, product path absent (re-measured 2026-11-15)
 NDI Tools v6.3.2 is installed and auto-detected. `apps/ndi-bridge/ndi_shim.cpp` is
-compiled against the **official NDI SDK headers** (vendored by the `ndi-sdk` crate), so
-every struct layout is correct — no ABI guessing. `crates/integrations/src/ndi_io.rs`
-(feature `ndi`) runtime-loads the shim and exposes a live receiver and sender.
+compiled against the **official NDI SDK headers**, so every struct layout is correct — no ABI
+guessing. The older wording here ("vendored by the `ndi-sdk` crate") was vague about where those
+headers live, and it matters: `apps/ndi-bridge/build_shim.bat:7` points at
+`C:\Users\Sebastien\.cargo\registry\src\…\ndi-sdk-0.2.0\vendored\include` — a copy of the
+`ndi-sdk` crate in **this machine's cargo registry**, declared by no `Cargo.toml` and absent from
+`Cargo.lock`. On another host that script prints `MISSING_HEADERS` and exits 1, so a fresh clone
+cannot rebuild the shim at all; and `ndi_shim.dll` itself is gitignored (`.gitignore:53`), so the
+binary that does the sending is a 2026-11-09 artifact of this machine, like the Link library and
+the Spout shim. `crates/integrations/src/ndi_io.rs` (feature `ndi`) runtime-loads that shim and
+exposes a live receiver and sender.
 
 Verified on this host, all of it in `implementation/evidence/ndi-2026-11-15.txt`:
 - **Runtime + discovery**: `flux ndi` initialises the runtime and enumerates. It found
@@ -199,14 +207,25 @@ while recording a pass.
 pure-virtual** interface, so `apps/spout-bridge/spout_shim.cpp` wraps it in a flat `extern
 "C"` ABI and links `SpoutLibrary.lib` → `spout_shim.dll`. `crates/integrations/src/spout.rs`
 (feature `spout`) runtime-loads the shim; `flux spout` enumerates the OS-wide sender
-registry and `flux spout-send` creates an offscreen WGL context. Verified: sender
-enumeration and GL-context init (`evidence/spout-registry.txt`). **Limitation:** Spout2's
+registry and `flux spout-send` creates an offscreen WGL context. Sender enumeration was re-run
+2026-11-15 (`implementation/evidence/spout-2026-11-15.txt`): it returns **0 senders** and exits 0,
+so the call path works and nothing on this host is currently broadcasting; the GL-context half is
+still the 2026-11-09 capture in `spout-registry.txt` and has not been repeated. D027 retired the
+`blocked_external` on this gate by keying it on the shim's presence rather than on
+`FLUX_SPOUT_SHIM` being set — the test behind it returns early when the runtime is absent and
+cargo still records a pass, so the harness now resolves an absolute shim path and exports it —
+and repaired the CLI's exit code: asked from a directory where no candidate resolves, `flux spout`
+now exits 1 (`SdkMissing`) instead of printing the failure and exiting 0. `capability_report()`
+answers `verified: false` for spout in **every** build — it used to answer
+`cfg!(feature = "spout")`, which made a claim about evidence depend on how the binary was
+compiled. **Limitation:** Spout2's
 `CreateSender`/`SendImage` do **not** succeed through a bare offscreen WGL context (Spout
 expects the app's real rendering context). The correct fix — sending from Flux's existing
 wgpu device via a DX11 shared texture (SpoutDX) — is a larger interop task, so Spout live
-send is reported as a limitation while enumeration works. **Syphon**: macOS-only.
+send is reported as a limitation, and the enumeration half is a 2026-11-09 measurement that
+nothing on this host has repeated. **Syphon**: macOS-only.
 
-### 6a. Ableton Link — supported; verified inside a feature build (licensing resolved)
+### 6a. Ableton Link — supported; 6 assertions ran here 2026-11-15, 11 of 13 invocations clean
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton
 Link was the only external integration buildable on this host without a proprietary SDK.
 A thin raw-FFI adapter (`crates/integrations/src/link.rs`, feature `link`) wraps the
@@ -216,26 +235,35 @@ official `abl_link` C API, built from `https://github.com/Ableton/link @ 5ba907a
 commercially, so Link's GPLv2-or-later terms are acceptable. The redistribution constraint
 is lifted for this project; Link is a supported integration.
 
-Verified on this host:
+Assertions that exist in the tree — all 6 ran on this host on 2026-11-15, each of them holding
+both sessions in one process; see the caveat below:
 - 6 automated tests: enable + start/stop sync, clock advance, set/read playing,
   **two sessions discovering each other and converging on tempo**, **single-master tempo
   arbitration** (one proposer's tempo adopted by the peer), and **start/stop propagation**.
 - **Cross-process**: two `flux.exe link` processes saw `peers=0 → peers=1` and shared a
-  synchronized beat/phase clock (`implementation/evidence/link-a.txt`, `link-b.txt`).
+  synchronized beat/phase clock (`implementation/evidence/link-a.txt`, `link-b.txt`). Those
+  transcripts print `playing=false` on every line, so they show discovery and a shared clock —
+  not start/stop propagation — and they are a 2026-11-09 capture that has not been repeated.
 
 Build: set `FLUX_ABLETON_LINK_LIB` (dir containing `abl_link.lib`) and
 `cargo build --features link`. With the feature off, `protocol_status` reports
 `unavailable` truthfully (SDK-less machines still build).
 
-**What the list above does not cover (re-read 2026-11-15).** All 6 tests exist only inside a
-`--features link` build, and `link-integration` is `blocked_external` on this host today
-(`FLUX_ABLETON_LINK_LIB` unset) — so none of it is measured by the current verification run, and
-the cross-process pair is a 2026-11-09 artifact. The acceptance test's remaining clauses (Max /
-conditional Link transport, seek/loop, "no control-as-audio confusion") are asserted by nothing.
-That is why AT063 now reads `implemented_unverified` in `implementation/requirements.json`: the
-generator arm was corrected (`crates/xtask/src/bin/requirements.rs`), because that file is
-regenerated and a hand-edit would be overwritten by the next `cargo run -p xtask --bin
-requirements` (DECISIONS D025).
+**What the list above does not cover (re-measured 2026-11-15).** All 6 tests exist only inside a
+`--features link` build, and `link-integration` was recorded `blocked_external` in every run this
+repository has ever recorded — not because `abl_link.lib` is missing (it is built and sitting in
+the gitignored `_upstream/`, dated 2026-11-09) but because the gate keyed on
+`FLUX_ABLETON_LINK_LIB` being set. D027 keys it on the variable *and* the file, and with it
+exported the group ran here for the first time: 13 invocations, **11 clean and 2 failures of
+`set_playing_reflected_in_state`** (`crates/integrations/src/link.rs:203`, the assertion that a
+`set_playing(false)` is reflected in the state read back afterwards). The test was deliberately not
+weakened; a gate that goes red twice in thirteen runs cannot be a hard CI step, which is why CI —
+which does not set that variable — still records it blocked. The acceptance test's remaining
+clauses (Max / conditional Link transport, seek/loop, "no control-as-audio confusion") are asserted
+by nothing. That is why AT063 still reads `implemented_unverified` in
+`implementation/requirements.json`: the generator arm was corrected
+(`crates/xtask/src/bin/requirements.rs`), because that file is regenerated and a hand-edit would be
+overwritten by the next `cargo run -p xtask --bin requirements` (DECISIONS D025).
 
 ### 6c. Vision/models (G170–G177) — real inference verified (AT075 + AT077)
 Model-backed conditional nodes have a real **model registry** (present/missing/incompatible;

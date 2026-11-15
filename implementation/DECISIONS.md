@@ -325,7 +325,7 @@ second masking bug that only surfaced while proving the first.
 point: without it a verdict cannot be attributed to a tree, which is exactly how an
 evidence file and a HEAD that fails its own CI sit next to each other for four days without
 anyway to tell which tree said what. This partly discharges gate F1's pass condition
-("Each evidence file names the commit SHA", `docs/PERFORMANCE-READINESS.md:620`) for
+("Each evidence file names the commit SHA", `docs/PERFORMANCE-READINESS.md:621`) for
 `verify.json` alone — F1 also asks for the binary's mtime, and for the other 25 files.
 The summary line now prints the three counts before `VERIFY: PASS|FAIL`.
 
@@ -551,8 +551,9 @@ shipped nothing.
 Full CI-parity harness `powershell -NoProfile -ExecutionPolicy Bypass -File
 infrastructure/verify.ps1`: **VERIFY: PASS, exit 0, 17 steps: passed=15 failed=0
 blocked_external=2**, evidence written to `implementation/evidence/verify.json`. The two
-`blocked_external` rows are `link-integration` and `spout-enumeration` (their env vars are unset on
-this host) and they exit 0 regardless — check the third number, not the verdict.
+`blocked_external` rows were `link-integration` and `spout-enumeration` (their env vars were unset
+in that shell) and they exit 0 regardless — check the third number, not the verdict. D027 later
+found both artifacts on this machine and re-keyed those gates, so this is no longer the run shape.
 
 That PASS was not immediate, and the first FAIL is the reason to re-run the harness rather than the
 suite. `fmt` and `unit-tests` were red because of two defects added after the earlier green
@@ -665,11 +666,11 @@ tense as if they were permanent properties of the product:
 
 ### Not changed here
 
-- `spout` and `link` still derive `verified` from `cfg!` (`crates/integrations/src/lib.rs:86`,
+- `spout` and `link` still derive `verified` from `cfg!` (then `crates/integrations/src/lib.rs:86`,
   `:114`), the same pattern this entry calls a defect for ndi. Left open deliberately: replacing
   those booleans means asserting a fresh verdict about paths this lane did not re-measure, and the
-  spout row's own limitation already says the send path fails on this host. Recorded in
-  `implementation/STATE.json` `ci_defects_found_2026_11_14`.
+  spout row's own limitation already says the send path fails on this host. Recorded as still open
+  in `implementation/STATE.json` `ci_defects_found_2026_11_14`, and closed by D027 two lanes later.
 - `apps/ndi-bridge/ndi_shim.dll` was not rebuilt — 24,064 bytes, mtime 2026-11-09 — so the shim
   half of these runs is evidence about a six-day-old binary that happens to still be on disk.
 - The `ndi::` filter still excludes `ndi_io::tests::shim_loads_and_initializes`; the shim path is
@@ -821,7 +822,7 @@ also the only available proof that the generator is deterministic on this tree.
 ### The `blocker` field got a second job
 
 `record()` already took `blocker: Option<&str>`, but the acceptance loop always passed `None`, so an
-AC could never say *why* it was not verified. `at_blocker(id)` (`crates/xtask/src/bin/requirements.rs:441`)
+AC could never say *why* it was not verified. `at_blocker(id)` (`crates/xtask/src/bin/requirements.rs:472`)
 is now wired into that loop and carries the missing clause list for both rows. `blocker_for()`
 (product requirements) is untouched.
 
@@ -874,7 +875,7 @@ invalidates every citation below it, and nothing in CI notices.
 - `docs/PERFORMANCE-READINESS.md` **C1** argued that BLOCKERS.md:4 "says NDI Fully working". D023 had
   already retired that sentence, so the row was attacking a document that no longer said it. Rewritten
   against current lines (`main.rs:703`/`:558`/`:439`, `live.rs:37-41`, `STATE.json:85-86`,
-  `requirements.json:3743`) and it now says what changed since: the docs, not the code.
+  `requirements.json:3745`) and it now says what changed since: the docs, not the code.
 - **A6 "Doc conflict"** used to be a conflict *between* files (BLOCKERS vs requirements vs STATE). The
   ledger is no longer in the disagreement, so the remaining conflict is inside one object:
   `STATE.json:77` "supported + verified when built with feature link" against `STATE.json:82`, which
@@ -916,7 +917,8 @@ tree that carries the repair. All of the following is from this session, at HEAD
   `VERIFY: PASS`, exit 0; `evidence/verify.json` carries `gitHash: 90d9e59`, `gitDirty: true`. The two
   blocked steps are `link-integration` (`FLUX_ABLETON_LINK_LIB` unset) and `spout-enumeration`
   (`FLUX_SPOUT_SHIM` unset) — the feature build that AT063's six tests live in is precisely the one
-  this host could not run today, which is what the new `blocker` string says instead of "verified".
+  this host did not run at that capture, which is what the new `blocker` string says instead of
+  "verified". D027 has since put a `FLUX_ABLETON_LINK_LIB` export in front of that gate and run it.
 - The per-step counts were re-counted at this head rather than copied from the `75da874` capture:
   unit-tests **157** (app 34, integrations 27, domain 30, engine 22, catalog 16, audio 14, render 8,
   media 6 — the +8 over 149 is D022's), producer 6, export_matrix 6, dag_parallel 4, golden 3, and
@@ -946,10 +948,11 @@ changed is that two of its ledger rows now claim less, and say which clause is m
   linked to the test that proves it — already a `STATE.json` known gap, still true.
 - `product_paths()` and `blocker_for()` hardcode paths and blockers for the R-rows: the same
   "generator asserts the claim" shape, not swept.
-- `crates/integrations/src/lib.rs:86` and `:114` still set `verified: cfg!(feature = "spout")` /
-  `cfg!(feature = "link")`, against that function's own documented rule that presence is not
-  verification. Left alone on purpose: those two lines are what `flux integrations` prints, so fixing
-  them is a decision about the command's contract, not a documentation repair.
+- `crates/integrations/src/lib.rs:86` and `:114` (before D027 moved them) set `verified:
+  cfg!(feature = "spout")` / `cfg!(feature = "link")`, against that function's own documented rule
+  that presence is not verification. Left alone on purpose: those two lines are what `flux
+  integrations` prints, so fixing them is a decision about the command's contract, not a
+  documentation repair. D027 made that decision.
 - The spec's acceptance text stays one human sentence per AC with one status field, so a four-clause
   AC can only ever be as verified as its weakest clause. Nothing in the schema expresses partials.
 
@@ -1025,3 +1028,293 @@ the new note describes rather than one the tool can compute away.
   crediting the sweep with 71. Re-measured here at 242 citations across the six status docs plus
   `docs/IMPLEMENTATION-ARCHITECTURE.md`, 0 unresolved, 0 out of range, 0 blank targets;
   `docs/USER-GUIDE.md` contributes none to either bucket.
+
+
+## D027 — 2026-11-15 the capability report was asked what its fields mean, and two "external" gates were not external
+
+D025 closed with a line it deliberately did not touch: `crates/integrations/src/lib.rs` set
+`verified: cfg!(feature = "spout")` and `cfg!(feature = "link")`, and the entry said so because
+"those two lines are what `flux integrations` prints, so fixing them is a decision about the
+command's contract, not a documentation repair". This lane made that decision. Reading the two
+rows turned up more than the booleans: two gates this repository has recorded as
+`blocked_external` since they were written can run here today, and one of them had never been
+run in the repo's recorded history.
+
+### The contract
+
+The function's own doc comment read: *"Never derives `implemented`/`verified` from mere
+presence."* The code derives `implemented` from `cfg!` in three rows, and that part is correct —
+a feature compiled out of the running process is not a capability that process has. So the rule
+as written could not be obeyed, which is how it survived: it named the right fear and attached it
+to the wrong field. What `flux integrations` now documents, per field:
+
+| field | whose property | may track the build? |
+|---|---|---|
+| `available`, `implemented` | this binary | yes — that is what they mean |
+| `verified` | the evidence | no — a constant per row, identical in every build |
+| `limitation` | the artifact and date the claim rests on | n/a |
+
+"A prerequisite that is merely absent is `false`, never a pass" is stated in the comment, and is
+the sentence the two rows had been violating.
+
+### What the rows said, and say
+
+- **spout** (`crates/integrations/src/lib.rs:91-113`): `verified: cfg!(feature = "spout")` with
+  the limitation "sender enumeration verified; offscreen-GL SendImage fails on this host" — a
+  string that contradicts itself before its semicolon, and returns `true` in a feature build.
+  Now `verified: false` in every build, with the re-measurement named in the limitation.
+- **link** (`:125-154`): `verified: cfg!(feature = "link")` with "built+verified locally; GPLv2+
+  redistribution constraint". Now `false` in every build, and the limitation names what the 6
+  assertions do cover, what they do not, and that one of them flakes.
+- **ndi** keeps `verified: true` (measured earlier today, `evidence/ndi-2026-11-15.txt`), but its
+  *off-build* limitation was the bare string "built without feature `ndi`" — which left a
+  `verified: true` row with no basis in the default build, breaking the new comment's own rule.
+  It now names the date and the artifact and adds "so this process can do no NDI at all".
+- `syphon` and `max` were already `false`; `osc`, `midi`, `bridge` derive nothing from a feature.
+
+### Guard: a source-text test, because a runtime test cannot see this
+
+`crates/integrations/src/tests.rs:106-119`
+(`capability_report_never_derives_verified_from_a_build_feature`) reads `include_str!("lib.rs")`
+and fails any line containing both `verified:` and `cfg!`. A behavioural test cannot express the
+invariant: each build observes only its own value, so the old code passed its own test suite in
+both configurations. Method borrowed from `apps/max-for-live/check-maxpat.cjs` — a structural
+check on text that no run touches.
+
+Measured both ways: against the pre-lane file it FAILS, naming
+`"verified: cfg!(feature = \"spout\"),"` ; against this lane's file it passes.
+
+Cross-build probe of the shipped command, same source, two builds:
+
+| build | `spout` row printed by `flux integrations` |
+|---|---|
+| `cargo build -p flux-app` (default) | `available=false implemented=false verified=false` |
+| `cargo build -p flux-app --features spout` | `available=true implemented=true verified=false` |
+
+`available` and `implemented` flip, `verified` does not — which is the contract, exercised. Under
+the code this lane replaced, the second row read `verified=true`.
+
+### Two gates recorded as blocked_external that this host can run
+
+- `_upstream/link/build/Release/abl_link.lib` — 19,502,302 bytes, mtime 2026-11-09T12:50, i.e.
+  the Ableton Link build D012's lane produced and left on disk. `verify.ps1` keyed
+  `link-integration` on `if ($env:FLUX_ABLETON_LINK_LIB)`, so the step has been
+  `blocked_external` in every run because one variable was unset in one shell, not because a
+  prerequisite was missing. `Test-LinkLib` (`infrastructure/verify.ps1:77`) now also checks that
+  the directory holds the file, so the condition is about the machine.
+- `apps/spout-bridge/spout_shim.dll` — 13,312 bytes, 2026-11-09, present on this host and
+  gitignored (`.gitignore:38` `apps/spout-bridge/*.dll`), so it is in no checkout. Same shape:
+  the gate keyed on `FLUX_SPOUT_SHIM` while the adapter itself (`crates/integrations/src/spout.rs:44-55`)
+  also tries `spout_shim.dll` and `apps/spout-bridge/spout_shim.dll` relative to the cwd, and
+  `flux spout` from the repo root has been resolving it all along.
+
+### The vacuity trap that wiring those gates would have created
+
+`spout::tests::shim_loads_when_present` prints "spout_shim.dll not present; skipping" and
+returns — and cargo records it as `1 passed`, exit 0. Measured with the env var unset:
+
+```
+FLUX_SPOUT_SHIM unset : spout_shim.dll not present; skipping → ok. 1 passed, exit 0
+shim path exported    : (no skip line)                       → ok. 1 passed, exit 0
+```
+
+The two look identical in `verify.json`. They are not the same step, and a probe that only asked
+"is the file present" would have made it worse — because cargo runs a test binary with its cwd
+set to the *package* directory (`crates/integrations`), where the adapter's relative candidate
+does not resolve, so a repo-root probe reports "present" while the test skips. So
+`Resolve-SpoutShim` (`infrastructure/verify.ps1:90`) resolves an absolute path and exports it
+before the step runs: the probe and the process now answer the same question. This is D023's
+`ndi-discovery` defect arriving through the repair door, caught by running the command before
+trusting the gate.
+
+`flux spout` itself was the other half of the same class: when no candidate resolved it printed
+"spout_shim.dll not found" and returned `Ok` — exit 0. It now returns
+`ErrorCode::SdkMissing` (`crates/app/src/main.rs:821-827`), measured exit 1 from
+`target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
+
+`verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
+(`infrastructure/verify.ps1:187-189`) so a run states which prerequisites it could reach. The
+step list alone cannot: a blocked step and an absent SDK look identical, and a step that ran
+because a vendored library happened to be on the machine is not a step that ran on CI.
+
+### What running the Link gate for the first time found
+
+13 invocations of `cargo test -p flux-integrations --features link link::` today: **11 clean, 2
+failures**, both `set_playing_reflected_in_state` at `crates/integrations/src/link.rs:203`
+(`assertion failed: !s.state().playing`, immediately after `set_playing(false)`). So the first
+execution of these assertions in this repository's history found a defect in them. Transcript:
+`implementation/evidence/link-2026-11-15.txt` — including the fact that `_upstream/` is
+gitignored, so a fresh clone reproduces neither gate.
+
+Not fixed here, deliberately: weakening an assertion to make a gate green is the move this whole
+sequence exists to prevent, and the candidate mechanism (Link aligns a *start* to a quantum
+boundary while `set_playing` commits a stop at `clock_micros()` now, `link.rs:131-143`) is
+derived from reading, not measured. It goes to `STATE.json` as open work with its rate attached.
+
+### Files changed
+
+| file | change |
+|---|---|
+| `crates/integrations/src/lib.rs` | `capability_report()` doc comment rewritten to the table above; `spout` and `link` `verified` → constants; three limitations rewritten against the measurements; ndi's off-build string given its basis |
+| `crates/integrations/src/tests.rs` | +1 source-text guard test |
+| `crates/app/src/main.rs` | `cmd_spout`: missing shim → `SdkMissing` instead of a printed message and exit 0 |
+| `infrastructure/verify.ps1` | `Test-LinkLib`, `Resolve-SpoutShim`, both gates re-keyed on the machine, `external` block, and a comment on what `spout-enumeration` actually asserts. Parse-checked: `parse_errors=0` |
+| `implementation/evidence/` | `spout-2026-11-15.txt`, `link-2026-11-15.txt` added (hand transcripts; both name `gitHash cf95a2f` in a `# provenance (F1)` header, and both still read `unattributed` in the manifest because `cmd_evidence` only extracts provenance from `.json` — see `crates/xtask/src/main.rs:183-193`) |
+| `implementation/BLOCKERS.md` | `:54-55` carried the pre-D025 flattened Link sentence while `docs/PERFORMANCE-READINESS.md:242` cited it as repeating the split — the citation was false until the text was made true. Line-count preserved (10 citations land below it) |
+| `implementation/STATE.json`, `FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md`, `AGENTS.md`, `implementation/DECISIONS.md` | every place that quoted the old booleans or the old strings; D023's and D025's "Not changed here" bullets now read as closed |
+
+### Measured at this tree
+
+`cargo fmt --all -- --check` exit 0 (one diff produced by this lane's own string edit, applied).
+`cargo test --workspace -- --test-threads=1` exit 0 — **205 passed / 0 failed / 0 ignored**
+across 40 result lines (29 test binaries + 11 doctests): D026's 204 plus the guard test.
+
+`infrastructure/verify.ps1`, run with `FLUX_ABLETON_LINK_LIB` pointing at the vendored lib:
+
+| | |
+|---|---|
+| verdict | `VERIFY: PASS`, process exit 0 |
+| steps | **passed=17 failed=0 blocked_external=0** — the first run in this repository's recorded history with no blocked step (`evidence/verify.json`, `gitHash cf95a2f`, `gitDirty true`) |
+| `external` | `{ndiRuntime: true, abletonLinkLib: true, spoutShim: true}` |
+| `link-integration` | ran, exit 0, 6 passed — the gate's first execution; it is the 14th invocation in this lane's 13-plus-harness tally and the 14th was clean |
+| `spout-enumeration` | ran with `spout shim resolved: D:\Projects\visual\genfx\apps\spout-bridge\spout_shim.dll` printed before the step, exit 0, no skip line |
+| `ndi-runtime-loads` | unchanged, exit 0 |
+
+`0 blocked_external` is a statement about this host with two vendored artifacts present, not
+about CI: `ci.yml` sets neither variable *and* neither artifact is in a checkout — `_upstream/`
+is `.gitignore:4` and `apps/spout-bridge/*.dll` is `.gitignore:38` — so a CI run keeps
+`link-integration` and `spout-enumeration` blocked. That is reasoned from `.gitignore`, not
+measured: no CI run has been observed since these gates changed. The asymmetry is what the
+`external` block exists to make visible.
+
+### Not changed here
+
+- Seven branches still print "X is not built into this binary" and return `Ok` in a feature-off
+  build (`crates/app/src/main.rs:531`, `:592`, `:689`, `:746`, `:810`, `:843`, `:880`). Same
+  family as the `cmd_spout` repair, left because whether "this binary cannot" is a failure or a
+  usage answer is one decision for all seven, and `flux ndi`'s exit codes are what D023 measured.
+- `live::protocol_status()` keeps `available: cfg!(all(windows, feature = "spout"))` and reason
+  strings like "Spout2 SDK linked" (`crates/integrations/src/live.rs:70-95`). Under the contract
+  above that is correct: the field describes the binary. It is also the field whose output
+  `capability_report()` copies for `link` and `syphon` `available`.
+- The Link flake: no test edited, no adapter changed, no re-run-until-green.
+- `crates/xtask/src/bin/requirements.rs` untouched *by this lane*. No arm there claimed spout or link
+  `verified`, so the ledger's statuses needed no change; what is wrong there is `evidence_paths`
+  rotation — Max bridge evidence on `AT057 | AT058 | AT059`, which `spec/VERIFICATION.md:88-90`
+  assigns to a live take, Spout and Syphon, and Spout evidence on AT061/AT062, which `:92-93`
+  assigns to Max. D028 repaired that the same day, and found AT057 in the same arm — this bullet
+  named four records and the defect had five.
+- `spout-registry.txt`, `spout-send-dx.txt`, `link-a.txt`, `link-b.txt` stay as they are:
+  measurements of 2026-11-09, now superseded rather than edited.
+- `--features ndi` was not re-run this lane; the ndi row's `true` still rests on this morning's
+  transcript, and `--features link` cannot be produced by a fresh clone at all.
+
+
+## D028 — 2026-11-15 the generated ledger was citing evidence for somebody else's acceptance test
+
+D027's "Not changed here" closed by pointing forward: `requirements.rs` was untouched, and what
+was wrong there was `evidence_paths` rotation — "Max bridge evidence on AT058/AT059 … and Spout
+evidence on AT061/AT062". That note named four records. The defect had five, and the fifth is not
+a transport at all.
+
+### What the file said
+
+`implementation/requirements.json` is generated, so these strings are code — `at_status()` in
+`crates/xtask/src/bin/requirements.rs`. Two `match` arms each covered several acceptance tests:
+
+| record | what `spec/VERIFICATION.md` actually asks for | what its `evidence_paths` cited |
+|---|---|---|
+| AT057 (`:88`) | live source → take → offline export, timestamps surviving relink | Max bridge tests, `check-maxpat.cjs` |
+| AT058 (`:89`) | actual Windows **Spout** send/receive with an independent consumer | Max bridge tests, `check-maxpat.cjs` |
+| AT059 (`:90`) | actual macOS **Syphon** send/receive | Max bridge tests, `check-maxpat.cjs` |
+| AT061 (`:92`) | **Max `.maxpat`** structure plus real OSC bytes interoperating | `apps/spout-bridge`, `spout-registry.txt` |
+| AT062 (`:93`) | a real packaged **`.amxd`** loaded in Live | `apps/spout-bridge`, `spout-registry.txt` |
+
+So the ledger told a reader checking whether Max OSC bytes interoperate that a Spout sender
+registry was the evidence, and told a reader checking Syphon that a Max patch structure was the
+evidence. AT060 (NDI) sat between them with correct evidence, which is what kept the shape from
+being obvious: the arms were grouped by *adjacent numbering*, not by shared subject. Grouping is
+fine where the ACs are siblings — AT067–AT070 are four clauses of the export matrix and stay one
+arm, as do AT071/AT072 and AT049/AT050 — and silent everywhere else.
+
+### What the records say now
+
+- **AT057** — capture enumeration (`capture.txt`), the persistence relink tests and the export
+  matrix, with a blocker saying plainly that no live source has ever been taken into an export and
+  the timestamps the AC aligns are the fixture's.
+- **AT058** — `apps/spout-bridge` + `crates/integrations/src/spout.rs`, `spout-send-dx.txt`
+  (83 frames through a real D3D11 sender) and `spout-2026-11-15.txt` (bounded enumeration answers
+  **0 senders**). Blocker: no independent consumer has confirmed a Flux frame, Flux's enumerator
+  does not see its own DX sender, and `capability_report()` returns `verified=false` in every build.
+- **AT059** — `blocked_external`, not `implemented_unverified`. There is no Syphon adapter:
+  `crates/integrations/Cargo.toml:29` is `syphon = []`, a flag with no code behind it (grep of the
+  whole tree finds the string only in that flag, the capability row and the protocol-status row).
+  `implemented_unverified` claims something was built.
+- **AT061** — the 6 bridge tests, `check-maxpat.cjs` and the 7 `control.rs` UDP loopback tests,
+  with a blocker naming the actual gap: those bytes are Flux's own encoder meeting Flux's own
+  listener, and `multiple instances` is asserted in-process by the epoch test.
+- **AT062** — `blocked_external`: no `.amxd` exists, so every clause is unexercised.
+- **AT063** — status unchanged, blocker falsified. It said "no `FLUX_ABLETON_LINK_LIB` build on
+  this host today", which D027 made untrue that afternoon; it now says the tests hold both
+  sessions in one process, that the step is not run-independent (2 of 13 failed at
+  `crates/integrations/src/link.rs:203`), and `link-2026-11-15.txt` is cited as evidence.
+
+`spec/TASKS.md:302` asks a `blocked_external` record to carry the missing item *and* the smallest
+command that would resume verification, so both new blockers name a resume step.
+
+### Guard
+
+`mod evidence_routing` (`crates/xtask/src/bin/requirements.rs:528-571`) — 2 tests. One asserts,
+per record, that its evidence contains its own subject and none of the neighbouring protocols';
+the other pins AT059/AT062 to `blocked_external`. A string test is the right shape here because a
+grouped arm cannot fail: nothing observes *which* record a string was written for. The assertions
+are not vacuous — the committed copy of the generator (`git show HEAD:...`, saved to
+`target/req.old.rs`) still contains both grouped arms, and each `must_not` token is present in the
+arm it forbids: `check-maxpat` inside `"AT057" | "AT058" | "AT059"`, `spout` inside
+`"AT061" | "AT062"`. That is a check against the old source text, not a run of the test on it.
+
+### Citation churn
+
+The block grew by 3 lines (`git diff --numstat` = 23/20 on a generated file), which moved every
+ledger citation below it. Re-resolved by a script that finds the enclosing `"id"` for each cited
+line in both revisions rather than by eye: 22 citations, **13 pointing at the wrong record** after
+regeneration, 0 now. Two of them were continuation-style — the pairs `3816, 3826` and `4017, 4027`
+in the old numbering — where only the first matches a `file:NNN` regex, so a shift that moves one
+number and not the other leaves the second pointing into the previous record. Both moved too (→3829, →4030).
+Four citation sites into the generator itself — `requirements.rs:374`, `:396`, `:441`, `:445`,
+`:453` across `DECISIONS.md:825`, `docs/PERFORMANCE-READINESS.md:245`, `:426` and `STATE.json:134`
+— moved to `:393`/`:424`/`:472`/`:494`/`:512`.
+
+### Measured at this tree
+
+- `cargo fmt --all -- --check` exit 0.
+- `cargo test --workspace -- --test-threads=1` exit 0 — **207 passed / 0 failed / 0 ignored**
+  across the same 40 result lines (29 test binaries + 11 doctests): D027's 205 plus the 2 routing
+  tests, which landed in the xtask bin target that used to report `running 0 tests`.
+- `cargo run -q -p xtask --bin requirements` exit 0, own status, un-piped. The regeneration diff is
+  the AT057–AT063 block and nothing else.
+- `infrastructure/verify.ps1` was **not** re-run for this change. The 17/0/0 figure quoted elsewhere
+  is D027's run at `cf95a2f`; this lane touched only the generator and the docs, and no step in that
+  harness runs `xtask --bin requirements` — which is the gap noted below.
+
+### Not changed here
+
+- **Nothing regenerates or freshness-checks the ledger.** `ci.yml` runs `catalog`, `doctor`,
+  `test-gpu`, `export_shaders` and `fixtures` (`:35`–`:45`); `verify.ps1` has zero matches for
+  `requirements`. So a hand-edit of `requirements.json` survives CI silently and the statuses that
+  D025 and D028 fixed are only as current as the last manual run. Patched as documentation, not as
+  a step: adding it to one harness and not the other is the divergence AGENTS.md forbids.
+- `docs/PERFORMANCE-READINESS.md:22-23` insists a Max GUI is *not* external ("he has Live 12")
+  while `BLOCKERS.md:36-40` makes `.amxd` depend on Max's Save-As dialog. AT062 has to sit on one
+  side of that, and the ladder (`spec/START-HERE.md:93`) has no status for "blocked on a human
+  clicking Save". `blocked_external` is the closest legal label, not the right one — flagged, not
+  resolved.
+- AT054–AT056 keep citing `capture.txt` for three different ACs, which is one transcript doing the
+  work of three clauses; that is thin, but it is at least the same subject.
+- No `spec/VERIFICATION.md` row was re-run here. The spec text was read to find out what each
+  record is *about*; every status string still rests on evidence captured in earlier lanes.
+- D025's citation paragraph (`:832`) names two numbers — "`:3655` for AT050, `:3729` for AT059" —
+  that resolve to neither record in the committed file or this one: 3655 sits inside AT052 and 3729
+  inside AT058's blocker, while AT050's `id` is at `:3620`. No live document cites either number, so
+  it is a stale note in a historical record rather than a broken pointer; the record is left as
+  written. Whether those were pre-fix or post-fix values is not recoverable from this tree.

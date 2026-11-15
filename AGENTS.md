@@ -72,7 +72,14 @@ them first.
   unset, which is the repo's own truthfulness rule broken inside the harness. They now write
   `ok = null` plus `status = 'blocked_external'`, and the run prints
   `steps: passed=N failed=N blocked_external=N`. Check that third number before saying a
-  gate ran; a machine without the SDKs still exits 0.
+  gate ran; a machine without the SDKs still exits 0. The mirror-image defect was live until
+  D027: both gates were *decided by an environment variable* rather than by the machine, so
+  this host recorded `blocked_external` for six days while holding `abl_link.lib` and
+  `spout_shim.dll` on disk. They now test for the artifacts, and export the resolved shim
+  path — cargo sets a test binary's cwd to the *package* directory, where the adapter's
+  relative candidate does not resolve, so a repo-root "is the file there" probe reads present
+  while the test silently skips and cargo calls it a pass. With that, this host runs 17-0-0;
+  CI still records 2, because both artifacts are gitignored.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
@@ -82,21 +89,30 @@ them first.
   the runtime cannot be dlopened, so a machine with no NDI recorded that as a *pass*. Renamed
   to `ndi-runtime-loads` and gated on the runtime DLL's presence 2026-11-15 (D023); the
   Blocked branch compiles the feature instead of testing it, so `ndi` stays type-checked.
-  The same overpromise is live in `crates/integrations/src/lib.rs`: `spout` and `link` still
-  set `verified: cfg!(feature = …)`, which is exactly what that function's own doc comment
-  forbids. Read the `limitation` string, not the boolean.
+  The same overpromise was live in `crates/integrations/src/lib.rs`: `spout` and `link` derived
+  `verified` from `cfg!(feature = …)`, so a feature build claimed a measurement it had not made.
+  Closed 2026-11-15 (D027): `verified` is a per-row constant there, and a source test
+  (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
+  **read the `limitation` string, not the boolean.**
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting
   as a pass.** `flux ndi-loopback` did that for its whole life: it subscribed with the bare
   sender name, NDI advertises `{machine} ({sender})`, so the match could never happen, the
   receive loop timed out, and the exit status said success. `ndi-send`/`ndi-recv`/`ndi`
   behaved the same on a missing runtime. Nonzero now means "this did not happen"; an empty
   discovery list is still exit 0 because finding nothing is an answer.
-- **`implementation/requirements.json` is generated, so its statuses are code.** The
-  `verified` / `implemented_unverified` strings come from `at_status()` and `blocker_for()` in
-  `crates/xtask/src/bin/requirements.rs`; a hand-edit of the JSON is undone by the next
-  `cargo run -q -p xtask --bin requirements`. When a status overpromises, fix the generator arm
-  (D025 did AT060 and AT063) and expect every line-number citation below the changed record to shift
-  by the number of lines the record grew — re-resolve them rather than eyeballing.
+- **`implementation/requirements.json` is generated, so its statuses are code.** For acceptance
+  rows the strings come from `at_status()` and `at_blocker()`; `blocker_for()` serves the
+  requirement and generator rows. A hand-edit of the JSON is undone by the next
+  `cargo run -q -p xtask --bin requirements` — but nothing in `ci.yml` or `infrastructure/verify.ps1`
+  runs that command, so a hand-edit or a stale status survives CI silently. When a status
+  overpromises, fix the generator arm (D025 did AT060 and AT063) and expect every line-number
+  citation below the changed record to shift by the number of lines the record grew — re-resolve
+  them rather than eyeballing, and remember a citation written as `requirements.json:3819, 3829`
+  has a second number a `file:NNN` regex never matches.
+- **A grouped `match` arm in that generator is a silent evidence-rotation bug** (D028). `"AT057" |
+  "AT058" | "AT059" =>` gives one evidence list to a live take, Spout and Syphon, and nothing fails.
+  Group only when the acceptance tests share a subject — AT067–AT070 are four clauses of one export
+  matrix — and check a new group against the `spec/VERIFICATION.md` rows it claims to cover.
 - **`xtask benchmark` numbers need their labels read.** The three harness defects D019 found were
   fixed 2026-11-15 (D021): `--profile` now selects resolution/budget/graph (`ordinary`, `4k`;
   anything else exits 2), render and preview-copy are timed in separate windows, warm-up is

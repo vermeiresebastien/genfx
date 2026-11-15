@@ -71,14 +71,19 @@ until the commit that reformats the tree, HEAD did **not** pass its own first CI
 (`cargo fmt --all -- --check`, 56 diffs in 12 files). Everything downstream of it in
 `ci.yml` therefore never ran in GitHub Actions, even though all of it passed locally.
 It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is still
-green behind the reformat — 204 passed, 0 failed across 40 binaries, re-measured
-2026-11-15 on the tree that added the OSC receive bridge (D022); it was 196 before.
+green behind the reformat — 207 passed, 0 failed across 40 result lines (29 test binaries
++ 11 doctests), re-measured 2026-11-15 on the D028 tree; it was 196 before the OSC receive
+bridge (D022) added 8, D027's guard test 1 and D028's ledger-routing guards 2.
 The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
 a single exit-code read, and recorded skipped SDK gates as passes. Both are fixed (D020),
 and the full script measured `VERIFY: PASS` / exit 0 — 15 passed, 0 failed,
-2 `blocked_external`. See `AGENTS.md`
-§ "Traps inside this repo's own verification harness".
+2 `blocked_external`. D027 found those two blockers were about an environment variable and
+not about the machine: keyed instead on whether `abl_link.lib` and `spout_shim.dll` are
+actually reachable, this host runs all 17 steps — `VERIFY: PASS`, exit 0, **17 passed /
+0 failed / 0 `blocked_external`**, the first recorded run with nothing blocked. Both of
+those files are gitignored, so a fresh clone — and CI — still record 2 blocked steps. See
+`AGENTS.md` § "Traps inside this repo's own verification harness".
 
 ## Live control
 
