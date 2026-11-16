@@ -53,7 +53,7 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   machine state — the spout shim resolves itself, and Link needed its directory exported until
 >   D029 taught that gate to search — at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
 >   0 blocked_external**, the first with nothing blocked. D032 added `requirements-freshness`:
->   that step has measured **18-0-0** five times — `3e4e825` and `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034) and `2361785` (D035) — three of them `gitDirty false`; the two that were not were dirty with their own decision records. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
+>   that step has measured **18-0-0** five times in bytes anyone can re-read — `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034), `2361785` (D035) and `1a418a1` (D036) — four with `gitDirty false`, the exception `51bc077`, dirty with the decision record it was measuring. D032 also claimed a run at `3e4e825`, and this line repeated it until D036 counted the blobs: no `verify.json` in any of the repository's 94 commits carries `gitHash 3e4e825`, and the tree committed at `a91ebda` still holds the 17-step `f867b72` file, so that second dirty run was a field value with nothing behind it. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
 > - **§1 is a dated inventory: its numbers are the 2026-11-09 capture, and several have moved.**
 >   The catalog is **217 entries**, not 216 — re-measured at `90d9e59` today: `flux doctor` prints
 >   `catalog entries: 217`, `xtask test-gpu --profile baseline` reported "compiled 217 shaders, 0

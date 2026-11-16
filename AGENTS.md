@@ -173,6 +173,14 @@ them first.
   after verification is normal and is not a code change. Since D026, `gitDirty` in those files
   is measured with `implementation/evidence/` excluded, so `gitDirty: true` means the *source*
   was uncommitted — do not "fix" the exclusion by widening it back.
+- **A harness run is named by the `gitHash` inside `verify.json`, not by which commit was HEAD
+  when the record was written.** Those are two different commits: the bytes a run writes are
+  committed by the *next* one. Conflating them let D032 record a run "at `3e4e825`" with a
+  `gitDirty` value, which four documents then copied, and no `verify.json` blob in any of this
+  repository's 94 commits carries that hash — D036 enumerated them all, and the tree committed
+  at `a91ebda` sixteen minutes later still holds the previous run's 17-step file. Say "the run
+  recorded at `X`" only when you have read `gitHash: X` in a blob; otherwise say what is true:
+  that a run happened with the tree at `X`, and that its bytes were never committed.
 
 ## Architecture rules that are not negotiable
 

@@ -1769,7 +1769,7 @@ for a reader to infer.
 | `crates/xtask/src/main.rs` | one existing `notes` element in `cmd_evidence` extended to state that `manifest.json` is deliberately not freshness-gated. Line count kept at 1524 so the eight citations D031 re-resolved did not move. |
 | `infrastructure/verify.ps1` | new `Step 'requirements-freshness'` after `shaders-export` (218 lines) |
 | `.github/workflows/ci.yml` | matching step, with the autocrlf reason in a comment above it |
-| `implementation/evidence/` | the gate's own footprint: two harness runs rewrote `catalog`, `doctor`, `fixtures`, `test-gpu` and `verify.json` (the first at `3e4e825` with `gitDirty true`, the repeat at `a91ebda` with `false`) and `xtask evidence` restamped `manifest.json` at `a91ebda` |
+| `implementation/evidence/` | the gate's own footprint: two harness runs rewrote `catalog`, `doctor`, `fixtures`, `test-gpu` and `verify.json` (the first at `3e4e825` with `gitDirty true`, the repeat at `a91ebda` with `false`) and `xtask evidence` restamped `manifest.json` at `a91ebda` [annotated by D036: no `verify.json` blob in any of this repo's 94 commits carries `gitHash 3e4e825`, and the tree committed at `a91ebda` still holds the 17-step `f867b72` file, so the "first at `3e4e825` with `gitDirty true`" names field values nobody can re-read — see D036's "The 18-0-0 tally, recounted from bytes"] |
 | `AGENTS.md` | the command enters Canonical commands (it now *is* CI parity); the harness trap that said "nothing in `ci.yml` or `verify.ps1` runs that command, so a hand-edit survives CI silently" is rewritten to what is true now, and the 17-0-0 in the SDK-gate trap is put in the past tense with 18 named as the new ceiling |
 | `implementation/DECISIONS.md` | this record; D025's writer citation re-pointed; D029's `verify.ps1:200-202` re-pointed to `:201-203`; D028's, D029's and D031's "Not changed here" bullets put in past tense and marked answered, not deleted |
 | `implementation/STATE.json` | `test_totals.passed` was still **204** while its own `measured` prose said 214 — D031 updated the sentence and left the field a machine reads; both now say 218 with the +4, plus a lane-18 handover paragraph. Its `verify.ps1:35`/`:81` citations are above the inserted step and did not move. `at_head`, `counts`, `passing_steps`, `re_run_lanes`, the commands list and `known_gaps[13]` (D027's rotated-evidence gap, closed by D028 and gated by D032) are brought to the same state, and lanes 15/16's "both harnesses or neither" handovers are marked done. 187 lines kept |
@@ -2572,7 +2572,7 @@ gave the real `-1073741512`.
 | `crates/app/src/main.rs` | `feature_off()` added at `:150`; nine compiled-out branches, eight feature-on arms and `cmd_caps` now return errors; `#[cfg(test)] mod tests` (`:1133`) with six guards. 1 086 → 1 248 lines, `209 insertions(+), 47 deletions(-)`. |
 | `implementation/DECISIONS.md` | this record, D027's "Not changed here" bullet annotated as discharged with the count corrected, D029's copy of the same sentence closed, D026's `:877` and D027's `:1132` citations re-pointed to the moved lines, and D032's two intra-file pointers at `:1786`-`:1787` re-pointed for the growth this record itself caused. |
 | `implementation/STATE.json` | `test_totals` 227 → 233 with what the +6 are; the seven-branch item in `current_task` discharged; `known_gaps[15]` rate, `commands_to_resume` and the DX evidence claim corrected to what the binary now says. |
-| `AGENTS.md` | the CLI-exit bullet extended with the seventeen and the boundary; the `%ERRORLEVEL%` parse-time trap added; the D028-D035 range and the workspace total relabelled. |
+| `AGENTS.md` | the CLI-exit bullet extended with the seventeen and the boundary; the `%ERRORLEVEL%` parse-time trap added; the D028-D035 range and the workspace total relabelled; and, after this lane's own run, a harness-trap bullet that a run is named by the `gitHash` in its `verify.json` rather than by which commit was HEAD. 232 lines at `1a418a1`, 240 with this addendum. |
 | `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | the suite total, the run range, the re-pointed `main.rs` citations, and the Spout rows corrected where this lane measured them. |
 | `implementation/BLOCKERS.md` | the Spout2 bullet, which still said `flux spout-send-dx` "broadcasts real frames"; it is now past tense, names the `0xc0000138` re-measurement, and keeps its `:20-22`/`:23-24` claim lines on the lines that cite them. |
 | `implementation/evidence/` | only what a gate rewrites when it runs; `manifest.json` stays outside the freshness gate for the reason recorded at D032. |
@@ -2608,3 +2608,62 @@ re-resolve rule is for.
 This file is 2 610 lines at the commit that carries this record, with the D036 heading at `:2409`; the
 only citation into it from outside is still `DECISIONS.md:116`, twice, from
 `docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869`, both far above every line this lane touched.
+
+### After the harness
+
+Everything above was written before the harness ran, which is the order D033's record of its own run
+demands: a run is only writable from its own numbers. What the run then produced.
+
+- `infrastructure/verify.ps1`, full and without `-Quick`, at `1a418a1` from a shell with
+  `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` removed via `env -u`: **VERIFY: PASS**, exit 0,
+  `steps: passed=18 failed=0 blocked_external=0`, all 18 steps `{ exit: 0, ok: true }`, `verify.json`
+  at `gitHash 1a418a1`, `gitDirty false`, `quick false`, `external` all three true, rustc 1.99.0,
+  `requirements-freshness` recording that verdict while printing `is fresh` at log line 1408,
+  `unit-tests` again at **158** (app 34, audio 14, catalog 16, domain 30, engine 22, integrations 28,
+  media 6, render 8 — the same eight numbers D035 listed for the same step, in the order this log
+  prints them), the integration groups 6/6/4/3, link 7 with 28 filtered out, ndi 2 with 29, spout 1
+  with 28, and zero occurrences of `FAILED`, `error[` or `ACCESS_VIOLATION` in a 1 930-line log.
+- That 158 is the blind spot confirmed rather than assumed. This lane added six tests and the step
+  totals exactly what it totalled before them; the figure that moved is 227 → 233, and the command
+  that reads it is the one this script does not run. Anyone who wants the six guards executed has to
+  run the workspace suite, not `VERIFY: PASS`.
+- `cargo run -q -p xtask -- evidence` — exit 0, `headAtRun 1a418a1`, `provenance.gitDirty false`: 32
+  files, 9 stamped by their writer (5 `stamped_current` — catalog, doctor, fixtures, test-gpu, verify
+  — plus 4 `stamped_other_commit`), 4 `header_other_commit`, 19 `unattributed`, 0 `missing`.
+  `git diff --stat 2361785..1a418a1 -- crates/xtask` is empty, so the same writer produced the same
+  32 / 9 / 4 / 19 / 0 rather than a re-tally of different bytes — evidenced by the diff, not by the
+  shared `xtask.exe` mtime. And `manifest.json` still reports `gitHash 2361785` for *itself*, because
+  a manifest cannot stamp the commit it is written into: D035's limit, met again rather than fixed.
+
+### The 18-0-0 tally, recounted from bytes
+
+D032's own Files-changed row (`:1772`) and `docs/PERFORMANCE-READINESS.md:1073` both record a run
+**at `3e4e825`** as the first 18-step run, with `gitDirty true` "because its uncommitted sources were
+DECISIONS.md and this file". Enumerating the `gitHash`, `counts` and `gitDirty` fields of every
+committed `implementation/evidence/verify.json` across all 94 commits this repository's refs reach
+(80 of them carry the file at all) says otherwise. The evidenced set, in order:
+
+| run measured at | counts | `gitDirty` | `generatedAt` | first committed in |
+|---|---|---|---|---|
+| `a91ebda` | 18/0/0 | false | `2026-11-15T20:41:04Z` | `5763cdf` |
+| `7adb5e6` | 18/0/0 | false | `2026-11-15T22:10:42Z` | `f710d90` |
+| `51bc077` | 18/0/0 | **true** | `2026-11-15T23:24:21Z` | `4d911c8` |
+| `2361785` | 18/0/0 | false | `2026-11-16T00:26:26Z` | `75ff9a9` |
+| `1a418a1` | 18/0/0 | false | `2026-11-16T02:03:59Z` | the commit carrying this section |
+
+No blob anywhere carries `gitHash 3e4e825`; the same sweep finds no blob with `passed: 16` either,
+which is the shape D032 already annotated for `7ecc1f1`'s 16-0-1 — "that run's log was overwritten by
+the next one". What is decidable is narrower than either claim: the tree committed at `a91ebda`
+(21:39:36 local) still holds the 17-step `f867b72` file, so either no 18-step run executed at
+`3e4e825`, or one ran, was left out of every commit, and was overwritten two minutes later by the run
+recorded at `a91ebda`. Nothing in the repo separates those two histories, so the countable statement
+is about **evidenced** runs: four before this lane, `1a418a1` the fifth, four of the five on a clean
+tree. README (`:91`) and `implementation/FINAL-REPORT.md` (`:56`) had copied one another's list and
+disagreed about `3e4e825` — one named it as a run, the other did not — and both now recite the five
+rows above. D032's row at `:1772` is annotated rather than rewritten, because the mistake is
+part of what that lane measured, and a record that reports a field value for bytes nobody can re-read
+is the defect this lane exists to catch — one level above the CLI sites it closed.
+
+This section sits below the D036 heading, so `:2409` still names it and the only inbound citation into
+this file — `DECISIONS.md:116`, twice, from `docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869` — is
+above everything it grew. The file is 2 669 lines at the commit carrying this section.
