@@ -11,7 +11,7 @@ use flux_app::export::{export_project_with_frames, ExportOptions, PreviewRendere
 use flux_app::producer::produce_node;
 use flux_domain::{Project, RationalTime};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 struct AppState {
@@ -52,9 +52,171 @@ fn osc_port() -> u16 {
     }
 }
 
+/// Take a mutex whose previous holder may have panicked inside it.
+///
+/// Returns the guard, plus whether the mutex was poisoned.
+///
+/// Why this exists rather than `.lock().unwrap()`: `std::sync::Mutex` keeps the
+/// poison flag for the life of the mutex, so one panic while a lock is held makes
+/// *every later acquisition* panic as well. Both mutexes here guard long-lived
+/// state — `host` is the document, `preview` the GPU renderer — so the first bad
+/// preview frame would end every subsequent command and every later frame too:
+/// the app is dead while its window is still showing the last image. Recovering
+/// makes one failed frame a failed frame instead.
+///
+/// What recovery does NOT assert is that the guarded value is consistent. A
+/// `PoisonError` says only that a panic crossed the critical section, and nothing
+/// in this process can prove what it left behind. So each caller answers for
+/// itself, and the three answers it may choose from are stated here rather than
+/// implied there:
+///  * *continue* — the value is only read out, and one stale read is not a
+///    corruption (the `host` project clone in the render commands, `osc_status`);
+///  * *discard* — the guarded value is reconstructible from something we do
+///    trust, so throwing it away is the honest repair (`preview_disposition`: the
+///    renderer's `roots_cache: HashMap<String, RuntimeGraph>` is rebuilt by
+///    rendering the project again, which is why a poisoned preview can be answered
+///    safely and a poisoned document cannot);
+///  * *refuse* — neither answer is defensible, so the call says so with a reason
+///    the UI can show (`export_disposition`: starting an export while the state of
+///    the one GPU device already created is unknown).
+///
+/// What this cannot tell any of them is *what panicked*. `PoisonError` hands back
+/// the guard and nothing else — its payload is a private field, not a method
+/// (measured: `error[E0599]: no method named `data` found for struct
+/// `PoisonError<T>` ... private field, not a method`), and the only stable routes
+/// to a panic message are a process-wide `set_hook` or the `JoinHandle` of the
+/// panicking thread, neither of which is bound to *this* lock. So the reasons
+/// built below name the lock and the action taken, and never quote a panic this
+/// process did not observe.
+///
+/// `what` names the mutex for the stderr line; a caller that shows the user a
+/// reason uses the `*_disposition` functions, so the two cannot disagree.
+fn lock_recovered<'a, T>(m: &'a Mutex<T>, what: &str) -> (MutexGuard<'a, T>, bool) {
+    match m.lock() {
+        Ok(guard) => (guard, false),
+        Err(err) => {
+            eprintln!(
+                "flux-desktop: {what} was poisoned by a panic while held; recovering the guard"
+            );
+            (err.into_inner(), true)
+        }
+    }
+}
+
+/// What a poisoned preview lock means for the renderer it guards.
+///
+/// Split out from `PreviewRenderer` on purpose: the policy is about an `Option`,
+/// so it can be gated with a sentinel slot on a host with no GPU, and the three
+/// legs below are the whole rule. `T` stands in for the renderer at the gate.
+///
+///  1. not poisoned — nothing to decide, the slot may be used as it is;
+///  2. poisoned and the slot still holds a renderer — discard it and refuse THIS
+///     frame. The renderer is the thing we cannot vouch for: a panic inside
+///     `render_graph` can cross a `wgpu` submission and leave the cached
+///     `roots_cache: HashMap<String, RuntimeGraph>` half-updated, and a frame
+///     rendered from a half-updated graph looks exactly like a frame rendered
+///     from a whole one. Refusing is cheaper than being wrong, and dropping the
+///     renderer is the repair we can prove, because a `PreviewRenderer` is
+///     rebuilt from the project on the next call;
+///  3. poisoned but the slot is already empty — proceed. This is the "once" in
+///     "refuse once", and it is not a convenience: `std::sync::Mutex` never
+///     clears its poison flag, so a rule keyed on the *flag* would refuse every
+///     frame for the rest of the session, which is the dead-app defect arriving
+///     by another door. The danger is the torn renderer, not the bit that
+///     recorded how it got dropped; once the renderer is gone there is nothing
+///     left to distrust, and the next call initialises a fresh one.
+fn preview_disposition<T>(poisoned: bool, slot: &mut Option<T>) -> Result<(), String> {
+    if !poisoned {
+        return Ok(());
+    }
+    if slot.is_none() {
+        return Ok(());
+    }
+    *slot = None;
+    Err(
+        "preview discarded after a panic crossed the GPU renderer's lock; this frame was not \
+         rendered, and the renderer will be rebuilt on the next one"
+            .to_string(),
+    )
+}
+
+/// Whether an export may start while the preview lock is in this state.
+///
+/// Same three legs as `preview_disposition`, opposite second answer — and the
+/// difference is the point. The preview path can throw the renderer away because
+/// it is about to rebuild it. The export path must not: deciding who owns the one
+/// GPU device is defect 6's question, not this item's, and dropping the renderer
+/// from here would answer it implicitly. So this arm refuses, leaves the renderer
+/// exactly as it was found, and says what to do about it.
+///
+///  1. not poisoned — release the device and start, as before;
+///  2. poisoned and the slot holds a renderer — refuse. A second device started on
+///     top of one whose state is unknown is exactly the driver crash the release
+///     step exists to avoid, and the poisoned lock is the reason the state is
+///     unknown;
+///  3. poisoned and the slot is empty — start. There is no device left to
+///     collide with, and the poison bit says only how the renderer was dropped,
+///     not that anything is still held. This is the leg that makes the refusal in
+///     leg 2 a one-time refusal rather than a permanent one: the user renders a
+///     preview frame, that frame discards the renderer, and the next export goes.
+fn export_disposition(poisoned: bool, slot_holds_renderer: bool) -> Result<(), String> {
+    if !poisoned || !slot_holds_renderer {
+        return Ok(());
+    }
+    Err(
+        "export refused: the preview renderer was left behind by a panic and still holds its GPU \
+         device, and starting a second device on top of one whose state is unknown is the driver \
+         crash this path exists to avoid. Render one preview frame first — that discards the \
+         poisoned renderer — then export."
+            .to_string(),
+    )
+}
+
+/// The preview renderer, initialised on first use, and answered with a reason
+/// when there is no trustworthy one. Never panics, and never hands back an empty
+/// slot: a caller that cannot render says so in words the webview can show
+/// rather than dying in an `unwrap()` or painting a frame nobody asked for.
+fn preview_renderer(
+    preview: &Mutex<Option<PreviewRenderer>>,
+) -> Result<MutexGuard<'_, Option<PreviewRenderer>>, String> {
+    let (mut guard, poisoned) = lock_recovered(preview, "preview renderer");
+    preview_disposition(poisoned, &mut guard)?;
+    if guard.is_none() {
+        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
+    }
+    // The slot cannot be empty here — `preview_disposition` either kept it or
+    // refused, and the line above filled it. Callers still go through
+    // `preview_slot`, because the alternative was `unwrap()`.
+    Ok(guard)
+}
+
+/// The renderer the caller asked for, or the reason there is none. This is now
+/// the only way a preview command reaches the renderer: the old form was
+/// `guard.as_mut().unwrap()`, which turned an empty slot into a panic inside a
+/// Tauri command — the webview's promise never settles, the window keeps showing
+/// the previous frame, and nothing in the UI says why.
+///
+/// Two gates, because one cannot do the other's job. This function is generic
+/// over the slot so both of its arms are gated as behaviour
+/// (`an_empty_preview_slot_answers_with_a_showable_reason`, no GPU needed); that
+/// it is never *reached* with an empty slot is a property of
+/// `preview_renderer`'s initialisation, which needs a device, so it is gated as a
+/// ban on the panic form (`no_command_unwraps_a_lock_or_a_slot`) instead. A
+/// behaviour test for the unreachable arm would only be proving the
+/// initialisation is wrong.
+fn preview_slot<T>(slot: &mut Option<T>) -> Result<&mut T, String> {
+    slot.as_mut()
+        .ok_or_else(|| "no preview renderer: this frame was not rendered".to_string())
+}
+
 #[tauri::command]
 fn dispatch(state: tauri::State<AppState>, request: Request) -> Response {
-    let mut host = state.host.lock().unwrap();
+    // Continue, and say so on stderr. `Response` already carries a typed
+    // `error` slot for the *request*, and putting a mutex-recovery note in it
+    // would make a successful command look failed — that is a wire-format
+    // decision, not this item's. The frame that panicked is already lost; this
+    // one is answered.
+    let (mut host, _) = lock_recovered(&state.host, "command host");
     host.handle(request)
 }
 
@@ -97,7 +259,11 @@ fn render_preview(
     height: u32,
 ) -> Result<String, String> {
     let (project, graph) = {
-        let host = state.host.lock().unwrap();
+        // Read out and drop: the host lock is never held into the GPU path, so a
+        // panic in `render_graph` cannot poison the document as well as the
+        // renderer. Recovery here continues, because what this reads is a clone
+        // the caller is about to render, not a claim about the document.
+        let (host, _) = lock_recovered(&state.host, "command host (preview read)");
         let g = host
             .dispatcher
             .project
@@ -108,11 +274,8 @@ fn render_preview(
     };
     let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
         .map_err(|e| e.to_string())?;
-    let mut guard = state.preview.lock().unwrap();
-    if guard.is_none() {
-        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
-    }
-    let renderer = guard.as_mut().unwrap();
+    let mut guard = preview_renderer(&state.preview)?;
+    let renderer = preview_slot(&mut guard)?;
     // Render the node-graph editor's active graph (fall back to timeline render
     // if the project has no graph).
     let rgba = match &graph {
@@ -193,7 +356,7 @@ fn export_project_cmd(
     keep_frames: Option<bool>,
 ) -> Result<String, String> {
     let project = {
-        let host = state.host.lock().unwrap();
+        let (host, _) = lock_recovered(&state.host, "command host (export read)");
         host.dispatcher.project.clone()
     };
     if state.exporting.swap(true, Ordering::SeqCst) {
@@ -202,7 +365,30 @@ fn export_project_cmd(
     let exporting = state.exporting.clone();
     // Release the live preview GPU device before exporting so only one device is
     // active at a time (two concurrent wgpu devices can crash some drivers).
-    if let Ok(mut guard) = state.preview.lock() {
+    //
+    // The `if let Ok(mut guard)` this replaces is the defect in this item's own
+    // shape: on a poisoned preview lock it skipped the release, said nothing and
+    // started the export anyway, so the one-device guarantee was traded for a
+    // green "export started" exactly when the state of that device was least
+    // knowable. Refusing is the honest answer. And the flag goes back, because a
+    // refusal that left `exporting` set would wedge every later export as well —
+    // the same permanent-dead shape this item exists to remove.
+    //
+    // What is deliberately NOT done here: dropping the renderer, which is what
+    // the preview path does. That would answer who owns the device from the
+    // export path, and it would be an implicit fix for defect 6 — the renderer is
+    // left exactly as it was found, held by a lock nobody can vouch for, and the
+    // export does not start. Naming that owner is a separate decision with its
+    // own gate; this arm only refuses, and says what to do about it.
+    {
+        let (mut guard, poisoned) = lock_recovered(&state.preview, "preview renderer (export)");
+        if let Err(reason) = export_disposition(poisoned, guard.is_some()) {
+            exporting.store(false, Ordering::SeqCst);
+            return Err(reason);
+        }
+        // Either the lock was clean, or it was poisoned and an earlier refusal had
+        // already dropped the renderer; in both cases there is no device left to
+        // release, and the export may start.
         *guard = None;
     }
     // Resolve relative output dirs against the process CWD so the reported path
@@ -319,7 +505,10 @@ fn capabilities() -> serde_json::Value {
 /// the stream outran the rate limiter.
 #[tauri::command]
 fn osc_status(state: tauri::State<AppState>) -> serde_json::Value {
-    let g = state.osc.lock().unwrap();
+    // Continue: every field below is a read-out of what the listener recorded,
+    // and a poison here means a panic happened somewhere else while this lock
+    // happened to be held — answering with the numbers is not a new claim.
+    let (g, _) = lock_recovered(&state.osc, "osc runtime");
     serde_json::json!({
         "port": g.port,
         "bound": g.bridge.is_some(),
@@ -337,7 +526,10 @@ fn osc_status(state: tauri::State<AppState>) -> serde_json::Value {
 /// is `compiled: false`, said plainly rather than as a level of zero.
 #[tauri::command]
 fn live_audio_status(state: tauri::State<AppState>) -> serde_json::Value {
-    state.host.lock().unwrap().live_audio_status()
+    // Continue, for the same reason as `osc_status`: this reads the slot the
+    // capture command writes, and the read-out is a report, not a repair.
+    let (host, _) = lock_recovered(&state.host, "command host (live-audio read)");
+    host.live_audio_status()
 }
 
 #[tauri::command]
@@ -380,7 +572,7 @@ fn render_preview_raw(
     output_node_id: Option<String>,
 ) -> Result<tauri::ipc::Response, String> {
     let (project, mut graph) = {
-        let host = state.host.lock().unwrap();
+        let (host, _) = lock_recovered(&state.host, "command host (graph read)");
         (
             host.dispatcher.project.clone(),
             host.dispatcher.project.graphs.get(&graph_id).cloned(),
@@ -395,11 +587,8 @@ fn render_preview_raw(
     }
     let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
         .map_err(|e| e.to_string())?;
-    let mut guard = state.preview.lock().unwrap();
-    if guard.is_none() {
-        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
-    }
-    let renderer = guard.as_mut().unwrap();
+    let mut guard = preview_renderer(&state.preview)?;
+    let renderer = preview_slot(&mut guard)?;
     let rgba = renderer
         .render_graph(&graph, &project, t, width, height)
         .map_err(|e| format!("render: {e:?}"))?;
@@ -428,7 +617,7 @@ fn render_graph_preview(
     output_node_id: Option<String>,
 ) -> Result<String, String> {
     let (project, mut graph) = {
-        let host = state.host.lock().unwrap();
+        let (host, _) = lock_recovered(&state.host, "command host (graph read)");
         (
             host.dispatcher.project.clone(),
             host.dispatcher.project.graphs.get(&graph_id).cloned(),
@@ -443,11 +632,8 @@ fn render_graph_preview(
     }
     let t = RationalTime::new((time_seconds * 1_000_000.0) as i64, 1_000_000)
         .map_err(|e| e.to_string())?;
-    let mut guard = state.preview.lock().unwrap();
-    if guard.is_none() {
-        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
-    }
-    let renderer = guard.as_mut().unwrap();
+    let mut guard = preview_renderer(&state.preview)?;
+    let renderer = preview_slot(&mut guard)?;
     let rgba = renderer
         .render_graph(&graph, &project, t, width, height)
         .map_err(|e| format!("render: {e:?}"))?;
@@ -487,7 +673,12 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             let state = app.state::<AppState>();
-            let runtime_port = state.osc.lock().unwrap().port;
+            // At startup the mutex has just been built and cannot be poisoned, so
+            // `lock_recovered` is a no-op on every one of these three acquisitions.
+            // It is used anyway, so that the ban in
+            // `no_command_unwraps_a_lock_or_a_slot` can be absolute instead of
+            // "everywhere except the lines I decided were safe".
+            let runtime_port = lock_recovered(&state.osc, "osc runtime (setup)").0.port;
             let emit = move |params: &[String], revision: u64| {
                 let _ = app_handle.emit(
                     "live-control",
@@ -496,11 +687,13 @@ pub fn run() {
             };
             match OscBridge::start(runtime_port, state.host.clone(), emit) {
                 Ok(bridge) => {
-                    state.osc.lock().unwrap().bridge = Some(bridge);
+                    let (mut runtime, _) = lock_recovered(&state.osc, "osc runtime (bridge)");
+                    runtime.bridge = Some(bridge);
                 }
                 Err(e) => {
                     eprintln!("flux-desktop: OSC listener could not bind port {runtime_port}: {e}");
-                    state.osc.lock().unwrap().bind_error = Some(e.to_string());
+                    let (mut runtime, _) = lock_recovered(&state.osc, "osc runtime (bind error)");
+                    runtime.bind_error = Some(e.to_string());
                 }
             }
             Ok(())
@@ -708,5 +901,464 @@ mod tests {
              not re-run the bundler, so `cargo build -p flux-desktop` embeds the previously \
              built app.bundle.js and reports success."
         );
+    }
+
+    // --- item 3: one poisoned mutex must not end the app --------------------
+    //
+    // These legs never touch a GPU and never open a window: `preview_renderer`
+    // and `export_project_cmd` were split into `lock_recovered` + a
+    // `*_disposition` policy over an `Option` precisely so that the whole rule is
+    // reachable from a `usize` and a sentinel slot. What cannot be gated here is
+    // named in the last test of this block.
+
+    use super::{
+        export_disposition, lock_recovered, preview_disposition, preview_slot, Arc, Mutex,
+    };
+
+    /// Poison `m` the only way poisoning happens: a panic unwinding through a
+    /// held guard, on a thread that then dies of it.
+    ///
+    /// The `JoinHandle` is the evidence, and it is asserted rather than ignored:
+    /// a leg that "recovers" from a mutex nobody ever poisoned would pass, so the
+    /// helper refuses to return until it has proof that a panic crossed the
+    /// critical section. (`thread::scope` was the first draft and is wrong here:
+    /// it re-panics in the *test* thread when the scope ends, which is a second
+    /// panic unrelated to the one under test.)
+    ///
+    /// Expect a `thread '...' panicked at 'gate: …'` line in the log while these
+    /// tests run. It is not a failure: that panic *is* the symptom under test,
+    /// and the legs below assert which acquisition survives it.
+    fn poison_in_a_thread(m: &Arc<Mutex<usize>>) {
+        let holder = m.clone();
+        let thread = std::thread::spawn(move || {
+            let _held = holder.lock().unwrap();
+            panic!("gate: panic while the lock is held");
+        });
+        assert!(
+            thread.join().is_err(),
+            "the poisoner exited cleanly, so nothing was ever poisoned — every leg that follows \
+             would be recovery from a poison that does not exist"
+        );
+        assert!(
+            m.is_poisoned(),
+            "the thread panicked but the mutex is not poisoned: the precondition this gate is \
+             built on does not hold on this toolchain"
+        );
+    }
+
+    /// Did this closure panic? Answering the question rather than letting the
+    /// harness fail on the panic is what lets one test compare the banned form
+    /// and the recovery form against the *same* poisoned mutex.
+    fn did_panic<F: FnOnce()>(f: F) -> bool {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err()
+    }
+
+    /// The item's whole claim, as a measurement: after a panic crosses the lock,
+    /// `.lock().unwrap()` panics again and the app is dead, while
+    /// `lock_recovered` hands the caller a usable guard and says it was poisoned.
+    ///
+    /// The poison precondition is checked through `Mutex::is_poisoned` — an API
+    /// that knows nothing about this file — because without it every leg below
+    /// would pass just as well on a mutex that was never poisoned at all.
+    #[test]
+    fn a_poisoned_mutex_is_answered_rather_than_panicking() {
+        let m = Arc::new(Mutex::new(42usize));
+        assert!(!m.is_poisoned(), "precondition: a fresh mutex is clean");
+
+        // Leg 1 — the clean path must not report poison it did not see.
+        let mut reported = Some(true);
+        let mut read = None;
+        assert!(
+            !did_panic(|| {
+                let (guard, poisoned) = lock_recovered(&*m, "gate mutex (clean)");
+                reported = Some(poisoned);
+                read = Some(*guard);
+            }),
+            "lock_recovered panicked on a clean mutex"
+        );
+        assert_eq!(
+            reported,
+            Some(false),
+            "a clean lock was reported as poisoned"
+        );
+        assert_eq!(read, Some(42), "the clean guard did not carry the value");
+
+        // Precondition — make the poison real, and prove it independently.
+        poison_in_a_thread(&m);
+
+        // Leg 2 — the symptom, in the shape it shipped. This panic is the defect:
+        // it is what every later command does, forever.
+        assert!(
+            did_panic(|| {
+                let _guard = m.lock().unwrap();
+            }),
+            "`lock().unwrap()` did NOT panic on a poisoned mutex — the poison \
+             precondition is a lie and the recovery leg proves nothing"
+        );
+
+        // Leg 3 — the fix, on the same mutex, immediately after.
+        let mut reported = Some(false);
+        let mut read = None;
+        assert!(
+            !did_panic(|| {
+                let (guard, poisoned) = lock_recovered(&*m, "gate mutex (poisoned)");
+                reported = Some(poisoned);
+                read = Some(*guard);
+            }),
+            "lock_recovered panicked on a poisoned mutex — one failed frame still ends the app"
+        );
+        assert_eq!(
+            reported,
+            Some(true),
+            "the poison was not reported to the caller, so it cannot be shown or acted on"
+        );
+        assert_eq!(read, Some(42), "recovery handed back an unusable guard");
+
+        // Leg 4 — the refusal is not free: the guard is still a guard, and the
+        // value can be written back through it. That is what makes *discard*
+        // possible at all; without it the policy could only report, not repair.
+        // The guard is dropped before the re-read: `std::sync::Mutex` is not
+        // reentrant, and a deadlock here would hang the suite instead of failing.
+        {
+            let (mut guard, poisoned) = lock_recovered(&*m, "gate mutex (write back)");
+            assert!(poisoned, "the poison vanished after one recovery");
+            *guard = 99;
+        }
+        let re_read = *lock_recovered(&*m, "gate mutex (re-read)").0;
+        assert_eq!(
+            re_read, 99,
+            "a recovered guard did not carry the write: recovery is a read-only repair"
+        );
+
+        // Leg 5 — and the flag never clears, which is *why* the policies below
+        // key on the slot contents and not on this bit. Measured, not asserted
+        // from documentation: five acquisitions later the mutex is still poisoned
+        // while every one of them was answered.
+        for i in 0..5 {
+            let (_guard, poisoned) = lock_recovered(&*m, &format!("gate mutex (repeat {i})"));
+            assert!(poisoned, "the poison vanished after {i} recoveries");
+        }
+        assert!(
+            m.is_poisoned(),
+            "std::sync::Mutex cleared its poison flag — the permanence this policy is built on \
+             is gone, and a flag-keyed refusal would now be correct instead of fatal"
+        );
+    }
+
+    /// `preview_disposition`, all three legs, on a `usize` standing in for the
+    /// renderer. The leg that matters is the fourth one: refusals must total
+    /// exactly one, because `std::sync::Mutex` keeps its poison flag for the life
+    /// of the process and a policy keyed on the *flag* would refuse every frame
+    /// after the first bad one — the dead app, arriving as a permanent refusal
+    /// instead of a panic.
+    #[test]
+    fn a_poisoned_preview_is_discarded_and_refused_exactly_once() {
+        // Leg 1 — clean: nothing to decide, and nothing touched.
+        let mut slot = Some(7usize);
+        assert!(
+            preview_disposition(false, &mut slot).is_ok(),
+            "a clean preview lock was refused"
+        );
+        assert_eq!(
+            slot,
+            Some(7),
+            "a clean lock discarded a renderer it had no reason to drop"
+        );
+
+        // Leg 2 — clean and already empty: the ordinary path right after an
+        // export released the device. Not an error, and not a black frame.
+        let mut empty: Option<usize> = None;
+        assert!(
+            preview_disposition(false, &mut empty).is_ok(),
+            "an empty slot after an export was treated as a failure"
+        );
+
+        // Leg 3 — poisoned, renderer still in the slot: discard, refuse, and say
+        // what happened in terms the webview can show.
+        let mut slot = Some(7usize);
+        let refused = preview_disposition(true, &mut slot);
+        let reason = match refused {
+            Err(r) => r,
+            Ok(()) => panic!("a poisoned lock holding a renderer was NOT refused"),
+        };
+        assert_eq!(slot, None, "the renderer the panic crossed was kept anyway");
+        for needle in ["panic", "not rendered", "rebuilt"] {
+            assert!(
+                reason.contains(needle),
+                "the preview refusal omits {needle:?}, so the UI cannot say what happened: {reason}"
+            );
+        }
+
+        // Leg 4 — the "once". Four more poisoned frames after the discard, on the
+        // same permanently-poisoned mutex: total refusals must still be exactly
+        // one, and the following frames are answered.
+        let mut refusals = 1;
+        for frame in 1..=4 {
+            let mut s: Option<usize> = None;
+            if preview_disposition(true, &mut s).is_err() {
+                refusals += 1;
+            }
+            assert_eq!(s, None, "frame {frame} resurrected a discarded renderer");
+        }
+        assert_eq!(
+            refusals, 1,
+            "the preview refused {refusals} times across 5 poisoned frames: recovery is now a \
+             permanent refusal, which is the same dead app with a different error string"
+        );
+    }
+
+    /// `export_disposition`, the refusal leg. It is the one answer this item did
+    /// NOT copy from the preview path: the export command must not drop the
+    /// renderer, because that would decide GPU-device ownership from the wrong
+    /// side of the boundary — defect 6's question. So it refuses, leaves the slot
+    /// exactly as it found it, and names the action that unblocks it.
+    #[test]
+    fn an_export_refuses_only_while_a_poisoned_slot_holds_a_renderer() {
+        // Legs 1 and 3 — clean, and poisoned-with-nothing-held: both start.
+        for (poisoned, holds) in [(false, true), (false, false), (true, false)] {
+            assert!(
+                export_disposition(poisoned, holds).is_ok(),
+                "export was refused for poisoned={poisoned}, slot_holds_renderer={holds} — \
+                 only the (poisoned, holds) pair may refuse"
+            );
+        }
+
+        // Leg 2 — the collision.
+        let refused = export_disposition(true, true);
+        let reason = match refused {
+            Err(r) => r,
+            Ok(()) => panic!(
+                "an export started while a poisoned lock still held a GPU device — that is the \
+                 two-device crash the release step exists to avoid"
+            ),
+        };
+        for needle in ["refused", "device", "preview frame"] {
+            assert!(
+                reason.contains(needle),
+                "the export refusal omits {needle:?}: it does not say what was refused or what \
+                 to do about it: {reason}"
+            );
+        }
+    }
+
+    /// `preview_slot`'s two arms, as behaviour — possible because the function is
+    /// generic over the slot, so no device is needed to reach the `None` arm the
+    /// old code panicked on.
+    #[test]
+    fn an_empty_preview_slot_answers_with_a_showable_reason() {
+        let mut held = Some(3usize);
+        {
+            let r = preview_slot(&mut held).expect("a held renderer must not be refused");
+            *r = 4;
+        }
+        assert_eq!(
+            held,
+            Some(4),
+            "preview_slot did not hand back the renderer itself"
+        );
+
+        let mut empty: Option<usize> = None;
+        let reason = match preview_slot(&mut empty) {
+            Ok(_) => panic!("an empty slot was reported as a renderer"),
+            Err(r) => r,
+        };
+        assert!(
+            !reason.trim().is_empty(),
+            "the empty-slot reason is blank — the UI would show a failure with no explanation"
+        );
+        assert!(
+            reason.contains("not rendered"),
+            "the empty-slot reason does not say the frame was not rendered: {reason}"
+        );
+    }
+
+    /// The ban, read off the source: no command path may acquire a lock or a
+    /// slot with a form that panics. `include_str!` + comment-filtering is the
+    /// pattern this repo already uses in
+    /// `capability_report_never_derives_verified_from_a_build_feature`, and it is
+    /// the only gate available here — cargo has run `build.rs` before a test
+    /// binary exists, and a WebView2 panic mid-drag needs a human.
+    #[test]
+    fn no_command_unwraps_a_lock_or_a_slot() {
+        let lines = shell_code_lines(include_str!("lib.rs"));
+        // Anti-vacuity, before the assertion that could pass on an empty scan:
+        // the region the ban reads has to be the command bodies. Each of these
+        // three is a line the item put there, so if the scanner ever returns
+        // nothing — or stops early — the gate fails here instead of quietly
+        // greening over an unscanned file.
+        let joined = lines.join("\n");
+        for seen in [
+            "let (mut host, _) = lock_recovered(&state.host",
+            "let (mut guard, poisoned) = lock_recovered(&state.preview",
+            "#[tauri::command]",
+        ] {
+            assert!(
+                joined.contains(seen),
+                "shell_code_lines does not contain {seen:?}: the ban is scanning the wrong \
+                 region and cannot fail."
+            );
+        }
+        let hits = ban_hits_on(lines);
+        assert!(
+            hits.is_empty(),
+            "the shell still has panic-on-poison acquisitions: {hits:?}. Every one of them is \
+             the dead-app defect: the first frame that panics inside a lock makes every later \
+             command panic too, while the window keeps showing the last image."
+        );
+    }
+
+    /// Positive controls for the detector, on a fixture built to disagree with
+    /// it. A ban that silently matches nothing is the same shape as the bug it
+    /// gates, and a ban that reads its own prose is a ban that can never be
+    /// re-run safely, so both halves get their own leg:
+    ///  * the matcher must report the five shapes that shipped at `63bc321`
+    ///    (read out of `git show 63bc321:apps/desktop/src-tauri/src/lib.rs`);
+    ///  * the scanner must drop comments and everything inside `mod tests`, so
+    ///    the gate's own explanations and the panics these tests manufacture do
+    ///    not count as violations.
+    #[test]
+    fn the_lock_ban_reaches_the_forms_it_bans() {
+        // Leg 1 — the five shapes that shipped at 63bc321, one per acquisition
+        // site: host, osc, the preview slot, the `if let Ok` that skipped the
+        // device release, and the expect form this repo also bans.
+        let pre_item_source = [
+            "    let mut host = state.host.lock().unwrap();",
+            "    let g = state.osc.lock().unwrap();",
+            "    let renderer = guard.as_mut().unwrap();",
+            "    if let Ok(mut guard) = state.preview.lock() {",
+            "    state.host.lock().expect(\"host poisoned\").live_audio_status()",
+        ];
+        let mut missed: Vec<&str> = Vec::new();
+        for line in pre_item_source {
+            if lock_ban_hit(line.trim()).is_none() {
+                missed.push(line);
+            }
+        }
+        assert!(
+            missed.is_empty(),
+            "the ban does not match the shapes it exists for: {missed:?}. \
+             `no_command_unwraps_a_lock_or_a_slot` is passing vacuously."
+        );
+
+        // Leg 2 — the scanner, on a fixture whose three parts must NOT be
+        // treated alike: one comment, one command line, one test-module line.
+        // Expected: exactly one kept, exactly one hit, and it is the command.
+        let fixture = concat!(
+            "//! `.lock().unwrap()` in a module doc, which is prose.\n",
+            "/// Why not `.as_mut().unwrap()`: explained in a doc comment.\n",
+            "    let h = state.host.lock().unwrap();\n",
+            "#[cfg(test)]\n",
+            "mod tests {\n",
+            "    let o = state.osc.lock().unwrap();\n",
+            "}\n",
+        );
+        let kept = shell_code_lines(fixture);
+        assert_eq!(
+            kept.len(),
+            1,
+            "shell_code_lines kept {kept:?} of the fixture's 7 lines: comments and everything \
+             after `#[cfg(test)]` must be dropped and the command body must not be."
+        );
+        let hits = ban_hits_on(kept);
+        assert_eq!(
+            hits.len(),
+            1,
+            "the ban reported {hits:?} on a fixture holding exactly one violation"
+        );
+        assert!(
+            hits[0].0.contains("state.host"),
+            "the ban reported the wrong line: {:?} — it is matching prose or test scaffolding",
+            hits[0]
+        );
+    }
+
+    /// Everything in the shell outside `mod tests`, one trimmed line at a time,
+    /// comments dropped. Exempting the test module is not a loophole: these gates
+    /// *manufacture* panics, and the ban is about the shipped command paths.
+    /// Pure — the anti-vacuity for what it must contain lives in the gate that
+    /// uses it, so a fixture can be scanned without tripping that gate.
+    fn shell_code_lines(shell: &str) -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        for line in shell.lines() {
+            let t = line.trim();
+            if t == "#[cfg(test)]" {
+                break;
+            }
+            if t.is_empty() || t.starts_with("//") {
+                continue;
+            }
+            lines.push(t.to_string());
+        }
+        lines
+    }
+
+    /// One forbidden acquisition, or none.
+    fn lock_ban_hit(line: &str) -> Option<&'static str> {
+        const FORBIDDEN: [&str; 4] = [
+            ".lock().unwrap()",
+            ".lock().expect(",
+            ".as_mut().unwrap()",
+            ".as_ref().unwrap()",
+        ];
+        for f in FORBIDDEN {
+            if line.contains(f) {
+                return Some(f);
+            }
+        }
+        // The fourth shape is not an unwrap and was still a bug: `if let Ok(guard)`
+        // on a poisoned lock skips the arm, so the release step never happened and
+        // the export started anyway, green. A silent skip is the same defect as a
+        // panic, just quieter.
+        if line.contains("if let Ok(") && line.contains(".lock()") {
+            return Some("if let Ok(..) = ..lock()");
+        }
+        None
+    }
+
+    /// Report every line that breaks the ban, with its text rather than just a
+    /// count, so a failure names the line to fix.
+    fn ban_hits_on(lines: Vec<String>) -> Vec<(String, &'static str)> {
+        lines
+            .iter()
+            .filter_map(|l| lock_ban_hit(l).map(|f| (l.clone(), f)))
+            .collect()
+    }
+
+    /// What this block cannot gate, recorded as a defect rather than as a pass:
+    ///  * a real WebView2 panic inside a held lock, mid-drag, and whether the
+    ///    window shows the refusal — that is a human at the app;
+    ///  * that `render_graph` actually leaves a torn `roots_cache` behind when it
+    ///    panics. `preview_disposition` assumes the worst about a poisoned GPU
+    ///    path; proving the worst requires a panic injected inside
+    ///    `crates/app/src/export.rs`, which is out of scope for lane B1;
+    ///  * that `PreviewRenderer::new()` succeeds on this machine's GPU after a
+    ///    discard, i.e. that the rebuild the refusal promises really happens. The
+    ///    arm is gated as a ban on the panic form instead, and the rebuild path is
+    ///    exercised by the GUI, not by these tests.
+    #[test]
+    fn the_unreachability_claims_are_stated_not_assumed() {
+        // Nothing to assert beyond the doc above, and a test with no assertion
+        // would be padding. What IS asserted: each policy has exactly one caller
+        // in the shipped shell, so no third path inherits a refusal rule nobody
+        // gated it against. Definition lines are excluded by the `fn ` prefix —
+        // without that the census would be counting the rules, not the callers.
+        let lines = shell_code_lines(include_str!("lib.rs"));
+        let callers_of = |policy: &str| {
+            lines
+                .iter()
+                .filter(|l| l.contains(&format!("{policy}(")) && !l.starts_with("fn "))
+                .cloned()
+                .collect::<Vec<String>>()
+        };
+        for policy in ["preview_disposition", "export_disposition"] {
+            let callers = callers_of(policy);
+            assert_eq!(
+                callers.len(),
+                1,
+                "{policy} is called by {callers:?}: expected exactly one caller in the shell. \
+                 A second one would be a new path reusing a refusal rule it has not been gated \
+                 against."
+            );
+        }
     }
 }
