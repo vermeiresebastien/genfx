@@ -17,11 +17,14 @@ use std::path::PathBuf;
 /// `ExportResult` (not five loose fields) so a mutation that replaces one of
 /// the fields at a call site with a constant is caught: the caller no longer
 /// sees the fields, and this function is called with a synthetic result in the
-/// tests below. The `frames_dir` is only named if it exists, so we never print
-/// a path that was not written.
+/// tests below. The `frames_dir` is named exactly when this run wrote PNG
+/// frames, taken from `ExportResult::png_frames_written` — NOT from
+/// `frames_dir.exists()`. The old `exists()` proxy was measurably wrong
+/// (CR3 defect 1): `frames_dir` is a deterministic reused name, so a later
+/// `--codec h264` run into the same out dir printed a path it wrote zero PNGs
+/// into. The field is the sole authority for this decision.
 fn render_audit_line(result: &export::ExportResult) -> String {
-    let dir_written = result.frames_dir.exists();
-    if dir_written {
+    if result.png_frames_written {
         format!(
             "rendered {} frames, {} samples; frames in {}; audio: {:?} ({} windows)",
             result.frames,
@@ -1854,14 +1857,64 @@ mod tests {
 
     #[test]
     fn render_audit_line_names_every_field_of_the_export_result() {
-        // One formatter, whole result, pairwise-distinctive values. Swapping
-        // `frames` and `audio_windows`, hard-coding `feature_source` on the
-        // not-written branch to either enum value, or printing `result.samples`
-        // as a literal each reddens this assertion. I11's arm A2 was green
-        // because the earlier single-value fixture (`Live`) equalled the wrong
-        // arm's constant; the loop over both enum values (I12 Item 1) closes
-        // that, and the expected `feature_source` is derived from the fixture
-        // rather than a second literal.
+        // SHORT-line gate AND the regression gate for the measured CR3 defect-1
+        // run-2 defect: `png_frames_written = false` while the `frames_dir`
+        // really does exist on disk. Branching on `exists()` (the old proxy)
+        // would print the path; branching on the field must not. The directory
+        // is `temp_dir()` itself, which always exists, so nothing is created or
+        // removed here. Distinctive values (frames=7, samples=1234, windows=42)
+        // and `feature_source` derived from the fixture via `{:?}` (I12
+        // property, never a second literal) so no field swap or hard-coded enum
+        // value hides. 2 enum iterations x 2 assertions.
+        let present = std::env::temp_dir();
+        assert!(
+            present.exists(),
+            "test precondition: temp_dir must exist to force field-vs-fs disagreement"
+        );
+        for src in [
+            flux_domain::params::FeatureSource::Live,
+            flux_domain::params::FeatureSource::DocumentOnly,
+        ] {
+            let r = flux_app::export::ExportResult {
+                frames: 7,
+                samples: 1234,
+                frames_dir: present.clone(),
+                wav: None,
+                video: None,
+                feature_source: src,
+                audio_windows: 42,
+                png_frames_written: false,
+            };
+            let line = super::render_audit_line(&r);
+            let expected = format!(
+                "rendered 7 frames, 1234 samples; audio: {:?} (42 windows)",
+                src
+            );
+            assert_eq!(
+                line, expected,
+                "audit line must name every ExportResult field on the SHORT \
+                 branch (feature_source={:?})",
+                src
+            );
+            assert!(
+                !line.contains(&present.display().to_string()),
+                "SHORT line must NOT name an existing frames_dir the run did \
+                 not write PNGs into (feature_source={:?}): {:?}",
+                src,
+                line
+            );
+        }
+    }
+
+    #[test]
+    fn render_audit_line_names_frames_dir_only_when_this_run_wrote_pngs() {
+        // LONG-line gate: `png_frames_written = true` while the `frames_dir`
+        // does NOT exist. The field is the sole authority, so the audit line
+        // must name the (non-existent) path anyway. Reverting the branch to
+        // `frames_dir.exists()` (M3) or dropping the field makes this red,
+        // because `exists()` is false here. `feature_source` still loops over
+        // both enum values, expected value derived from the fixture. Distinctive
+        // values 100/48000/93 so nothing collides with the SHORT gate.
         let missing = std::path::PathBuf::from("/tmp/flux_audit_missing_dir_zzz_9");
         assert!(
             !missing.exists(),
@@ -1879,59 +1932,27 @@ mod tests {
                 video: None,
                 feature_source: src,
                 audio_windows: 93,
+                png_frames_written: true,
             };
             let line = super::render_audit_line(&r);
             let expected = format!(
-                "rendered 100 frames, 48000 samples; audio: {:?} (93 windows)",
+                "rendered 100 frames, 48000 samples; frames in {}; audio: {:?} (93 windows)",
+                missing.display(),
                 src
             );
             assert_eq!(
                 line, expected,
-                "audit line must name every ExportResult field (feature_source={:?}), \
-                 and must omit a frames_dir that was not written",
+                "audit line must name the frames_dir this run wrote PNGs into, \
+                 even though it does not exist on disk (feature_source={:?})",
                 src
+            );
+            assert!(
+                line.contains(&missing.display().to_string()),
+                "LONG line must name frames_dir (feature_source={:?}): {:?}",
+                src,
+                line
             );
         }
-    }
-
-    #[test]
-    fn render_audit_line_includes_frames_dir_only_when_written() {
-        // When frames_dir exists, the same field values must yield the longer
-        // line that names it. Distinctive values again: frames=7, samples=1234,
-        // windows=42 (so no other arm's constant collides), and BOTH enum
-        // values of `feature_source` in turn (I11 arm A1/A3: the earlier
-        // single-value fixture `DocumentOnly` equalled the dir-written branch's
-        // wrong constant and left that mutation green). Any field swap or
-        // hard-coded enum value now reddens one iteration of this loop.
-        let temp = std::env::temp_dir().join("flux_audit_frames_dir_present");
-        std::fs::create_dir_all(&temp).expect("create temp dir");
-        for src in [
-            flux_domain::params::FeatureSource::Live,
-            flux_domain::params::FeatureSource::DocumentOnly,
-        ] {
-            let r = flux_app::export::ExportResult {
-                frames: 7,
-                samples: 1234,
-                frames_dir: temp.clone(),
-                wav: None,
-                video: None,
-                feature_source: src,
-                audio_windows: 42,
-            };
-            let line = super::render_audit_line(&r);
-            let expected = format!(
-                "rendered 7 frames, 1234 samples; frames in {}; audio: {:?} (42 windows)",
-                temp.display(),
-                src
-            );
-            assert_eq!(
-                line, expected,
-                "audit line must name frames_dir exactly when it was written \
-                 (feature_source={:?})",
-                src
-            );
-        }
-        std::fs::remove_dir_all(&temp).ok();
     }
 
     #[test]

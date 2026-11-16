@@ -51,6 +51,13 @@ fn png_sequence_and_wav_always_available() {
     assert_eq!(r.frames, 60);
     assert!(r.wav.as_ref().unwrap().exists());
     assert!(r.frames_dir.join("frame_000001.png").exists());
+    // CR3 defect 1: the audit line's frames-dir claim must come from this field,
+    // so the ffmpeg-free PNG-sequence path must report it true. Mutating
+    // export.rs:235 to `png_frames_written: false` reddens here (M1).
+    assert!(
+        r.png_frames_written,
+        "codec None must report PNG frames as written"
+    );
 }
 
 #[test]
@@ -65,6 +72,20 @@ fn h264_mp4_is_produced_and_probes() {
     let p = MediaWorker::new().unwrap().probe(&v).unwrap();
     assert!(p.streams.iter().any(|s| s.kind == "video"));
     assert_eq!(p.width, Some(160));
+    // CR3 defect 1: a video codec streams raw RGBA to ffmpeg and writes no PNG
+    // frames, and must not create the frames dir at all. These two assertions
+    // are behind the caps() guard, so they are ffmpeg-conditional (ffmpeg IS
+    // present on this machine: the h264 export above produced a probeable mp4).
+    // Mutating export.rs:235 to `png_frames_written: true` reddens the first
+    // here (M2); a run that created the dir would redden the second.
+    assert!(
+        !r.png_frames_written,
+        "video codecs stream to ffmpeg and write no PNGs"
+    );
+    assert!(
+        !r.frames_dir.exists(),
+        "a video run must not create the frames dir"
+    );
 }
 
 #[test]

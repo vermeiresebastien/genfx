@@ -49,6 +49,18 @@ pub struct ExportResult {
     /// Hops of analysed media audio the export actually had to work from.
     /// Zero with a nonzero `samples` means the project carried no audio.
     pub audio_windows: usize,
+    /// True iff this run wrote PNG frames into `frames_dir`. False for video
+    /// codecs, which stream raw RGBA straight to ffmpeg and create no PNG
+    /// sequence. This is the single authority the render audit line branches
+    /// on: it must be taken from the exporter's own `write_png_frames` binding
+    /// (export.rs:114), never re-derived from `frames_dir.exists()`, because
+    /// `frames_dir` is a deterministic reused name and `exists()` is a stale
+    /// proxy (CR3 defect 1: a later `--codec h264` run into the same out dir
+    /// printed a frames path it wrote zero PNGs into). Deliberate predecessor
+    /// of the `sequence_out: Option<PathBuf>` rule queued as tranche C item 15
+    /// — this bool is not the final shape, and the jpeg-deliverable question
+    /// stays in that item.
+    pub png_frames_written: bool,
 }
 
 /// Map the UI's format token to an encoder. Unknown tokens fall back to H.264 so
@@ -240,6 +252,7 @@ fn export_project_impl(
         video,
         feature_source: timeline.feature_source(),
         audio_windows: timeline.windows(),
+        png_frames_written: write_png_frames,
     })
 }
 
