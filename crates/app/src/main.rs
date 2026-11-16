@@ -1781,10 +1781,7 @@ mod tests {
         };
 
         let result = super::validate_capture_snapshot(&snapshot);
-        assert!(
-            result.is_err(),
-            "snapshot with error must fail validation"
-        );
+        assert!(result.is_err(), "snapshot with error must fail validation");
         let e = result.unwrap_err();
         assert!(
             e.message.contains("device disconnected"),
@@ -1837,10 +1834,7 @@ mod tests {
         };
 
         let result = super::validate_capture_snapshot(&snapshot);
-        assert!(
-            result.is_err(),
-            "invalid snapshot must fail validation"
-        );
+        assert!(result.is_err(), "invalid snapshot must fail validation");
         let e = result.unwrap_err();
         assert!(
             e.message.contains("not valid"),
