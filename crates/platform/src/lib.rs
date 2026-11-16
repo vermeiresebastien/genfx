@@ -8,6 +8,11 @@
 
 use serde::Serialize;
 
+/// Live audio capture: WASAPI endpoints, feature-gated. The type definitions
+/// compile everywhere; only the implementation is behind `live-audio`, so the
+/// app layer can name these types without a `#[cfg]` of its own.
+pub mod capture;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DeviceInfo {
     pub id: String,
@@ -51,11 +56,12 @@ pub fn capture_capabilities() -> CaptureCapabilities {
 mod win {
     use super::{CaptureCapabilities, DeviceInfo};
     use windows::Win32::Media::Audio::{
-        eCapture, eConsole, eRender, EDataFlow, IMMDeviceEnumerator, MMDeviceEnumerator,
+        eCapture, eConsole, eRender, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
         DEVICE_STATE_ACTIVE,
     };
     use windows::Win32::System::Com::{
-        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED,
+        CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, CLSCTX_ALL,
+        COINIT_MULTITHREADED,
     };
 
     struct ComGuard {
@@ -82,31 +88,62 @@ mod win {
         let default_id = enumerator
             .GetDefaultAudioEndpoint(flow, eConsole)
             .ok()
-            .and_then(|d| d.GetId().ok())
-            .map(|s| s.to_string().unwrap_or_default());
+            .map(|d| endpoint_id(&d));
         let count = collection.GetCount().unwrap_or(0);
         for i in 0..count {
             if let Ok(device) = collection.Item(i) {
-                let id = device
-                    .GetId()
-                    .ok()
-                    .and_then(|s| s.to_string().ok())
-                    .unwrap_or_default();
-                // Derive a short display name from the endpoint id tail.
-                let short = id.rsplit('.').next().unwrap_or(&id).to_string();
+                let id = endpoint_id(&device);
+                let name = endpoint_name(&device, &id, kind, i);
                 out.push(DeviceInfo {
-                    is_default: Some(&id) == default_id.as_ref(),
+                    is_default: !id.is_empty() && Some(&id) == default_id.as_ref(),
                     id,
-                    name: if short.is_empty() {
-                        format!("{kind} {i}")
-                    } else {
-                        format!("{kind} {{ {short} }}")
-                    },
+                    name,
                     kind: kind.to_string(),
                 });
             }
         }
         out
+    }
+
+    /// The endpoint id, with the CoTaskMem block freed. `IMMDevice::GetId`
+    /// hands back a `PWSTR` the newtype does not own, so the old code leaked
+    /// one string per device per enumeration.
+    fn endpoint_id(device: &IMMDevice) -> String {
+        unsafe {
+            device
+                .GetId()
+                .ok()
+                .map(|pw| {
+                    let s = pw.to_string().unwrap_or_default();
+                    CoTaskMemFree(Some(pw.as_ptr() as *const core::ffi::c_void));
+                    s
+                })
+                .unwrap_or_default()
+        }
+    }
+
+    /// What to call this endpoint.
+    ///
+    /// The readable name is `PKEY_Device_FriendlyName` from the device's
+    /// property store. Reading it needs four windows API surfaces that this
+    /// crate only enables together with `live-audio`, so a build without that
+    /// feature keeps the previous id-tail label — which is why `flux.exe
+    /// capture` used to print `microphone { 00000000-... }` for what Windows
+    /// calls `Input (7- SSL 2 USB Audio Device)`.
+    #[cfg_attr(not(feature = "live-audio"), allow(unused_variables))]
+    fn endpoint_name(device: &IMMDevice, id: &str, kind: &str, i: u32) -> String {
+        #[cfg(feature = "live-audio")]
+        {
+            if let Some(name) = crate::capture::friendly_name(device) {
+                return name;
+            }
+        }
+        let short = id.rsplit('.').next().unwrap_or(id);
+        if short.is_empty() {
+            format!("{kind} {i}")
+        } else {
+            format!("{kind} {{ {short} }}")
+        }
     }
 
     /// Best-effort camera enumeration via the PnP imaging device class key in the

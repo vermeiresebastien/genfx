@@ -149,6 +149,27 @@ pub enum GuiCommand {
         frames: serde_json::Value,
         viewport: serde_json::Value,
     },
+    /// Turn the live audio capture on or off and say which endpoint to tap.
+    ///
+    /// `tap` is `"loopback"` or `"mic"`; `"off"` with `enabled: true` stops the
+    /// capture rather than starting one that deliberately hears nothing. The
+    /// command's `inputDb` always wins over `FLUX_LIVE_AUDIO_INPUT_DB`, because
+    /// an explicit pick outranks an environment default; the ring depth, stream
+    /// buffer and poll interval are machine properties and stay with the
+    /// environment. Nothing here auto-adjusts: a quiet take stays quiet.
+    ///
+    /// Starting a capture is not a document edit and takes no revision — it
+    /// touches no `Project` field. Live features reach the document only
+    /// through [`GuiCommand::LiveOsc`], which does.
+    SetLiveAudio {
+        enabled: bool,
+        tap: String,
+        device_id: Option<String>,
+        input_db: f32,
+    },
+    /// Read the live audio status slot: what the analyser last measured, and
+    /// whether that reading can be trusted. Read-only, no revision.
+    LiveAudioStatus,
 }
 
 /// Response envelope.
@@ -190,6 +211,16 @@ pub struct CommandHost {
     control_map: crate::control::ControlMap,
     /// The graph the node editor is currently editing/rendering.
     pub active_graph: String,
+    /// The live audio capture, when the owner has asked for one. Owned here
+    /// rather than by the shell, so capture authority stays on the Rust side of
+    /// the IPC boundary — the same reason `OscBridge` is not in the webview.
+    live_audio: Option<crate::live_audio::LiveAudioBridge>,
+    /// Why the last `SetLiveAudio` did not leave a running capture, kept so a
+    /// read-out that shows nothing can also say something true about why.
+    live_audio_error: Option<String>,
+    /// Complaints about `FLUX_LIVE_AUDIO*` values that will not parse. Reported,
+    /// never swallowed into a default.
+    live_audio_problems: Vec<String>,
 }
 
 impl CommandHost {
@@ -200,6 +231,129 @@ impl CommandHost {
             route: Default::default(),
             control_map: Default::default(),
             active_graph,
+            live_audio: None,
+            live_audio_error: None,
+            live_audio_problems: Vec::new(),
+        }
+    }
+
+    /// The live audio reading for a frontend that must not submit a command to
+    /// read a status: the same slot [`GuiCommand::LiveAudioStatus`] returns,
+    /// reached without touching the document or the revision counter.
+    pub fn live_audio_status(&self) -> serde_json::Value {
+        let snapshot = if !crate::live_audio::LIVE_AUDIO_COMPILED {
+            crate::live_audio::LiveAudioSnapshot::not_compiled(
+                "live audio capture is not in this build: it needs --features live-audio",
+            )
+        } else {
+            match self.live_audio.as_ref() {
+                Some(bridge) => bridge.status(),
+                None => {
+                    // No capture is running. Report the wire facts as absent
+                    // rather than as zero, and the reason as a sentence — a
+                    // read-out that shows `rms 0.0000` for a device nobody
+                    // opened is the exact confusion this file exists to avoid.
+                    let mut s = crate::live_audio::LiveAudioSnapshot::default();
+                    s.compiled = crate::live_audio::LIVE_AUDIO_COMPILED;
+                    s.running = false;
+                    s.valid = false;
+                    s.feature_source = flux_domain::params::FeatureSource::Live;
+                    s.error = Some(self.live_audio_error.clone().unwrap_or_else(|| {
+                        "live audio is off: no SetLiveAudio has run".to_string()
+                    }));
+                    s
+                }
+            }
+        };
+        let mut v = snapshot.to_json();
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert(
+                "problems".into(),
+                serde_json::json!(self.live_audio_problems),
+            );
+        }
+        v
+    }
+
+    /// Start or stop the live capture. No partial success: a tap name that will
+    /// not parse, a trim outside the accepted range, or a device that will not
+    /// open is an error, and the capture that was running stays running and
+    /// keeps its own settings.
+    fn set_live_audio(
+        &mut self,
+        enabled: bool,
+        tap: &str,
+        device_id: Option<String>,
+        input_db: f32,
+    ) -> FluxResult<serde_json::Value> {
+        use crate::live_audio::{LiveAudioBridge, LiveMode};
+        if !crate::live_audio::LIVE_AUDIO_COMPILED {
+            return Err(FluxError::new(
+                ErrorCode::SdkMissing,
+                "live-audio",
+                "live audio capture is not in this build: it needs --features live-audio, \
+                 and `cargo build -p flux-app --features live-audio`",
+            ));
+        }
+        let (mut cfg, problems) = crate::live_audio::LiveAudioConfig::from_env();
+        self.live_audio_problems = problems;
+        if !input_db.is_finite() || !(-24.0..=24.0).contains(&input_db) {
+            return Err(FluxError::new(
+                ErrorCode::InvalidCommand,
+                "live-audio",
+                format!("inputDb {input_db} is not a trim in -24..=24 dB"),
+            ));
+        }
+        let mode = LiveMode::parse(tap).ok_or_else(|| {
+            FluxError::new(
+                ErrorCode::InvalidCommand,
+                "live-audio",
+                format!("tap {tap:?} is not one of off|loopback|mic"),
+            )
+        })?;
+        cfg.mode = if enabled { mode } else { LiveMode::Off };
+        cfg.device_id = device_id;
+        cfg.input_db = input_db;
+
+        // Anything already running is stopped first, by the same path `Drop`
+        // uses, so a restart cannot leave two captures fighting over one device
+        // — and the ASIO rig has exactly one client.
+        let restarted = if let Some(bridge) = self.live_audio.take() {
+            let was_running = bridge.is_running();
+            let _ = bridge.stop();
+            was_running
+        } else {
+            false
+        };
+
+        if cfg.is_off() {
+            self.live_audio = None;
+            self.live_audio_error = None;
+            return Ok(serde_json::json!({
+                "enabled": false,
+                "restarted": restarted,
+                "problems": self.live_audio_problems,
+                "status": self.live_audio_status(),
+            }));
+        }
+        match LiveAudioBridge::start(&cfg) {
+            Ok(bridge) => {
+                let json = bridge.status().to_json();
+                self.live_audio = Some(bridge);
+                self.live_audio_error = None;
+                Ok(serde_json::json!({
+                    "enabled": true,
+                    "restarted": restarted,
+                    "problems": self.live_audio_problems,
+                    "status": json,
+                }))
+            }
+            Err(e) => {
+                let detail = format!("{e:?}");
+                self.live_audio = None;
+                self.live_audio_error = Some(detail.clone());
+                Err(FluxError::new(e.code, "live-audio", detail))
+            }
         }
     }
 
@@ -302,7 +456,8 @@ impl CommandHost {
                 "preset recall: parse_address stores the whole address as the id and drops the argument that names the preset",
             ),
             C::Bridge(_) => OscApplied::NotApplied(
-                "bridge features: decoded and counted, but the analyser is still handed FeatureSnapshot::default()",
+                "bridge features: decoded and counted, but a bridge packet never reaches \
+                 the analyser — the analyser runs on the mixed media buffer, not on OSC",
             ),
         }
     }
@@ -535,6 +690,10 @@ impl CommandHost {
                 let projects = &self.dispatcher.project;
                 for graph in projects.graphs.values() {
                     if graph.node(&node_id).is_some() {
+                        // Document-only on purpose: this is a query about the
+                        // document, so it must be answerable without decoding
+                        // media. `render_single_frame` is where measured audio
+                        // reaches a frame; see `crate::audio_features`.
                         let vals = self.route.resolve_node(
                             graph,
                             &node_id,
@@ -560,6 +719,13 @@ impl CommandHost {
                 );
                 Ok(serde_json::json!({ "changed": changed, "revision": self.revision() }))
             }
+            GuiCommand::SetLiveAudio {
+                enabled,
+                tap,
+                device_id,
+                input_db,
+            } => self.set_live_audio(enabled, &tap, device_id, input_db),
+            GuiCommand::LiveAudioStatus => Ok(self.live_audio_status()),
             GuiCommand::LiveMidi { channel, cc, value } => {
                 let graph_id = self.control_map.graph_id.clone();
                 let target = crate::control::apply_midi(
@@ -1096,6 +1262,183 @@ mod tests {
         assert_eq!(reloaded.project_id, live.project_id);
         assert_eq!(reloaded.graphs.len(), live.graphs.len());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The webview submits these as JSON, so the wire names are part of the
+    /// contract, not the Rust spelling: `setLiveAudio` with camelCase fields and
+    /// `liveAudioStatus` with none. Renaming a variant or a field in Rust
+    /// without renaming it here reddens this first.
+    #[test]
+    fn the_live_audio_commands_have_the_json_names_the_webview_submits() {
+        let cmd: GuiCommand = serde_json::from_str(
+            r#"{"type":"setLiveAudio","enabled":true,"tap":"loopback","deviceId":null,"inputDb":6.0}"#,
+        )
+        .expect("`setLiveAudio` must parse from the documented envelope");
+        match cmd {
+            GuiCommand::SetLiveAudio {
+                enabled,
+                tap,
+                device_id,
+                input_db,
+            } => {
+                assert!(enabled);
+                assert_eq!(tap, "loopback");
+                assert_eq!(device_id, None);
+                assert!(
+                    (input_db - 6.0).abs() < 1e-6,
+                    "inputDb did not survive: {input_db}"
+                );
+            }
+            other => panic!("wrong variant deserialised: {other:?}"),
+        }
+        let status: GuiCommand =
+            serde_json::from_str(r#"{"type":"liveAudioStatus"}"#).expect("`liveAudioStatus`");
+        assert!(matches!(status, GuiCommand::LiveAudioStatus));
+        assert_eq!(
+            serde_json::to_string(&GuiCommand::LiveAudioStatus).unwrap(),
+            r#"{"type":"liveAudioStatus"}"#
+        );
+    }
+
+    /// A refused `SetLiveAudio` costs the document nothing: no revision, no
+    /// half-started capture, no stored error pretending to be state. The
+    /// refusal is `SdkMissing` in a build compiled without the feature and
+    /// `InvalidCommand` for a tap name that is not a tap — either way it comes
+    /// back as an error with a code, never `Ok` carrying zeros that read as a
+    /// quiet room.
+    #[test]
+    fn a_refused_live_audio_command_costs_the_document_nothing() {
+        let mut h = host();
+        let before = h.revision();
+        let r = h.handle(Request {
+            protocol_version: 1,
+            request_id: "live-refuse".into(),
+            project_id: None,
+            expected_revision: before,
+            command: GuiCommand::SetLiveAudio {
+                enabled: true,
+                tap: "auto".into(),
+                device_id: None,
+                input_db: 0.0,
+            },
+        });
+        let err = r.error.expect("a tap that is not a tap must be refused");
+        assert!(
+            matches!(err.code.as_str(), "SdkMissing" | "InvalidCommand"),
+            "unexpected refusal code {:?}",
+            err.code
+        );
+        assert_eq!(h.revision(), before, "a refused capture costs no revision");
+        assert!(
+            h.live_audio.is_none(),
+            "a refused capture must not be stored"
+        );
+        assert_eq!(h.live_audio_error, None, "the refusal is in the response");
+        let st = h.live_audio_status();
+        assert_eq!(st["running"], serde_json::json!(false));
+        assert_eq!(st["valid"], serde_json::json!(false));
+    }
+
+    /// The shipping build has no capture apparatus and the status says so in
+    /// words instead of reporting a level of zero. This is the equivalence check
+    /// for `--no-default-features`: the answer to a live-audio question must be
+    /// a named absence, not a silent pass.
+    #[cfg(not(feature = "live-audio"))]
+    #[test]
+    fn the_status_names_the_missing_apparatus_instead_of_a_quiet_room() {
+        let h = host();
+        assert!(!crate::live_audio::LIVE_AUDIO_COMPILED);
+        let st = h.live_audio_status();
+        assert_eq!(st["compiled"], serde_json::json!(false));
+        assert_eq!(st["running"], serde_json::json!(false));
+        assert_eq!(st["valid"], serde_json::json!(false));
+        let err = st["error"].as_str().expect("a reason must be given");
+        assert!(
+            err.contains("live-audio"),
+            "the reason must name the feature: {err}"
+        );
+        assert_eq!(st["featureSource"], serde_json::json!("live"));
+    }
+
+    /// The same refusal with a *valid* tap. In a build compiled without the
+    /// feature there is no apparatus to ask for, and `SetLiveAudio` must answer
+    /// `SdkMissing` instead of starting a capture that hears nothing. This is
+    /// the branch the shipping-build equivalence rests on, so it is tested
+    /// apart from the bad-name case above — which would still pass if the
+    /// feature check were deleted, and this one would not.
+    #[cfg(not(feature = "live-audio"))]
+    #[test]
+    fn the_shipping_build_refuses_a_valid_live_audio_request() {
+        let mut h = host();
+        let before = h.revision();
+        // A refusal must be a refusal, not an attempt that failed: `start`
+        // claims the shared sidecar on its way in, so a build with no apparatus
+        // should never get that far. Clear the file first, because another test
+        // in this binary may have written it.
+        let _ = std::fs::remove_file(crate::live_audio::status_file());
+        let r = h.handle(Request {
+            protocol_version: 1,
+            request_id: "live-sdk".into(),
+            project_id: None,
+            expected_revision: before,
+            command: GuiCommand::SetLiveAudio {
+                enabled: true,
+                tap: "loopback".into(),
+                device_id: None,
+                input_db: 0.0,
+            },
+        });
+        let err = r.error.expect("no capture apparatus means no capture");
+        assert_eq!(err.code, "SdkMissing");
+        assert!(err.message.contains("live-audio"), "{}", err.message);
+        assert!(h.live_audio.is_none(), "a refusal must not store a bridge");
+        assert_eq!(h.revision(), before, "a refusal costs no revision");
+        assert!(
+            crate::live_audio::read_status_file().is_none(),
+            "a refused command must not claim the live-audio sidecar"
+        );
+    }
+
+    /// With the apparatus compiled in, a status taken before any command is
+    /// `off` with a reason — not an empty device list, which is exactly what a
+    /// silent room would also look like (D036). No device is opened to prove
+    /// this, and none may be: a refused trim is rejected before `open` runs.
+    #[cfg(feature = "live-audio")]
+    #[test]
+    fn an_untouched_live_status_is_off_with_a_reason_not_zeroed() {
+        let mut h = host();
+        assert!(crate::live_audio::LIVE_AUDIO_COMPILED);
+        let st = h.live_audio_status();
+        assert_eq!(st["compiled"], serde_json::json!(true));
+        assert_eq!(st["running"], serde_json::json!(false));
+        assert_eq!(st["valid"], serde_json::json!(false));
+        assert!(
+            st["error"].as_str().unwrap_or("").contains("SetLiveAudio"),
+            "the read-out must say why nothing is running: {:?}",
+            st["error"]
+        );
+        let before = h.revision();
+        let r = h.handle(Request {
+            protocol_version: 1,
+            request_id: "live-trim".into(),
+            project_id: None,
+            expected_revision: before,
+            command: GuiCommand::SetLiveAudio {
+                enabled: true,
+                tap: "loopback".into(),
+                device_id: None,
+                input_db: 40.0,
+            },
+        });
+        let err = r
+            .error
+            .expect("40 dB is not a trim, it is a replacement gain");
+        assert_eq!(err.code, "InvalidCommand");
+        assert!(
+            h.live_audio.is_none(),
+            "a refused trim must not open a device"
+        );
+        assert_eq!(h.revision(), before);
     }
 }
 

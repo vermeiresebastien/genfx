@@ -51,6 +51,12 @@
 - **Windows capture**: WASAPI endpoint + PnP camera enumeration is real and verified on
   this host (5 mics, 6 loopback endpoints, 1 camera). Live frame/audio *capture* needs a
   device + OS permission, which this headless run could not exercise.
+  **Audio half discharged 2026-11-16, uncommitted working tree:** microphone and
+  system-loopback taps were opened, streamed, read cross-process and stopped on this host
+  (`evidence/live-capture-2026-11-16.txt`, AT056 now `implemented_unverified`). What still
+  needs a device is *frame* capture — AT054 webcam and AT055 desktop have no code, and
+  AT056's own output-device-change and permission-recovery clauses were never exercised.
+  The ASIO-held-by-Live case is unmeasured because the owner was not present.
 - **Ableton Link**: `flux link` runs a real session; two processes discover and sync, in a
   `link` feature build. Single-master is asserted too, but only by `link.rs:288`; seek/loop are not.
 - **GUI**: Tauri 2 + web UI builds, links, and launches (dev + release); library/preview/

@@ -8,7 +8,7 @@
 //!   flux contact-sheet <dir>      render an effects contact sheet
 //!   flux gui [project]            launch the native editor (not in this build)
 
-use flux_app::{export, samples};
+use flux_app::{export, live_audio, samples};
 use flux_catalog::build_catalog;
 use flux_domain::{Dispatcher, FluxError, FluxResult, Project};
 use std::path::PathBuf;
@@ -93,7 +93,7 @@ fn run(args: &[String]) -> FluxResult<()> {
             cmd_collect(&project)
         }
         "caps" => cmd_caps(),
-        "capture" => cmd_capture(),
+        "capture" => cmd_capture(args),
         "diagnostics" => cmd_diagnostics(),
         "models" => cmd_models(),
         "depth" => cmd_depth(args),
@@ -994,24 +994,344 @@ fn cmd_osc_listen(port: u16) -> FluxResult<()> {
     Ok(())
 }
 
-fn cmd_capture() -> FluxResult<()> {
-    let c = flux_platform::capture_capabilities();
-    println!("platform: {}", c.platform);
-    println!(
-        "cameras: {}  microphones: {}  loopback: {}",
-        c.cameras.len(),
-        c.microphones.len(),
-        c.loopback.len()
-    );
-    for d in c.cameras.iter().chain(&c.microphones).chain(&c.loopback) {
-        println!("  [{}] {} default={}", d.kind, d.name, d.is_default);
+/// Live audio capture. `flux capture devices|start|status|stop`.
+///
+/// Every subcommand exits 1 when the build has no `live-audio`, rather than
+/// printing an empty device list: the apparatus is what is missing, and an
+/// empty list would look like a quiet machine (D036). `flux caps` keeps
+/// reporting the always-compiled capability set.
+fn cmd_capture(args: &[String]) -> FluxResult<()> {
+    let sub = args.get(1).map(String::as_str).unwrap_or("devices");
+    require_live_audio()?;
+    match sub {
+        "devices" => capture_devices(args),
+        "start" => capture_start(args),
+        "status" => capture_status(args),
+        "stop" => capture_stop(args),
+        other => Err(capture_bad(format!(
+            "unknown capture subcommand {other:?}; use devices|start|status|stop"
+        ))),
     }
-    println!(
-        "camera_available={} loopback_available={}",
-        c.camera_available, c.loopback_available
-    );
-    println!("note: {}", c.limitation);
+}
+
+fn require_live_audio() -> FluxResult<()> {
+    if live_audio::LIVE_AUDIO_COMPILED {
+        Ok(())
+    } else {
+        Err(FluxError::new(
+            flux_domain::ErrorCode::SdkMissing,
+            "capture",
+            "live audio capture is not in this build: rebuild with --features live-audio \
+             (Windows only); `flux caps` still reports the capability set",
+        ))
+    }
+}
+
+/// A usage or configuration fault on the capture path: exit 1 with a message
+/// that says what was wrong, never a printed warning followed by exit 0.
+fn capture_bad(message: impl Into<String>) -> FluxError {
+    FluxError::new(flux_domain::ErrorCode::InvalidCommand, "capture", message)
+}
+
+fn capture_io(message: impl Into<String>) -> FluxError {
+    let e = message.into();
+    FluxError::new(flux_domain::ErrorCode::Io, "capture", e)
+}
+
+/// `--flag value` out of a capture argument list.
+fn opt(args: &[String], name: &str) -> Option<String> {
+    let at = args.iter().position(|a| a == name)?;
+    args.get(at + 1).cloned()
+}
+
+fn wants_json(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--json")
+}
+
+/// The run's configuration: the machine's environment first, then the flags, so
+/// an explicit `--tap`, `--device` or `--input-db` always beats what the shell
+/// says. A value that will not parse is kept as a complaint and reported,
+/// because silently falling back to a default is how an operator ends up
+/// believing the wrong thing about a take.
+fn capture_config(args: &[String]) -> FluxResult<(live_audio::LiveAudioConfig, Vec<String>)> {
+    let (mut cfg, mut problems) = live_audio::LiveAudioConfig::from_env();
+    if let Some(raw) = opt(args, "--tap") {
+        match live_audio::LiveMode::parse(&raw) {
+            Some(mode) => cfg.mode = mode,
+            None => problems.push(format!("--tap {raw:?} is not one of loopback|mic")),
+        }
+    }
+    if let Some(id) = opt(args, "--device") {
+        cfg.device_id = Some(id);
+    }
+    if let Some(raw) = opt(args, "--input-db") {
+        match live_audio::parse_db_input(&raw) {
+            Some(v) => cfg.input_db = v,
+            None => problems.push(format!(
+                "--input-db {raw:?} is not a dB value in -24..=24; keeping {:+.1} dB",
+                cfg.input_db
+            )),
+        }
+    }
+    Ok((cfg, problems))
+}
+
+fn capture_serialize<T: serde::Serialize>(value: &T) -> FluxResult<String> {
+    serde_json::to_string_pretty(value)
+        .map_err(|e| capture_io(format!("capture report did not serialize: {e}")))
+}
+
+fn capture_devices(args: &[String]) -> FluxResult<()> {
+    let (cfg, problems) = capture_config(args)?;
+    let list =
+        live_audio::list_endpoints().map_err(|e| FluxError::new(e.code, "capture", e.message))?;
+    if wants_json(args) {
+        let report = serde_json::json!({
+            "compiled": live_audio::LIVE_AUDIO_COMPILED,
+            "requestedTap": cfg.mode.tap().map(|t| t.as_str().to_string()),
+            "deviceId": cfg.device_id,
+            "configProblems": problems,
+            "endpoints": list,
+        });
+        println!("{}", capture_serialize(&report)?);
+        return Ok(());
+    }
+    println!("live-audio: compiled");
+    println!("endpoints: {}", list.len());
+    for e in &list {
+        println!(
+            "  [{}] {}{}",
+            e.tap.as_str(),
+            e.name,
+            if e.is_default { "  (default)" } else { "" }
+        );
+        println!("      id={}", e.id);
+    }
+    for p in &problems {
+        println!("note: {p}");
+    }
+    if list.is_empty() {
+        println!(
+            "note: no active audio endpoint was enumerated. That is the apparatus answering \
+             with nothing, not a build fault."
+        );
+    }
     Ok(())
+}
+
+fn capture_start(args: &[String]) -> FluxResult<()> {
+    let (cfg, problems) = capture_config(args)?;
+    if cfg.mode == live_audio::LiveMode::Off {
+        return Err(capture_bad(
+            "`capture start` needs --tap loopback|mic (or FLUX_LIVE_AUDIO=loopback|mic): \
+             starting in `off` would run a capture that deliberately hears nothing",
+        ));
+    }
+    let secs: u32 = match opt(args, "--secs") {
+        None => 3,
+        Some(raw) => raw.parse().map_err(|_| {
+            capture_bad(format!(
+                "--secs {raw:?} is not an integer number of seconds"
+            ))
+        })?,
+    };
+    if !(1..=600).contains(&secs) {
+        return Err(capture_bad(format!(
+            "--secs {secs} is outside 1..=600; a longer run belongs to the GUI, not a CLI capture"
+        )));
+    }
+    let (snapshot, span) = live_audio::measure(&cfg, secs)?;
+    if wants_json(args) {
+        let mut json = snapshot.to_json();
+        if let Some(obj) = json.as_object_mut() {
+            obj.insert(
+                "measuredFramesPerSecond".into(),
+                serde_json::json!(snapshot.measured_rate(span)),
+            );
+            obj.insert("requestedSeconds".into(), serde_json::json!(secs));
+            obj.insert("requestedRingMs".into(), serde_json::json!(cfg.ring_ms));
+            obj.insert("configProblems".into(), serde_json::json!(problems));
+        }
+        println!("{}", capture_serialize(&json)?);
+        return Ok(());
+    }
+    let rate = snapshot.measured_rate(span);
+    println!("tap={}", snapshot.tap);
+    println!(
+        "endpoint={} id={}",
+        snapshot.endpoint_name, snapshot.endpoint_id
+    );
+    println!(
+        "wire: {} Hz, {} ch, {} bit, tag {} ({}), extensible={}",
+        snapshot.sample_rate,
+        snapshot.channels,
+        snapshot.bits_per_sample,
+        snapshot.format_tag,
+        if snapshot.float_wire {
+            "float32"
+        } else {
+            "pcm16"
+        },
+        snapshot.extensible
+    );
+    println!(
+        "buffer={} ms  device period default={:.1} ms min={:.1} ms",
+        snapshot.buffer_ms, snapshot.period_default_ms, snapshot.period_min_ms
+    );
+    println!(
+        "ring: asked {} ms, holds {:.1} ms at this rate",
+        snapshot.ring_ms, snapshot.ring_ms_effective
+    );
+    println!(
+        "input trim: {:+.1} dB (explicit, no auto-gain)",
+        snapshot.input_db
+    );
+    println!("ran {} ms", snapshot.elapsed_ms);
+    println!(
+        "packets={} frames={} rate={:.1} frames/s silent={}",
+        snapshot.packets, snapshot.frames, rate, snapshot.silent_frames
+    );
+    println!(
+        "windows={} onsets={} overflowEvents={}",
+        snapshot.windows, snapshot.onsets, snapshot.overflow_events
+    );
+    println!(
+        "level: peak={:.4} rms={:.4} bass={:.4} mid={:.4} treble={:.4} centroid={:.0} Hz",
+        snapshot.peak,
+        snapshot.rms,
+        snapshot.bands[0],
+        snapshot.bands[2],
+        snapshot.bands[4],
+        snapshot.centroid_hz
+    );
+    println!(
+        "beat: onset={} tempoBpm={:.1} confidence={:.2} beatPhase={:.3}",
+        snapshot.onset, snapshot.tempo_bpm, snapshot.tempo_confidence, snapshot.beat_phase
+    );
+    println!("valid={} stalledMs={}", snapshot.valid, snapshot.stalled_ms);
+    for p in &problems {
+        println!("note: {p}");
+    }
+    if let Some(e) = &snapshot.error {
+        println!("error: {e}");
+    }
+    Ok(())
+}
+
+fn capture_status(args: &[String]) -> FluxResult<()> {
+    match live_audio::read_status_file() {
+        None => {
+            if wants_json(args) {
+                println!("null");
+            } else {
+                println!("status: no live capture has reported one");
+            }
+            Ok(())
+        }
+        Some(v) => {
+            if wants_json(args) {
+                println!("{}", capture_serialize(&v)?);
+                return Ok(());
+            }
+            // The sidecar a running bridge writes is `{pid, stopRequested,
+            // status:{…}}`, so the reading has to be taken from the nested
+            // object; the top level is the control channel.
+            let top = |k: &str| v.get(k).cloned().unwrap_or(serde_json::Value::Null);
+            let st = v.get("status").cloned().unwrap_or(serde_json::Value::Null);
+            let g = |k: &str| st.get(k).cloned().unwrap_or(serde_json::Value::Null);
+            let b = |k: &str| g(k).as_bool().unwrap_or(false);
+            let u = |k: &str| g(k).as_u64().unwrap_or(0);
+            let f = |k: &str| g(k).as_f64().unwrap_or(0.0);
+            let s = |k: &str| g(k).as_str().unwrap_or("").to_string();
+            println!("status file: {}", live_audio::status_file().display());
+            println!(
+                "pid={} stopRequested={} compiled={} running={} tap={}",
+                top("pid"),
+                top("stopRequested").as_bool().unwrap_or(false),
+                b("compiled"),
+                b("running"),
+                s("tap")
+            );
+            println!("endpoint={} id={}", s("endpointName"), s("endpointId"));
+            println!(
+                "wire: {} Hz, {} ch, {} bit, tag {} ({}), extensible={}",
+                u("sampleRate"),
+                u("channels"),
+                u("bitsPerSample"),
+                u("formatTag"),
+                if b("floatWire") { "float32" } else { "pcm16" },
+                b("extensible")
+            );
+            println!(
+                "buffer={} ms ring={} ms (holds {:.1} ms) trim={:+.1} dB",
+                u("bufferMs"),
+                u("ringMs"),
+                f("ringMsEffective"),
+                f("inputDb")
+            );
+            println!(
+                "rate={:.1} windows={} onsets={} packets={} frames={} silent={}",
+                f("measuredFramesPerSecond"),
+                u("windows"),
+                u("onsets"),
+                u("packets"),
+                u("frames"),
+                u("silentFrames")
+            );
+            println!(
+                "level: peak={:.4} rms={:.4} bass={:.4} mid={:.4} treble={:.4} centroid={:.0} Hz",
+                f("peak"),
+                f("rms"),
+                g("bands").get(0).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                g("bands").get(2).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                g("bands").get(4).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                f("centroidHz")
+            );
+            println!(
+                "beat: onset={} tempoBpm={:.1} confidence={:.2} beatPhase={:.3}",
+                b("onset"),
+                f("tempoBpm"),
+                f("tempoConfidence"),
+                f("beatPhase")
+            );
+            println!(
+                "valid={} stalledMs={} elapsedMs={} overflowEvents={}",
+                b("valid"),
+                u("stalledMs"),
+                u("elapsedMs"),
+                u("overflowEvents")
+            );
+            if let Some(e) = g("error").as_str() {
+                println!("error: {e}");
+            }
+            Ok(())
+        }
+    }
+}
+
+fn capture_stop(args: &[String]) -> FluxResult<()> {
+    let landed = live_audio::request_external_stop();
+    if wants_json(args) {
+        println!(
+            "{}",
+            capture_serialize(&serde_json::json!({"stopRequested": landed}))?
+        );
+    } else if landed {
+        println!("stop requested: true");
+        println!(
+            "note: the running capture stops its stream and ends its wait within \
+             {} ms; `flux capture status` keeps the last reading it published.",
+            live_audio::STOP_CHECK_INTERVAL_MS
+        );
+    }
+    if landed {
+        Ok(())
+    } else {
+        Err(capture_bad(
+            "no live capture status file exists, so there is nothing to stop: \
+             `flux capture start` is its own process and writes that file while it runs",
+        ))
+    }
 }
 
 fn cmd_depth(args: &[String]) -> FluxResult<()> {

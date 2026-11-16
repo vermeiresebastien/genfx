@@ -10,6 +10,37 @@
 use crate::document::*;
 use crate::time::RationalTime;
 
+/// Which class of evidence filled a `FeatureSnapshot` / `AudioSnapshot` for a
+/// rendered frame.
+///
+/// This is the determinism firewall's name-at-the-boundary rule: every rendered
+/// frame records *where its audio features came from*, so a run that used a live
+/// device can never be mistaken for — or reused as — a deterministic document-
+/// only export. `DocumentOnly` is the serde default, so an older project file or
+/// an older result record reads as the deterministic class rather than failing
+/// to parse.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Default,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum FeatureSource {
+    /// Features come from the document only: decoded media audio, or nothing at
+    /// all when the project has no audio. This is the deterministic class —
+    /// same project plus same media yields byte-identical output.
+    #[default]
+    DocumentOnly,
+    /// Features come from a live capture device. Never deterministic, and never
+    /// allowed inside an offline export.
+    Live,
+}
+
+impl FeatureSource {
+    /// Whether frames from this source are required to be reproducible.
+    pub fn is_deterministic(&self) -> bool {
+        matches!(self, FeatureSource::DocumentOnly)
+    }
+}
+
 /// A feature snapshot supplied to the modulation fold. Values are already in
 /// their declared native ranges (0..1 except documented exceptions).
 #[derive(Debug, Clone, Copy, PartialEq)]

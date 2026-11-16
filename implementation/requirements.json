@@ -3267,7 +3267,9 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "crates/tests determinism test"
+        "crates/tests/tests/media_audio_reactive.rs (decoded file audio reaches the analyser from fixture media: one features() per hop, and the measurement does not move when the export render speed does)",
+        "crates/app/src/audio_features.rs MediaAudioTimeline + crates/audio/src/lib.rs point_at_sample (features indexed by source sample, never by wall clock)",
+        "crates/app/src/live_audio.rs (the live half is --features live-audio only, off by default, and reaches the document only through the GuiCommand::LiveOsc seam)"
       ],
       "blocker": null
     },
@@ -3668,11 +3670,11 @@
       "id": "AT054",
       "title": "Actual webcam capture modes/orientation/timestamps; permission and disconnect/reconnect handled.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "pending",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+        "no webcam capture exists: crates/platform/src/capture.rs opens WASAPI audio endpoints only, and modes/orientation/timestamps/disconnect have no code to test"
       ],
       "blocker": null
     },
@@ -3680,11 +3682,11 @@
       "id": "AT055",
       "title": "Actual screen/display/window/region/cursor capture; crop/DPI/window resize correct and self-capture exclusion works.",
       "class": "required",
-      "status": "implemented_unverified",
+      "status": "pending",
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+        "no whole-surface, window, region or cursor grabbing exists: the capture path is audio-only, so crop/DPI and self-capture exclusion have no code to test"
       ],
       "blocker": null
     },
@@ -3696,7 +3698,9 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/capture.txt (real WASAPI+PnP enumeration)"
+        "crates/platform/src/capture.rs + crates/app/src/live_audio.rs (WASAPI shared mode; microphone and system-loopback taps; an idle loopback tap is reported stalled rather than as zeros, and the output-device-change and permission-recovery clauses are NOT covered by any code here)",
+        "crates/app live_audio tests (idle watchdog boundary, explicit non-auto trim, ring overflow counted as events, sidecar claimed before any thread reads it)",
+        "implementation/evidence/live-capture-2026-11-16.txt (this host: SSL 2 microphone and S/PDIF loopback opened, streamed and stopped across processes; 1 kHz tone measured back at centroid=1000 Hz; +12 dB trim moved peak 0.0417 to 0.1658; 384000 frames in 8043 ms)"
       ],
       "blocker": null
     },
@@ -3708,7 +3712,7 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "implementation/evidence/capture.txt (WASAPI + PnP enumeration only: no device was ever taken from)",
+        "implementation/evidence/capture.txt (enumeration only: no webcam or desktop surface has ever been taken from; the audio endpoints in that file were first opened for real on 2026-11-16, which is AT056's evidence and not this row's)",
         "crates/app persistence tests (relink survives a moved file, on fixture media)",
         "crates/tests export_matrix tests (fixture input -> probeable file)"
       ],

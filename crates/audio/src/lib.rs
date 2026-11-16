@@ -383,6 +383,71 @@ impl Analyzer {
     }
 }
 
+/// One analysed hop: the features computed from the `window` samples that ended
+/// at `end_sample` in the analysed stream, plus the exact sample position that
+/// closed the hop.
+///
+/// `end_sample` is a sample count, never a clock reading, so a caller can map a
+/// feature onto an exact project timestamp (AT017: features sampled by source
+/// timestamp, independent of export render speed).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeaturePoint {
+    pub end_sample: u64,
+    pub features: WindowFeatures,
+}
+
+/// Analyse a mono stream as a deterministic sequence of hop-aligned windows.
+///
+/// `Analyzer` on its own does not enforce a calling discipline: `push` bumps the
+/// hop counter while `features` computes on *every* call, so a caller that calls
+/// `features` twice per hop gets two different feature sets from the same audio
+/// and a `time_secs` that no longer advances by one hop. This function is the
+/// only place that discipline is expressed — it consumes exactly `hop` samples
+/// per `features` call and emits nothing for a trailing partial hop, so
+///
+/// * `points.len() == mono.len() / cfg.hop`,
+/// * `points[i].end_sample == (i + 1) * cfg.hop`,
+/// * `points[i].features.time_secs == (i + 1) * cfg.hop / cfg.sample_rate`.
+///
+/// The third property is why `cfg.sample_rate` must be the rate of the stream
+/// being analysed: with the `AnalysisConfig::default()` value of 48 kHz fed a
+/// 44.1 kHz stream, every timestamp and every tempo estimate this returns is off
+/// by 44100/48000, an 8.1 % error. The band edges are rate-relative and so are
+/// unaffected.
+///
+/// Deterministic by construction: no wall clock, no device, no locks, and the
+/// only allocation is the returned vector.
+pub fn analyse_mono(cfg: AnalysisConfig, mono: &[f32]) -> Vec<FeaturePoint> {
+    if cfg.hop == 0 {
+        return Vec::new();
+    }
+    let hops = mono.len() / cfg.hop;
+    let mut analyzer = Analyzer::new(cfg);
+    let mut points = Vec::with_capacity(hops);
+    for i in 0..hops {
+        let start = i * cfg.hop;
+        let chunk = &mono[start..start + cfg.hop];
+        analyzer.push(chunk);
+        points.push(FeaturePoint {
+            end_sample: (i as u64 + 1) * cfg.hop as u64,
+            features: analyzer.features(),
+        });
+    }
+    points
+}
+
+/// The point in effect at sample `sample`: the last hop whose window ended at or
+/// before it. `None` while the first hop has not completed, which is what tells a
+/// caller there is no audio evidence yet rather than inventing a silent window.
+pub fn point_at_sample<'a>(points: &'a [FeaturePoint], sample: u64) -> Option<&'a FeaturePoint> {
+    let after = points.partition_point(|p| p.end_sample <= sample);
+    if after == 0 {
+        None
+    } else {
+        points.get(after - 1)
+    }
+}
+
 fn window_rms(coeffs: &[f32]) -> f32 {
     let s: f32 = coeffs.iter().map(|c| c * c).sum();
     (s / coeffs.len() as f32).sqrt().max(1e-9)

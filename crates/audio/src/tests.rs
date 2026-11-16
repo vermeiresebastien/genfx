@@ -215,3 +215,161 @@ fn chroma_picks_expected_pitch_class() {
         .0;
     assert_eq!(max_idx, 9, "chroma={:?}", f.chroma);
 }
+
+// ---------------------------------------------------------------------------
+// analyse_mono / point_at_sample: the hop-alignment contract media export relies on.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn analyse_mono_emits_exactly_one_point_per_complete_hop() {
+    let cfg = AnalysisConfig {
+        sample_rate: 44_100,
+        ..Default::default()
+    };
+    let hop = cfg.hop;
+    // Three complete hops plus a trailing partial hop that must be discarded.
+    let s: Vec<f32> = sine(300.0, 0.5, hop * 3 + hop / 2, cfg.sample_rate);
+    let points = analyse_mono(cfg, &s);
+
+    assert_eq!(points.len(), 3, "trailing partial hop must not be emitted");
+    for (i, p) in points.iter().enumerate() {
+        assert_eq!(p.end_sample, (i as u64 + 1) * hop as u64);
+        assert_eq!(
+            p.features.time_secs,
+            (i as u64 + 1) as f64 * hop as f64 / cfg.sample_rate as f64,
+            "hop {i} timestamp must advance by exactly one hop at the stream's rate"
+        );
+    }
+    assert_eq!(analyse_mono(cfg, &[]), Vec::new());
+    let zero_hop = AnalysisConfig { hop: 0, ..cfg };
+    assert_eq!(analyse_mono(zero_hop, &s), Vec::new(), "hop 0 cannot align");
+}
+
+/// The falsifier for "the config sample rate comes from the actual stream".
+///
+/// Fed the same buffer, a 44.1 kHz config and a 48 kHz config must disagree about
+/// *when* each hop happened. If any caller hands `AnalysisConfig::default()` —
+/// whose `sample_rate` is the hard-coded 48 kHz — to a 44.1 kHz stream, every
+/// timestamp and every tempo estimate is 44100/48000 out, and this test fails.
+#[test]
+fn analyse_mono_timestamps_are_a_function_of_the_config_sample_rate() {
+    // Two seconds of 44.1 kHz audio, an exact whole number of hops, so the
+    // 48 kHz misreading is worth ~14 hops of timestamp error and cannot be
+    // mistaken for ordinary hop-rounding slack.
+    let n = 172 * 512;
+    assert_eq!(n % 512, 0);
+    let s: Vec<f32> = sine(300.0, 0.5, n, 44_100);
+    let at_44100 = analyse_mono(
+        AnalysisConfig {
+            sample_rate: 44_100,
+            ..Default::default()
+        },
+        &s,
+    );
+    let at_48000 = analyse_mono(
+        AnalysisConfig {
+            sample_rate: 48_000,
+            ..Default::default()
+        },
+        &s,
+    );
+    assert_eq!(at_44100.len(), at_48000.len());
+    assert_eq!(at_44100.len(), 172);
+    let last = at_44100.len() - 1;
+    let end = at_44100[last].end_sample as f64;
+    let truth = end / 44_100.0;
+    let wrong = end / 48_000.0;
+    assert!(
+        (at_44100[last].features.time_secs - truth).abs() < 1e-12,
+        "44.1k config reported {}",
+        at_44100[last].features.time_secs
+    );
+    assert!(
+        (at_48000[last].features.time_secs - wrong).abs() < 1e-12,
+        "48k config reported {}",
+        at_48000[last].features.time_secs
+    );
+    // The two differ by 8.1 % — far more than one hop — so a caller that mixes
+    // them up cannot pass this by accident.
+    let one_hop = 512.0 / 44_100.0;
+    assert!(
+        (truth - wrong).abs() > 8.0 * one_hop,
+        "the two rates are only {} s apart here, which hop rounding could also explain",
+        (truth - wrong).abs()
+    );
+    // And the 48k reading is not merely "different", it is *late* in stream time.
+    assert!(at_48000[last].features.time_secs < truth);
+}
+
+#[test]
+fn analyse_mono_is_repeatable() {
+    let cfg = AnalysisConfig {
+        sample_rate: 48_000,
+        ..Default::default()
+    };
+    let s: Vec<f32> = sine(440.0, 0.4, cfg.hop * 8, cfg.sample_rate);
+    assert_eq!(
+        analyse_mono(cfg, &s),
+        analyse_mono(cfg, &s),
+        "same samples must give the same feature timeline"
+    );
+}
+
+#[test]
+fn point_at_sample_is_latest_wins_on_the_hop_boundary() {
+    let cfg = AnalysisConfig::default();
+    let hop = cfg.hop;
+    let s: Vec<f32> = sine(300.0, 0.5, hop * 4, cfg.sample_rate);
+    let points = analyse_mono(cfg, &s);
+    assert_eq!(points.len(), 4);
+
+    assert!(
+        point_at_sample(&points, hop as u64 - 1).is_none(),
+        "before the first hop closes there is no evidence to report"
+    );
+    assert!(
+        point_at_sample(&points, 0).is_none(),
+        "sample 0 is before the first hop closed; there is no evidence yet"
+    );
+    assert_eq!(
+        point_at_sample(&points, hop as u64).unwrap().end_sample,
+        hop as u64
+    );
+    assert_eq!(
+        point_at_sample(&points, hop as u64 + 1).unwrap().end_sample,
+        hop as u64
+    );
+    assert_eq!(
+        point_at_sample(&points, 2 * hop as u64).unwrap().end_sample,
+        2 * hop as u64
+    );
+    // Past the end the last point holds, which is what a clamped preview needs.
+    assert_eq!(
+        point_at_sample(&points, 10_000_000).unwrap().end_sample,
+        4 * hop as u64
+    );
+}
+
+/// Characterisation of the trap `analyse_mono` exists to close: the raw
+/// `Analyzer` lets a caller ask for features twice for one hop, and the two
+/// answers are not the same.
+#[test]
+fn features_called_twice_per_hop_disagrees_with_itself() {
+    let cfg = AnalysisConfig::default();
+    let mut a = Analyzer::new(cfg);
+    a.push(&sine(300.0, 0.5, cfg.hop, cfg.sample_rate));
+    let first = a.features();
+    let second = a.features();
+    assert_eq!(
+        first.time_secs, second.time_secs,
+        "same hop, so the reported time is identical"
+    );
+    assert_ne!(
+        first.flux, second.flux,
+        "spectral flux is consumed by the first call, so a second call per hop \
+         reports a different feature set for unchanged audio"
+    );
+    // analyse_mono cannot do this: one push, one features call, one point.
+    let points = analyse_mono(cfg, &sine(300.0, 0.5, cfg.hop, cfg.sample_rate));
+    assert_eq!(points.len(), 1);
+}

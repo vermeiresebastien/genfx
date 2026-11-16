@@ -4,6 +4,16 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+# Live WASAPI capture. Off by default: it pulls four extra windows API surfaces
+# into the build and the shipping binary must not carry them.
+live-audio = [
+  "windows/Win32_System_Com_StructuredStorage",
+  "windows/Win32_System_Variant",
+  "windows/Win32_Devices_FunctionDiscovery",
+  "windows/Win32_UI_Shell_PropertiesSystem",
+]
+
 [dependencies]
 flux-domain = { path = "../domain" }
 serde = { workspace = true }

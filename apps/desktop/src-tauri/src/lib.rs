@@ -327,6 +327,18 @@ fn osc_status(state: tauri::State<AppState>) -> serde_json::Value {
     })
 }
 
+/// What the live audio capture knows: the last measurement, whether it can be
+/// trusted, and the reason there is no measurement at all. The capture is owned
+/// by the `CommandHost` that `SetLiveAudio` starts it on, so this reads the same
+/// slot the command returns — the webview gets a read-out, not a second owner.
+///
+/// `live-audio` is not in the default build, so in this binary the honest answer
+/// is `compiled: false`, said plainly rather than as a level of zero.
+#[tauri::command]
+fn live_audio_status(state: tauri::State<AppState>) -> serde_json::Value {
+    state.host.lock().unwrap().live_audio_status()
+}
+
 #[tauri::command]
 fn produce_generator_frame(
     generator_id: String,
@@ -513,6 +525,7 @@ pub fn run() {
             export_project_cmd,
             capabilities,
             osc_status,
+            live_audio_status,
             produce_generator_frame
         ])
         .build(tauri::generate_context!())

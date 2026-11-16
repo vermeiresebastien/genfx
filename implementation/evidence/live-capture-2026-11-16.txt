@@ -1,0 +1,197 @@
+Flux live audio capture — first run against real WASAPI endpoints
+Date: 2026-11-16. Host: Windows 10, RTX 2080 Ti rig, SSL 2 USB Audio Device.
+Build: `cargo build -p flux-app --bin flux --features live-audio` (debug, exit 0),
+tree at master 20e0ae9 plus the uncommitted lane-A working tree.
+Everything below is a measured transcript of a command that ran on this host,
+not a claim from a document. Exit codes are the process's own, un-piped.
+
+--------------------------------------------------------------------------------
+1. Enumeration — `flux capture devices`  (exit 0)
+--------------------------------------------------------------------------------
+live-audio: compiled
+endpoints: 15
+
+9 microphone endpoints, default = Input (7- SSL 2 USB Audio Device)
+  {0.0.1.00000000}.{2f61d159-0fc9-4f9a-8ff5-c2aa7bdd1fec}   <-- default
+  {0.0.1.00000000}.{18369818-962a-46c2-91d1-e4e59abdae92}   CABLE Output (VB-Audio Virtual Cable)
+  {0.0.1.00000000}.{1d7fbcbd-c3e9-43c4-858a-72ef4008c416}   Input 2 (7- SSL 2 USB Audio Device)
+  {0.0.1.00000000}.{6fbaa9dd-5f28-4868-956a-21322ef7ad1f}   Microphone (High Definition Audio Device)
+  {0.0.1.00000000}.{81e267a4-f62b-4123-8c5c-95e1f27e476b}   Webcam 1 (NDI Webcam Audio)
+  {0.0.1.00000000}.{a19a5ee7-72e5-461e-b88a-a9eeda2b7b36}   Webcam 2 (NDI Webcam Audio)
+  {0.0.1.00000000}.{b9d931aa-6a05-41b0-94c9-6c7a5aa4390f}   Input 1 (7- SSL 2 USB Audio Device)
+  {0.0.1.00000000}.{dcb0fd66-b685-460d-83bd-d2ac2f3a2160}   Webcam 4 (NDI Webcam Audio)
+  {0.0.1.00000000}.{fb52bc1c-8eff-426d-85e7-35dad184c823}   Webcam 3 (NDI Webcam Audio)
+
+6 loopback (render) endpoints, default = Digital Audio (S/PDIF) (High Definition Audio Device)
+  {0.0.0.00000000}.{8d8bb8ef-dc7e-4c78-a279-b626e66968cc}   <-- default
+  {0.0.0.00000000}.{0a7f2dd1-7ad9-432e-9e0b-9ec842d6ba6f}   CABLE Input (VB-Audio Virtual Cable)
+  {0.0.0.00000000}.{835c6967-1856-4e34-90db-34c40a244620}   Output 1/2 (7- SSL 2 USB Audio Device)
+  {0.0.0.00000000}.{98918c35-32ae-4022-a69c-283f9c182b02}   ZOWIE RL LCD (NVIDIA High Definition Audio)
+  {0.0.0.00000000}.{d72ed9a6-11bf-4604-adb1-2b9fad31c8c2}   Headphones (High Definition Audio Device)
+  {0.0.0.00000000}.{fb7cc562-cb42-4303-86ea-e7dd6ae55ba0}   CABLE In 16ch (VB-Audio Virtual Cable)
+
+Every entry carries a Windows friendly name, so the GUID-tail naming defect that
+`implementation/evidence/capture.txt` recorded for the capability enumeration is
+not present on this path. `--json` returns the same 15 rows as
+`{compiled, requestedTap, deviceId, configProblems, endpoints[]}` with
+camelCase `isDefault`; one row per tap claims the default.
+
+Measured, and worth stating plainly: the default *render* endpoint on this rig is
+S/PDIF, not the SSL 2. A default-tap loopback therefore does not hear anything
+the SSL 2 is playing.
+
+--------------------------------------------------------------------------------
+2. Two defects found only by opening a real stream
+--------------------------------------------------------------------------------
+Both are recorded because `implementation/evidence/capture.txt` (16 lines) had
+ever done enumeration, never `GetMixFormat` + `Initialize`. The brief's gotcha
+list said "accept tag 65534"; it did not say where the sub-format lives, and the
+first implementation got that wrong in two different ways.
+
+2a. Sub-format read past the end of the header copy.
+    First run, `flux capture start --tap loopback --secs 8` -> exit 1:
+      FluxError { code: AudioDeviceLost, subsystem: "capture",
+        message: "unsupported wire format: tag 65534, 32 bits, 2 channels — only
+        float32 (tag 3 or extensible float) and 16-bit PCM (tag 1 or extensible
+        PCM) are decoded" }
+    Cause: `classify()` took the 18-byte `WAVEFORMATEX` *copy* and then read a
+    `WAVEFORMATEXTENSIBLE` out of it, i.e. 22 bytes past a value that was never
+    that long. The `SubFormat` it compared was stack noise, so a perfectly normal
+    float32 mix format was refused.
+    Fix: the extension is copied from the engine's own allocation, before
+    `CoTaskMemFree`, and `classify(wave, ext)` refuses tag 65534 whose extension
+    is not present instead of guessing it.
+    Proof after the fix: classification accepted the endpoint —
+    `wire: 48000 Hz, 2 ch, 32 bit, tag 65534 (float32), extensible=true`.
+
+2b. `Initialize` handed a header that promised 22 bytes it did not have.
+    Second run, same command -> exit 1:
+      FluxError { code: AudioDeviceLost, subsystem: "capture",
+        message: "Initialize failed on {0.0.0.00000000}.{8d8bb8ef-...}
+        (2 channels, 48000 Hz, tag 65534, 10 ms buffer): The parameter is
+        incorrect. (0x80070057)" }
+    Cause: `addr_of!(wave)` — the 18-byte header with `cbSize` 22 — is not a
+    valid format block. Shared mode wants the whole `WAVEFORMATEXTENSIBLE`.
+    Fix: pass a pointer to the full extensible copy when there is one, and to the
+    plain header when there is not.
+    Proof after the fix: sections 3 and 4 below opened streams.
+
+2c. `flux capture stop` did not end a `capture start --secs N` run.
+    Measured before the fix (SSL 2 mic run, `--secs 20`, stopped at 4.6 s):
+      ran 20142 ms / packets=478 frames=229440 / valid=false stalledMs=15212
+    The capture thread saw the request and stopped the stream; the CLI slept its
+    whole budget anyway and published 15 s of watchdog, while its own note
+    claimed the run "exits within its poll interval".
+    Two causes, both fixed: the status writer re-emitted `stopRequested: false`
+    every 250 ms (a race against the 100 ms reader), and `measure()` used one
+    unconditional `sleep(secs)`.
+    Measured after the fix, section 5: `ran 8426 ms` for `--secs 20`.
+
+--------------------------------------------------------------------------------
+3. Loopback, something actually playing — exit 0
+--------------------------------------------------------------------------------
+Source under test: `fixtures/generated/sine_1k_48k.wav` played on a loop through
+the default render endpoint by `System.Media.SoundPlayer` (PowerShell, 25 s).
+
+  flux capture start --tap loopback --secs 8
+    tap=loopback
+    endpoint=Digital Audio (S/PDIF) (High Definition Audio Device)
+             id={0.0.0.00000000}.{8d8bb8ef-dc7e-4c78-a279-b626e66968cc}
+    wire: 48000 Hz, 2 ch, 32 bit, tag 65534 (float32), extensible=true
+    buffer=10 ms  device period default=10.0 ms min=2.7 ms
+    ring: asked 100 ms, holds 682.7 ms at this rate
+    input trim: +0.0 dB (explicit, no auto-gain)
+    ran 8043 ms
+    packets=800 frames=384000 rate=48000.0 frames/s silent=0
+    windows=750 onsets=82 overflowEvents=0
+    level: peak=0.0417 rms=0.0294 bass=0.0000 mid=0.0090 treble=0.0000 centroid=1000 Hz
+    beat: onset=false tempoBpm=120.0 confidence=0.00 beatPhase=0.000
+    valid=true stalledMs=5
+
+  flux capture status (same sidecar, after the run) -> exit 0, same numbers plus
+    pid=60312 stopRequested=false compiled=true running=false tap=loopback
+    rate=47743.4 windows=750 packets=800 frames=384000 elapsedMs=8043
+
+Independent check on the analyser, not on Flux: the tone is 1 kHz and the
+spectral centroid came back 1000 Hz, the sample rate came from the stream
+(48 kHz, not `AnalysisConfig::default()`), and 384000 frames in 8043 ms is
+real-time to within 0.15 % (`rate=47743`/`48000`). 750 windows over 8043 ms is
+one window per ~10.7 ms hop, and `windows` advanced without `overflowEvents`.
+
+--------------------------------------------------------------------------------
+4. Explicit input trim, measured — exit 0
+--------------------------------------------------------------------------------
+  flux capture start --tap loopback --secs 6 --input-db +12
+    input trim: +12.0 dB (explicit, no auto-gain)
+    ran 6033 ms
+    packets=600 frames=288000 rate=47996.2 frames/s silent=0
+    windows=562 onsets=61
+    level: peak=0.1658 rms=0.1171 mid=0.0358 centroid=1000 Hz
+
+peak 0.0417 -> 0.1658 is x3.981; 10^(12/20) is 3.981. The trim is a stated
+user gain applied to the captured buffer, and nothing adjusted it by itself:
+this is the refusal of auto-trim that the brief asked for, with the reason
+(`volume=0.2` arriving at `peak=0.0083`) now reproducible on this host.
+
+--------------------------------------------------------------------------------
+5. Loopback idle watchdog, mandatory behaviour — exit 0
+--------------------------------------------------------------------------------
+Nothing was playing into the tapped endpoint (the render device was idle):
+
+  flux capture start --tap loopback --secs 20   (then `flux capture stop`)
+    ran 8426 ms
+    packets=0 frames=0 rate=0.0 frames/s silent=0
+    windows=0 onsets=0 overflowEvents=0
+    level: peak=0.0000 rms=0.0000 bass=0.0000 mid=0.0000 treble=0.0000 centroid=0 Hz
+    beat: onset=false tempoBpm=0.0 confidence=0.00 beatPhase=0.000
+    valid=false stalledMs=8426
+
+  flux capture status while it ran -> exit 0
+    pid=54052 stopRequested=false compiled=true running=true tap=loopback
+    rate=0.0 windows=0 packets=0 frames=0 valid=false stalledMs=8033 elapsedMs=8033
+
+  flux capture stop -> exit 0
+    stop requested: true
+    note: the running capture stops its stream and ends its wait within 100 ms;
+          `flux capture status` keeps the last reading it published.
+
+Three things this pins: an idle loopback tap produces *no packets at all* on this
+host, so the watchdog is the only thing standing between "quiet room" and a
+plausible-looking all-zero measurement; `valid=false` with `stalledMs` surfaced
+instead; and the run ended 11.6 s before its `--secs` ceiling once asked.
+Note that WASAPI reported silence as absence, not as silent frames: `silent=0`
+and `packets=0`, which is why counting packets (not `SILENT` flags) is the
+stall signal.
+
+--------------------------------------------------------------------------------
+6. SSL 2 microphone, cross-process start / status / stop — exit 0
+--------------------------------------------------------------------------------
+  flux capture start --tap mic --device {0.0.1.00000000}.{2f61d159-...} --secs 20
+  flux capture status   (separate process, ~4.6 s in) -> exit 0
+    pid=58404 stopRequested=false compiled=true running=true tap=mic
+    endpoint=Input (7- SSL 2 USB Audio Device) id={0.0.1.00000000}.{2f61d159-...}
+    wire: 48000 Hz, 2 ch, 32 bit, tag 65534 (float32), extensible=true
+    buffer=10 ms ring=100 ms (holds 682.7 ms) trim=+0.0 dB
+    rate=46387.4 windows=415 onsets=0 packets=443 frames=212640 silent=0
+    level: peak=0.0000 rms=0.0000 centroid=180 Hz
+    valid=true stalledMs=1 elapsedMs=4584
+  flux capture stop -> exit 0
+
+The SSL 2 opened in WASAPI *shared* mode at 48 kHz float32 while its ASIO client
+was not running, and delivered ~96 packets/s. `valid=true stalledMs=1` with
+`peak=0.0000` is the honest reading of a live, open microphone in a quiet room:
+packets arrive, so this is a measurement of silence, not a lost device — the
+distinction the watchdog exists to make. `centroid=180 Hz` on a zero-signal
+buffer is analyser noise and is reported as such, not as a feature.
+
+--------------------------------------------------------------------------------
+7. Not measured here
+--------------------------------------------------------------------------------
+* ASIO through Ableton Live. Live was not running and the owner was not present,
+  so the single-client SSL 2 ASIO device was never held by Live while Flux tried
+  to tap it. The WASAPI shared-mode path above says nothing about that case, and
+  no reasoning is offered in its place.
+* macOS (Syphon) and any non-Windows capture: not compiled, not attempted.
+* Output-device change mid-take and permission-prompt recovery (AT056 clauses):
+  not exercised; no code path claims them.
+* Performance characterisation of the analyser thread under GPU load.

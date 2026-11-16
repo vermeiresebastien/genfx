@@ -41,6 +41,14 @@ pub struct ExportResult {
     pub frames_dir: PathBuf,
     pub wav: Option<PathBuf>,
     pub video: Option<PathBuf>,
+    /// Which class of audio evidence fed the rendered frames. A deterministic
+    /// export always records `DocumentOnly`; `Live` cannot be produced by this
+    /// path at all, and naming the source here is what makes that checkable
+    /// after the fact rather than a comment in the code.
+    pub feature_source: flux_domain::params::FeatureSource,
+    /// Hops of analysed media audio the export actually had to work from.
+    /// Zero with a nonzero `samples` means the project carried no audio.
+    pub audio_windows: usize,
 }
 
 /// Map the UI's format token to an encoder. Unknown tokens fall back to H.264 so
@@ -144,6 +152,16 @@ fn export_project_impl(
     };
 
     let mut rendered = 0u64;
+
+    // Audio is decoded once, up front, for the whole range: the same interleaved
+    // buffer is (a) written to the WAV below and (b) analysed into the feature
+    // timeline the frames are rendered from. Analysing before the loop matters
+    // for AT017 — the features a frame sees are chosen by that frame's *source
+    // timestamp*, so the picture cannot depend on how fast the renderer happened
+    // to be going.
+    let samples = mix_audio(project, start, duration)?;
+    let timeline = crate::audio_features::timeline_for_range(project, start, &samples)?;
+
     for i in 0..total {
         if opts.cancel.load(Ordering::Relaxed) {
             return Err(FluxError::new(
@@ -168,6 +186,7 @@ fn export_project_impl(
             opts.width,
             opts.height,
             None,
+            Some(&timeline),
         )?;
         if let Some(cb) = &frame_cb {
             cb(i + 1, total, &px, opts.width, opts.height);
@@ -185,8 +204,7 @@ fn export_project_impl(
         }
     }
 
-    // Audio: deterministic stereo mix of the range.
-    let samples = mix_audio(project, start, duration)?;
+    // Audio: the deterministic stereo mix computed above.
     let wav_path = opts
         .out_dir
         .join(format!("{}.wav", sanitize(&opts.project_name)));
@@ -220,6 +238,8 @@ fn export_project_impl(
         frames_dir,
         wav: Some(wav_path),
         video,
+        feature_source: timeline.feature_source(),
+        audio_windows: timeline.windows(),
     })
 }
 
@@ -233,6 +253,10 @@ pub struct PreviewRenderer {
     compiler: EffectCompiler,
     router: Router,
     roots_cache: HashMap<String, RuntimeGraph>,
+    /// Analysed media audio for the current audio state, keyed by a signature of
+    /// it. Scrubbing changes only the time, so the cache hits and no frame pays
+    /// for a decode; an audio edit changes the signature and rebuilds once.
+    audio_cache: Option<(String, Arc<crate::audio_features::MediaAudioTimeline>)>,
 }
 
 impl PreviewRenderer {
@@ -246,7 +270,42 @@ impl PreviewRenderer {
             compiler,
             router: Router::default(),
             roots_cache: HashMap::new(),
+            audio_cache: None,
         })
+    }
+
+    /// The feature timeline for `project`'s audio over `range`, reused across
+    /// frames until the audio state changes.
+    fn audio_timeline(
+        &mut self,
+        project: &Project,
+        start: RationalTime,
+        duration: RationalTime,
+    ) -> Arc<crate::audio_features::MediaAudioTimeline> {
+        use crate::audio_features::MediaAudioTimeline;
+        let signature = audio_signature(project, start, duration);
+        let cached = match self.audio_cache.as_ref() {
+            Some((key, timeline)) if *key == signature => Some(timeline.clone()),
+            _ => None,
+        };
+        if let Some(timeline) = cached {
+            return timeline;
+        }
+        let timeline = match mix_audio(project, start, duration) {
+            Ok(mix) => match crate::audio_features::timeline_for_range(project, start, &mix) {
+                Ok(t) => Arc::new(t),
+                Err(_) => Arc::new(MediaAudioTimeline::empty(
+                    start,
+                    project.settings.audio.sample_rate,
+                )),
+            },
+            Err(_) => Arc::new(MediaAudioTimeline::empty(
+                start,
+                project.settings.audio.sample_rate,
+            )),
+        };
+        self.audio_cache = Some((signature, timeline.clone()));
+        timeline
     }
 
     /// Render a single frame of `project` at `time` to packed RGBA8.
@@ -274,6 +333,7 @@ impl PreviewRenderer {
                 t = start;
             }
         }
+        let audio = self.audio_timeline(project, start, range.duration);
         let frame_ctx = FrameContext::for_project(project, t, 0);
         render_single_frame(
             &self.gpu,
@@ -287,6 +347,7 @@ impl PreviewRenderer {
             width,
             height,
             None,
+            Some(&audio),
         )
     }
 
@@ -300,6 +361,8 @@ impl PreviewRenderer {
         width: u32,
         height: u32,
     ) -> FluxResult<Vec<u8>> {
+        let range = flux_engine::timeline::export_range(project);
+        let audio = self.audio_timeline(project, range.start, range.duration);
         let frame_ctx = FrameContext::for_project(project, time, 0);
         let media_worker = MediaWorker::new().ok();
         render_single_frame(
@@ -314,8 +377,57 @@ impl PreviewRenderer {
             width,
             height,
             Some(graph),
+            Some(&audio),
         )
     }
+}
+
+/// Cheap, ordered fingerprint of everything in `project` that changes the
+/// analysed audio over a range. Deliberately *not* a hash of the whole document:
+/// colour or graph edits must not force a re-decode.
+fn audio_signature(project: &Project, start: RationalTime, duration: RationalTime) -> String {
+    let mut s = format!(
+        "sr={};n={};r={}/{};d={}/{}",
+        project.settings.audio.sample_rate,
+        project.settings.audio.channels,
+        start.numerator(),
+        start.denominator(),
+        duration.numerator(),
+        duration.denominator()
+    );
+    for track in project.timeline.ordered_tracks() {
+        if track.kind != flux_domain::TrackKind::Audio {
+            continue;
+        }
+        s.push_str(&format!(
+            "|T{}:{}:{}:{}",
+            track.id, track.muted, track.gain_db, track.solo
+        ));
+        for clip in project.timeline.track_clips(&track.id) {
+            let asset = match &clip.source {
+                flux_domain::ClipSource::Asset { asset_id } => project
+                    .assets
+                    .get(asset_id)
+                    .map(|a| format!("{}#{}", a.original_path, a.fingerprint))
+                    .unwrap_or_else(|| format!("missing:{asset_id}")),
+                other => format!("{other:?}"),
+            };
+            s.push_str(&format!(
+                "|C{}:{}/{}-{}{}:{}/{}:{}:{}:{}",
+                clip.id,
+                clip.range.start.numerator(),
+                clip.range.start.denominator(),
+                clip.range.duration.numerator(),
+                clip.range.duration.denominator(),
+                clip.source_range.start.numerator(),
+                clip.source_range.duration.numerator(),
+                clip.audio.gain_db,
+                clip.audio.pan,
+                asset,
+            ));
+        }
+    }
+    s
 }
 
 fn render_single_frame(
@@ -330,6 +442,7 @@ fn render_single_frame(
     width: u32,
     height: u32,
     graph_override: Option<&flux_domain::Graph>,
+    audio: Option<&crate::audio_features::MediaAudioTimeline>,
 ) -> FluxResult<Vec<u8>> {
     // The render targets are at the export resolution, so the frame context's
     // dimensions must match them (otherwise full-frame source sampling is wrong).
@@ -338,6 +451,20 @@ fn render_single_frame(
     ctx.output_height = height;
     ctx.source_width = width;
     ctx.source_height = height;
+    // Attach the audio evidence for this frame's exact project time. Until now
+    // this path always rendered with `AudioSnapshot::default()`, so the `audio`
+    // uniform every generated shader binds was zeros. When there is no audio
+    // timeline — a generator-only project, or a caller that has not decoded any
+    // — the silent document-only baseline is kept and *named*, not faked.
+    let snapshot = match audio.and_then(|t| t.evidence_at(ctx.project_time)) {
+        Some(ev) => {
+            ctx.audio = ev.audio;
+            ctx.music = ev.music;
+            ctx.feature_source = ev.source;
+            ev.features
+        }
+        None => flux_domain::params::FeatureSnapshot::default(),
+    };
     let ctx = &ctx;
     // Pick the TOP-MOST visible clip at this time (last in bottom-to-top order),
     // matching normal compositor semantics: a newly added scene on a higher track
@@ -400,7 +527,6 @@ fn render_single_frame(
 
     // Resolve parameters for every node in the graph.
     let mut resolved: HashMap<String, NodeParamsBuffer> = HashMap::new();
-    let snapshot = flux_domain::params::FeatureSnapshot::default();
     for pass in &rt.compiled.passes {
         let entry = catalog.get(&pass.type_id);
         let mut buf = match entry {
@@ -883,6 +1009,7 @@ fn mix_audio(
     let mut out = vec![0.0f32; total_samples * 2];
     let mixer = flux_audio::Mixer::new(sr);
     let worker = MediaWorker::new().ok();
+    let mut decoded_clips = 0usize;
 
     for track in project.timeline.ordered_tracks() {
         if track.kind != flux_domain::TrackKind::Audio || track.muted {
@@ -901,6 +1028,7 @@ fn mix_audio(
                     Ok(a) => a,
                     Err(_) => continue,
                 };
+            decoded_clips += 1;
             let clip_start_off = clip.range.start.sub(start).unwrap_or(RationalTime::ZERO);
             let offset_samples = if clip_start_off.is_negative() {
                 0
@@ -931,11 +1059,19 @@ fn mix_audio(
             );
         }
     }
-    Ok(MixedAudio { samples: out })
+    Ok(MixedAudio {
+        samples: out,
+        decoded_clips,
+    })
 }
 
 pub struct MixedAudio {
     pub samples: Vec<f32>,
+    /// How many audio clips actually decoded. This is what distinguishes "the
+    /// project has audio and it is silent" from "there was nothing to analyse" —
+    /// the feature timeline must not claim `valid = true` measurements when the
+    /// decode produced nothing.
+    pub decoded_clips: usize,
 }
 
 fn sanitize(name: &str) -> String {
@@ -983,6 +1119,14 @@ pub fn contact_sheet(
     let mut router = Router::default();
     let project = flux_domain::Project::new("sheet", 3);
     let ctx = FrameContext::for_project(&project, RationalTime::new(1, 2).unwrap(), 0);
+    // A contact sheet is effects composited over `gen.plasma` with no audio
+    // track at all. This is the explicit document-only baseline, taken through
+    // the same type the export path uses, so the two can never drift apart and
+    // so the row records *why* its features are the silent ones.
+    let sheet_baseline = crate::audio_features::MediaAudioTimeline::empty(
+        RationalTime::ZERO,
+        project.settings.audio.sample_rate,
+    );
 
     for (i, eff) in effects.iter().enumerate() {
         let graph = crate::samples::chain_graph("gen.plasma", &[eff.as_str()]);
@@ -994,7 +1138,10 @@ pub fn contact_sheet(
         }
         let rt = cache.get_mut(&key).unwrap();
         let mut resolved = HashMap::new();
-        let snap = flux_domain::params::FeatureSnapshot::default();
+        let snap = sheet_baseline
+            .evidence_at(ctx.project_time)
+            .map(|e| e.features)
+            .unwrap_or_default();
         for pass in &rt.compiled.passes {
             if let Some(e) = catalog.get(&pass.type_id) {
                 let mut buf = NodeParamsBuffer::defaults(&e.manifest);

@@ -322,7 +322,11 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         "AT014" => ("verified", vec!["crates/audio numeric tests".into()]),
         "AT017" => (
             "implemented_unverified",
-            vec!["crates/tests determinism test".into()],
+            vec![
+                "crates/tests/tests/media_audio_reactive.rs (decoded file audio reaches the analyser from fixture media: one features() per hop, and the measurement does not move when the export render speed does)".into(),
+                "crates/app/src/audio_features.rs MediaAudioTimeline + crates/audio/src/lib.rs point_at_sample (features indexed by source sample, never by wall clock)".into(),
+                "crates/app/src/live_audio.rs (the live half is --features live-audio only, off by default, and reaches the document only through the GuiCommand::LiveOsc seam)".into(),
+            ],
         ),
         "AT079" => (
             "implemented_unverified",
@@ -359,15 +363,36 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             "implemented_unverified",
             vec!["crates/app commands gui_acceptance_flow test; Tauri app builds+launches".into()],
         ),
-        // Windows capture enumeration verified; live capture needs a device.
-        "AT054" | "AT055" | "AT056" => (
+        // Three rows, three arms. They were one grouped arm until this run,
+        // which is the D028 defect class exactly: a grouped arm cannot fail
+        // loudly, so AT054 and AT055 were being handed the audio-endpoint
+        // evidence that belongs to AT056 — while no webcam and no screen was
+        // ever captured by anything. `evidence_routing` asserts the subject of
+        // each row from now on.
+        "AT054" => (
+            "pending",
+            vec![
+                "no webcam capture exists: crates/platform/src/capture.rs opens WASAPI audio endpoints only, and modes/orientation/timestamps/disconnect have no code to test".into(),
+            ],
+        ),
+        "AT055" => (
+            "pending",
+            vec![
+                "no whole-surface, window, region or cursor grabbing exists: the capture path is audio-only, so crop/DPI and self-capture exclusion have no code to test".into(),
+            ],
+        ),
+        "AT056" => (
             "implemented_unverified",
-            vec!["implementation/evidence/capture.txt (real WASAPI+PnP enumeration)".into()],
+            vec![
+                "crates/platform/src/capture.rs + crates/app/src/live_audio.rs (WASAPI shared mode; microphone and system-loopback taps; an idle loopback tap is reported stalled rather than as zeros, and the output-device-change and permission-recovery clauses are NOT covered by any code here)".into(),
+                "crates/app live_audio tests (idle watchdog boundary, explicit non-auto trim, ring overflow counted as events, sidecar claimed before any thread reads it)".into(),
+                "implementation/evidence/live-capture-2026-11-16.txt (this host: SSL 2 microphone and S/PDIF loopback opened, streamed and stopped across processes; 1 kHz tone measured back at centroid=1000 Hz; +12 dB trim moved peak 0.0417 to 0.1658; 384000 frames in 8043 ms)".into(),
+            ],
         ),
         "AT057" => (
             "implemented_unverified",
             vec![
-                "implementation/evidence/capture.txt (WASAPI + PnP enumeration only: no device was ever taken from)".into(),
+                "implementation/evidence/capture.txt (enumeration only: no webcam or desktop surface has ever been taken from; the audio endpoints in that file were first opened for real on 2026-11-16, which is AT056's evidence and not this row's)".into(),
                 "crates/app persistence tests (relink survives a moved file, on fixture media)".into(),
                 "crates/tests export_matrix tests (fixture input -> probeable file)".into(),
             ],
@@ -535,10 +560,14 @@ mod evidence_routing {
 
     /// These five acceptance records were one `match` arm until D028, which meant
     /// Spout's evidence was cited by a Max AC and vice versa. A grouped arm cannot
-    /// fail loudly, so the subject of each row is asserted here instead.
+    /// fail loudly, so the subject of each row is asserted here instead. The four
+    /// rows added below are the same defect found again on 2026-11-16: AT054,
+    /// AT055 and AT056 shared one arm, so a webcam AC and a desktop-capture AC
+    /// were each citing WASAPI endpoint enumeration — evidence for a tap neither
+    /// of them has.
     #[test]
     fn each_record_cites_its_own_subject() {
-        let cases: [(&str, &[&str], &[&str]); 5] = [
+        let cases: [(&str, &[&str], &[&str]); 9] = [
             (
                 "AT057",
                 &["capture", "export"],
@@ -548,6 +577,21 @@ mod evidence_routing {
             ("AT059", &["syphon"], &["spout", "max", "ndi"]),
             ("AT061", &["bridge", "maxpat"], &["spout", "syphon"]),
             ("AT062", &["amxd"], &["spout", "syphon"]),
+            // The offline half is what Step 1 wired; the names here are the
+            // fixture test and the two seams that make a measurement depend on
+            // the source sample rather than on the clock.
+            (
+                "AT017",
+                &["media_audio_reactive", "point_at_sample", "mediaaudiotimeline"],
+                &["spout", "ndi"],
+            ),
+            ("AT054", &["webcam"], &["microphone", "loopback", "cursor"]),
+            ("AT055", &["cursor"], &["microphone", "loopback", "webcam"]),
+            (
+                "AT056",
+                &["microphone", "loopback", "live-capture-2026-11-16"],
+                &["webcam", "cursor", "spout", "ndi"],
+            ),
         ];
         for (id, must, must_not) in cases {
             let e = evidence(id);
@@ -567,6 +611,18 @@ mod evidence_routing {
     fn absent_code_is_blocked_not_implemented() {
         assert_eq!(at_status("AT059").0, "blocked_external");
         assert_eq!(at_status("AT062").0, "blocked_external");
+    }
+
+    /// The mirror of the same rule for the capture rows: enumeration of audio
+    /// endpoints is not a webcam and not a desktop grab, so those two rows must
+    /// say `pending`, while the row whose taps were actually opened on a device
+    /// says `implemented_unverified` — built, measured once, not yet accepted.
+    #[test]
+    fn enumeration_does_not_become_a_camera_or_a_screen() {
+        assert_eq!(at_status("AT054").0, "pending");
+        assert_eq!(at_status("AT055").0, "pending");
+        assert_eq!(at_status("AT056").0, "implemented_unverified");
+        assert_eq!(at_status("AT017").0, "implemented_unverified");
     }
 }
 

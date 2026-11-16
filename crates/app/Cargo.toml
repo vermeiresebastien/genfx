@@ -35,3 +35,7 @@ link = ["flux-integrations/link"]
 ndi = ["flux-integrations/ndi"]
 spout = ["flux-integrations/spout"]
 vision = ["flux-integrations/vision"]
+# Live WASAPI capture. Not in `default`, so the shipping build is unchanged;
+# it only switches flux-platform's capture implementation from the stub that
+# fails with `SdkMissing` to the real one.
+live-audio = ["flux-platform/live-audio"]
