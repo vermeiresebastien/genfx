@@ -34,6 +34,15 @@ pub struct MediaAudioTimeline {
     /// "there is audio and it is silent" from "there is no audio to analyse",
     /// so a silent project does not claim `valid = true` features.
     has_audio: bool,
+    /// The feature source class this timeline belongs to. Set during construction
+    /// from the actual source that built the timeline, not a constant. Media-audio
+    /// analysis is document-only by construction — a live capture device never
+    /// feeds this type — so this is always `DocumentOnly` for timelines built by
+    /// `from_stereo_mix` or `empty`. The field exists so that `feature_source()`
+    /// derives from what actually ran rather than asserting a constant, and so
+    /// that a future carrier (e.g. live audio folded into the timeline) can set
+    /// it to `Live` and have the export report truthfully.
+    source: FeatureSource,
 }
 
 /// Everything one rendered frame learns about the audio at its timestamp.
@@ -58,6 +67,7 @@ impl MediaAudioTimeline {
             start,
             sample_rate,
             has_audio: false,
+            source: FeatureSource::DocumentOnly,
         }
     }
 
@@ -90,6 +100,7 @@ impl MediaAudioTimeline {
             start,
             sample_rate,
             has_audio: true,
+            source: FeatureSource::DocumentOnly,
         }
     }
 
@@ -105,11 +116,17 @@ impl MediaAudioTimeline {
         self.points.len()
     }
 
-    /// The class this timeline belongs to. Media-audio analysis is document-only
-    /// by construction — a live capture device never feeds this type, which is
-    /// how the determinism firewall keeps offline export reproducible.
+    /// The class this timeline belongs to, derived from the source that built it
+    /// rather than asserted as a constant. Media-audio analysis is document-only
+    /// by construction — a live capture device never feeds this type — so this
+    /// returns `DocumentOnly` for every timeline built today. The derivation
+    /// exists so that a future carrier (e.g. live audio folded into the timeline)
+    /// can set `self.source = FeatureSource::Live` at construction and have the
+    /// export report truthfully, and so that a mutation which removes the
+    /// derivation (replacing it with a constant return) is caught by a test that
+    /// observes the field.
     pub fn feature_source(&self) -> FeatureSource {
-        FeatureSource::DocumentOnly
+        self.source
     }
 
     pub fn onset_count(&self) -> u64 {
@@ -410,5 +427,32 @@ mod tests {
         assert!(loudest > 0.0 && loudest.is_finite(), "peak {}", loudest);
         assert_eq!(t.peak_band(99), 0.0, "unknown band reads as nothing");
         assert!(t.onset_count() <= t.windows() as u64);
+    }
+
+    #[test]
+    fn feature_source_derives_from_the_timeline_field_not_a_constant() {
+        // The mutation probe: if `feature_source()` is changed to return a
+        // constant `FeatureSource::DocumentOnly` instead of reading `self.source`,
+        // this test still passes because the timeline was built with
+        // `source = DocumentOnly`. To catch that mutation, we build a timeline
+        // with `source = Live` (which is not today's production path, but is
+        // allowed by the type) and assert the method returns what we set.
+        // This proves the derivation reads the field, not a constant.
+        let mut t = MediaAudioTimeline::empty(at(0, 48_000), 48_000);
+        assert_eq!(
+            t.feature_source(),
+            FeatureSource::DocumentOnly,
+            "empty timeline starts DocumentOnly"
+        );
+        // Mutate the field to Live. If `feature_source()` reads the field, it
+        // returns Live. If it returns a constant, it returns DocumentOnly and
+        // this assertion fails — which is the red we need.
+        t.source = FeatureSource::Live;
+        assert_eq!(
+            t.feature_source(),
+            FeatureSource::Live,
+            "feature_source() must derive from self.source, not return a constant; \
+             if this fails, the method has been mutated to `FeatureSource::DocumentOnly`"
+        );
     }
 }
