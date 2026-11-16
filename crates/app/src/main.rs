@@ -13,6 +13,33 @@ use flux_catalog::build_catalog;
 use flux_domain::{Dispatcher, FluxError, FluxResult, Project};
 use std::path::PathBuf;
 
+/// Format the render audit line. The frames_dir is only included if it exists,
+/// so we never print a path that doesn't exist. This function is testable: a
+/// test can call it with a non-existent path and verify the output omits it.
+fn format_render_audit_line(
+    frames: u64,
+    samples: usize,
+    frames_dir: &std::path::Path,
+    feature_source: flux_domain::params::FeatureSource,
+    audio_windows: usize,
+) -> String {
+    if frames_dir.exists() {
+        format!(
+            "rendered {} frames, {} samples; frames in {}; audio: {:?} ({} windows)",
+            frames,
+            samples,
+            frames_dir.display(),
+            feature_source,
+            audio_windows
+        )
+    } else {
+        format!(
+            "rendered {} frames, {} samples; audio: {:?} ({} windows)",
+            frames, samples, feature_source, audio_windows
+        )
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = run(&args);
@@ -239,12 +266,14 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
         })),
     )?;
     println!(
-        "rendered {} frames, {} samples; frames in {}; audio: {:?} ({} windows)",
-        result.frames,
-        result.samples,
-        result.frames_dir.display(),
-        result.feature_source,
-        result.audio_windows
+        "{}",
+        format_render_audit_line(
+            result.frames,
+            result.samples,
+            &result.frames_dir,
+            result.feature_source,
+            result.audio_windows
+        )
     );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
@@ -1629,5 +1658,64 @@ mod tests {
             "error must name the problem: {}",
             e.message
         );
+    }
+
+    #[test]
+    fn render_audit_line_omits_frames_dir_when_it_does_not_exist() {
+        // The audit line must never print a frames_dir path that doesn't exist.
+        // This test verifies the helper function omits it when the path is absent.
+        let nonexistent = std::path::Path::new("/tmp/this_path_does_not_exist_12345");
+        assert!(
+            !nonexistent.exists(),
+            "test precondition: path must not exist"
+        );
+
+        let line = super::format_render_audit_line(
+            100,
+            48000,
+            nonexistent,
+            flux_domain::params::FeatureSource::DocumentOnly,
+            93,
+        );
+
+        // The line must not contain the nonexistent path.
+        assert!(
+            !line.contains("this_path_does_not_exist"),
+            "audit line must not name a frames_dir that does not exist: {}",
+            line
+        );
+        // But it must still report the frame count and audio info.
+        assert!(line.contains("100 frames"), "line: {}", line);
+        assert!(line.contains("48000 samples"), "line: {}", line);
+        assert!(line.contains("DocumentOnly"), "line: {}", line);
+        assert!(line.contains("93 windows"), "line: {}", line);
+    }
+
+    #[test]
+    fn render_audit_line_includes_frames_dir_when_it_exists() {
+        // When the frames_dir exists, the audit line must include it.
+        let temp = std::env::temp_dir().join("flux_test_frames_dir_exists");
+        std::fs::create_dir_all(&temp).expect("create temp dir");
+        assert!(temp.exists(), "test precondition: path must exist");
+
+        let line = super::format_render_audit_line(
+            50,
+            24000,
+            &temp,
+            flux_domain::params::FeatureSource::DocumentOnly,
+            46,
+        );
+
+        // The line must contain the path.
+        assert!(
+            line.contains(&temp.display().to_string()),
+            "audit line must name the frames_dir when it exists: {}",
+            line
+        );
+        assert!(line.contains("50 frames"), "line: {}", line);
+        assert!(line.contains("24000 samples"), "line: {}", line);
+
+        // Clean up.
+        std::fs::remove_dir_all(&temp).ok();
     }
 }
