@@ -325,7 +325,6 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             vec![
                 "crates/tests/tests/media_audio_reactive.rs (decoded file audio reaches the analyser from fixture media: one features() per hop, and the measurement does not move when the export render speed does)".into(),
                 "crates/app/src/audio_features.rs MediaAudioTimeline + crates/audio/src/lib.rs point_at_sample (features indexed by source sample, never by wall clock)".into(),
-                "crates/app/src/live_audio.rs (the live half is --features live-audio only, off by default, and reaches the document only through the GuiCommand::LiveOsc seam)".into(),
             ],
         ),
         "AT079" => (
