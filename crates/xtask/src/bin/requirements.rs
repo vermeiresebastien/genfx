@@ -385,7 +385,7 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
             "implemented_unverified",
             vec![
                 "crates/platform/src/capture.rs + crates/app/src/live_audio.rs (WASAPI shared mode; microphone and system-loopback taps; an idle loopback tap is reported stalled rather than as zeros, and the output-device-change and permission-recovery clauses are NOT covered by any code here)".into(),
-                "crates/app live_audio tests (idle watchdog boundary, explicit non-auto trim, ring overflow counted as events, sidecar claimed before any thread reads it)".into(),
+                "crates/app live_audio tests (idle watchdog boundary, explicit non-auto trim, ring overflow counted as events, per-test sidecar isolation so the suite is parallel-safe)".into(),
                 "implementation/evidence/live-capture-2026-11-16.txt (this host: SSL 2 microphone and S/PDIF loopback opened, streamed and stopped across processes; 1 kHz tone measured back at centroid=1000 Hz; +12 dB trim moved peak 0.0417 to 0.1658; 384000 frames in 8043 ms)".into(),
             ],
         ),

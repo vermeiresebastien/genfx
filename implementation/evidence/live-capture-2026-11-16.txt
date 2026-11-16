@@ -1,13 +1,22 @@
 Flux live audio capture — first run against real WASAPI endpoints
 Date: 2026-11-16. Host: Windows 10, RTX 2080 Ti rig, SSL 2 USB Audio Device.
 Build: `cargo build -p flux-app --bin flux --features live-audio` (debug, exit 0),
-tree at master 20e0ae9 plus the uncommitted lane-A working tree.
+tree at master 20e0ae9 plus lane-A (committed in 6f00058).
 Everything below is a measured transcript of a command that ran on this host,
 not a claim from a document. Exit codes are the process's own, un-piped.
 
 --------------------------------------------------------------------------------
 1. Enumeration — `flux capture devices`  (exit 0)
 --------------------------------------------------------------------------------
+**SUPERSEDED OUTPUT SHAPE.** The transcript below was captured from an early
+lane-A working tree build. The committed binary (6f00058 and later) prints a
+different shape: one line per endpoint with `[tap] name (default)` followed by
+`id=...` on the next line, not grouped by tap with GUID-first rows. The current
+format is produced by `crates/app/src/main.rs:1086-1122` (`capture_devices`).
+The measured facts below — 15 endpoints, 9 microphone, 6 loopback, all carrying
+friendly names, default render endpoint is S/PDIF not SSL 2 — remain accurate;
+only the printed layout changed.
+
 live-audio: compiled
 endpoints: 15
 

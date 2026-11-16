@@ -92,6 +92,23 @@ Established by reading the integration code, not the status files.
    Grepping the entire tree for `ASIO` returns exactly one hit:
    `crates/integrations/build.rs:32`, a comment about Ableton Link's *networking* ASIO.
    Audio in Flux today is file-decode-for-offline-mix only (`crates/app/src/export.rs:873-934`).
+   **Corrected for lane-A, committed in 6f00058, 2026-11-16.** Every clause of that
+   paragraph held at HEAD, and three of them no longer do on this machine:
+   (a) the export and frame paths no longer hand the analyser a default snapshot — decoded
+   media audio reaches `FrameContext` through field mutation after `for_project`, via
+   `crates/app/src/audio_features.rs` (`MediaAudioTimeline`) and `crates/audio/src/lib.rs`
+   `point_at_sample`, sampled by source sample rather than by clock, asserted by
+   `crates/tests/tests/media_audio_reactive.rs`;
+   (b) `crates/platform/src/capture.rs` now exists, behind a non-default `live-audio`
+   feature, and opens WASAPI shared-mode microphone and loopback taps — measured on this
+   host, not inferred (`implementation/evidence/live-capture-2026-11-16.txt`: a 1 kHz file
+   tone tapped through loopback came back at `centroid=1000 Hz`, 384000 frames in 8043 ms,
+   and `crates/app/src/live_audio.rs` publishes that reading cross-process);
+   (c) there is still no ASIO path — the one `ASIO` grep hit is unchanged, and whether Live
+   holding the SSL 2 blocks a tap is **unmeasured** because the owner was not present.
+   `FLUX_LIVE_AUDIO` defaults to `off`, so the default and `--no-default-features` builds
+   behave exactly as described above; live features enter the document only through the
+   existing `GuiCommand::LiveOsc` seam, never by replacing a deterministic measurement.
 
 Consequence: most "hardware needed" items in gates A and D are actually **NOT WIRED**.
 The hardware step is real, but it comes after a code step, and this document says so per item.
@@ -264,11 +281,25 @@ The hardware step is real, but it comes after a code step, and this document say
   narrower: no capture code exists to exercise.** `implementation/requirements.json:62` (R005,
   `pending`, blocker "capture adapters implemented; device enumeration verified, live capture
   needs a device") is accurate about the *device* part and misleading about the *adapter* part.
+  **Both halves moved in lane-A, committed in 6f00058, 2026-11-16.** The adapter now
+  exists — `crates/platform/src/capture.rs`, `IAudioClient::Initialize` in shared mode with
+  `AUDCLNT_STREAMFLAGS_LOOPBACK` for the render tap, `IAudioCaptureClient::GetBuffer` for the
+  packets, behind a non-default `live-audio` feature and with no new third-party crate. The
+  routes above are therefore no longer "none", and they were exercised with Live quit. What
+  this paragraph was actually asking — the SSL 2 *while Live holds it* — is still unmeasured,
+  so the conclusion stands as an open question rather than as a resolved one.
 - **Shortest procedure.** (a) Determine what you can even see, with Live running and holding
   the interface: `target\release\flux.exe capture` and `target\release\flux.exe caps`.
   Check whether the SSL 2 appears as a WASAPI render endpoint and whether "What U Hear"-style
   loopback is listed. (b) Repeat with Live quit. (c) Only after capture code exists: point it
   at the loopback endpoint and confirm non-silence.
+  **Steps (b) and (c) were performed on 2026-11-16 with Live quit, through
+  `flux capture devices` / `start --tap loopback` / `status` / `stop`: 15 endpoints (9 mic,
+  6 loopback) with real friendly names, and a 1 kHz tone measured back as non-silence at
+  `centroid=1000 Hz`, `rms=0.0294` at unity and `peak=0.1658` with the explicit `+12 dB`
+  trim (`implementation/evidence/live-capture-2026-11-16.txt`). Step (a) — enumeration while
+  Live holds the ASIO device — was not performed: the owner was not present, and reasoning
+  about it would be exactly the kind of claim this document lists as unevidenced.**
 - **Pass.** (a) The SSL 2 endpoints are enumerated with Live holding the device, with correct
   names. (c) RMS in `crates/domain/src/params.rs:16 FeatureSnapshot` is non-zero when Live is
   playing, and drops to ~zero on mute.
@@ -278,6 +309,14 @@ The hardware step is real, but it comes after a code step, and this document say
   the interface. That is a UX defect that will burn time on rig day; `implementation/evidence/capture.txt`
   shows exactly this (`cameras: 1  microphones: 5  loopback: 6`, all GUID tails, and the camera
   entry is literally named `camera { Properties }`, i.e. the PnP key's leaf, not a camera name).
+  **Fixed and measured, 2026-11-16, in the same uncommitted working tree:** that name derivation
+  now reads `PKEY_Device_FriendlyName` through `PROPVARIANT` (freed with `PropVariantClear`)
+  and falls back to the endpoint id only when the property store has nothing, so
+  `flux capture devices` prints `Input (7- SSL 2 USB Audio Device)` and marks one default per
+  tap; the old GUID-tail transcript stays as the record of the defect, and
+  `crates/platform`'s `endpoints_carry_readable_names_not_guid_tails` test guards the new shape.
+  The camera leaf name (`camera { Properties }`) is a different defect and was not touched:
+  it belongs to the PnP enumeration path, which this lane does not claim.
   Second expected failure: WASAPI loopback returns digital silence for the ASIO-held stream,
   because many ASIO drivers bypass the WASAPI render path entirely. If that happens, the only
   remaining routes are a virtual cable (loses the "judge by ear in Live" workflow), or Flux
