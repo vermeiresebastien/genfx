@@ -200,9 +200,9 @@ them first.
   does nothing" is a port fight rather than a decoder bug. `osc_status` reports
   `bound`, `bindError` and a counter per outcome.
 - **The webview ships `app.bundle.js`, not `main.js`.** `src-tauri/build.rs` runs
-  `node bundle.mjs` and rewrites the `?v=` hash in `index.html`, and it reports a
-  bundle failure as `cargo:warning` while continuing. A green `cargo build -p
-  flux-desktop` is not proof the UI change shipped: grep the bundle for the symbol.
+  `node bundle.mjs`, which versions `index.html`'s single `?v=` tag from the bytes it
+  just wrote; a bundler that cannot run, or cannot version exactly one tag, stops the
+  build. Gate: `node apps/desktop/ui/check-bundle.mjs` (11 legs), in CI and `verify.ps1`.
 - **Exact rational time.** `RationalTime{i64 num, u32 den}`, always reduced,
   numerator serialized as a decimal string. No wall clock in deterministic kernels.
 - **The frame ABI is 96 bytes** and is currently hand-written in three places

@@ -89,6 +89,16 @@ fn osc_port() -> u16 {
 /// built below name the lock and the action taken, and never quote a panic this
 /// process did not observe.
 ///
+/// What recovery must NOT do, however, is *clear* the flag.
+/// `Mutex::clear_poison` is the API that asserts the guarded value is sound, and
+/// this file licenses that assertion in exactly two places — both inside
+/// `preview_guard`, both one line after the value the panic crossed has either
+/// stopped existing or been replaced by one this process just built. The `host` and
+/// `osc` mutexes are never cleared: for those the answer is *continue* precisely
+/// because the document cannot be vouched for, so erasing the flag there would
+/// delete the only record a later reader has. That is gated by name, in
+/// `clear_poison_is_called_only_where_the_value_is_gone_or_new`.
+///
 /// `what` names the mutex for the stderr line; a caller that shows the user a
 /// reason uses the `*_disposition` functions, so the two cannot disagree.
 fn lock_recovered<'a, T>(m: &'a Mutex<T>, what: &str) -> (MutexGuard<'a, T>, bool) {
@@ -125,6 +135,12 @@ fn lock_recovered<'a, T>(m: &'a Mutex<T>, what: &str) -> (MutexGuard<'a, T>, boo
 ///     by another door. The danger is the torn renderer, not the bit that
 ///     recorded how it got dropped; once the renderer is gone there is nothing
 ///     left to distrust, and the next call initialises a fresh one.
+///
+/// What this function does NOT do is clear the flag — keyed on the slot as it is,
+/// it cannot know whether the value it just dropped was the last hazard. That is
+/// `preview_guard`'s job, one line after this returns; the session claim is gated
+/// there and not here, because the policy alone was gated once already and it was
+/// not enough.
 fn preview_disposition<T>(poisoned: bool, slot: &mut Option<T>) -> Result<(), String> {
     if !poisoned {
         return Ok(());
@@ -172,22 +188,119 @@ fn export_disposition(poisoned: bool, slot_holds_renderer: bool) -> Result<(), S
     )
 }
 
-/// The preview renderer, initialised on first use, and answered with a reason
-/// when there is no trustworthy one. Never panics, and never hands back an empty
-/// slot: a caller that cannot render says so in words the webview can show
-/// rather than dying in an `unwrap()` or painting a frame nobody asked for.
-fn preview_renderer(
-    preview: &Mutex<Option<PreviewRenderer>>,
-) -> Result<MutexGuard<'_, Option<PreviewRenderer>>, String> {
-    let (mut guard, poisoned) = lock_recovered(preview, "preview renderer");
-    preview_disposition(poisoned, &mut guard)?;
+/// The preview-frame composition: acquire, decide, and refill.
+///
+/// Generic over the renderer on purpose, and the commands reach it through
+/// `preview_renderer` with the real constructor. The reason it is a function and
+/// not five lines inside `preview_renderer` is the defect this file now carries a
+/// gate for: the policy was tested against a hand-seeded slot, while the caller
+/// that uses the policy *refills* the slot on every accepted frame, so "refuses
+/// once" was true of the policy and false of the session. A gate has to replay the
+/// composition, and a composition that is copied into a test drifts from the one
+/// that ships. `init` runs only when the slot is empty, and its error becomes the
+/// caller's reason (`gpu init: …` at the real site).
+///
+/// Never panics, and never hands back an empty slot: a caller that cannot render
+/// says so in words the webview can show.
+fn preview_guard<'a, G>(
+    preview: &'a Mutex<Option<G>>,
+    what: &str,
+    init: impl FnOnce() -> Result<G, String>,
+) -> Result<MutexGuard<'a, Option<G>>, String> {
+    let (mut guard, poisoned) = lock_recovered(preview, what);
+    if let Err(reason) = preview_disposition(poisoned, &mut guard) {
+        // Licensed clear #1 of two, and the licence is that the value the panic
+        // crossed has just stopped existing on the line above. `preview_disposition`
+        // drops the renderer it found, so what the slot holds now is `None` — which
+        // cannot be torn — and the `PreviewRenderer` with the possibly-half-updated
+        // `roots_cache` is gone with it. `clear_poison` is the API that asserts "the
+        // guarded data is not corrupt", and this is the one moment in a preview
+        // frame where that assertion is *mine* to make rather than hoped for.
+        //
+        // Skipping BOTH clear sites is the reopened defect, measured: the flag
+        // survives, the next accepted frame builds a fresh renderer on a permanently
+        // poisoned mutex, the frame after that meets `(poisoned, Some)` and refuses
+        // again — 6 refusals and 5 rebuilds per single poison over 11 frames
+        // (`one_poison_with_a_renderer_held_refuses_exactly_one_frame`,
+        // smoke/I7-1-mut-q1.log).
+        //
+        // What this site buys on its own is narrower than the sequence gate, and the
+        // measurement says so: delete only this line and every count in the sequence
+        // gates is unchanged (smoke/I7-1-mut-q2.log prints the same 1 refusal / 1
+        // rebuild as the green run), because site #2 clears the flag at the very next
+        // rebuild — one frame later. So what this site actually shortens is the window
+        // in which the flag lies: with it, the mutex is clean the moment the refusal is
+        // returned; without it, the poison survives until something else rebuilds, and
+        // if the rebuild never succeeds (a `gpu init` error propagates out before
+        // site #2) it survives the rest of the session. It is pinned by the call-site
+        // gate, not by a count.
+        //
+        // The claim is narrow on purpose: it is about this mutex's value and nothing
+        // else. It says nothing about the wgpu device the dropped renderer held or
+        // about the shared `RuntimeGraph`, which are defect 6's and lane B3's.
+        preview.clear_poison();
+        return Err(reason);
+    }
     if guard.is_none() {
-        *guard = Some(PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))?);
+        *guard = Some(init()?);
+        // Licensed clear #2 of two, for the case where no refusal ever happens: the
+        // panic can cross this lock while the slot is empty — which is the ordinary
+        // state right after an export released the device — so the site above is
+        // never reached, and a healthy renderer would otherwise inherit a poisoned
+        // mutex and get refused one frame later for nothing. Here the licence is that
+        // the value the flag described is absent and what the slot holds now was
+        // constructed by this call, on the line above.
+        //
+        // This is the site that carries the fix. Deleting it alone is falsified by
+        // measurement, not by argument: the poison survives the rebuild, so frame 2
+        // meets `(poisoned, Some)` and refuses a renderer that this very function just
+        // built — 1 refusal and 2 refills over 5 frames where the green run says 0 and
+        // 1 (smoke/I7-1-mut-q3.log, against
+        // `one_poison_with_an_empty_slot_refuses_no_frame_at_all`).
+        //
+        // Not reached when `init` itself fails: the `?` returns before this line, so a
+        // session whose GPU never comes back keeps the flag set. That clear would be
+        // licensed (the slot is empty, so the value the flag described is absent) but no
+        // measured behaviour needs it, and a constructor that returned `Err` is the one
+        // place in this file where we do not know what it touched — so the flag stays.
+        preview.clear_poison();
     }
     // The slot cannot be empty here — `preview_disposition` either kept it or
     // refused, and the line above filled it. Callers still go through
     // `preview_slot`, because the alternative was `unwrap()`.
     Ok(guard)
+}
+
+/// `preview_guard` with the thing the desktop actually guards.
+fn preview_renderer(
+    preview: &Mutex<Option<PreviewRenderer>>,
+) -> Result<MutexGuard<'_, Option<PreviewRenderer>>, String> {
+    preview_guard(preview, "preview renderer", || {
+        PreviewRenderer::new().map_err(|e| format!("gpu init: {e:?}"))
+    })
+}
+
+/// The preview half of an export: decide, and when the answer is *start*, release
+/// the device by emptying the slot.
+///
+/// Generic, and extracted from `export_project_cmd`, for the same reason
+/// `preview_guard` is: the export claim below is a *sequence* claim, and a sequence
+/// can only be replayed against a function. The `exporting` flag stays the
+/// command's business — it owns the reset on this `Err`, because a refusal that
+/// left the flag set would wedge every later export too.
+///
+/// Deliberately does NOT drop the renderer on the refusal path, and does not clear
+/// the poison anywhere: dropping it would decide GPU-device ownership from the
+/// export side, which is defect 6's question and lane B3's work, and clearing here
+/// would assert that a value this function did not examine is sound.
+fn export_preview_release<G>(preview: &Mutex<Option<G>>, what: &str) -> Result<(), String> {
+    let (mut guard, poisoned) = lock_recovered(preview, what);
+    export_disposition(poisoned, guard.is_some())?;
+    // Either the lock was clean, or it was poisoned and an earlier refusal had
+    // already dropped the renderer; in both cases there is no device left to
+    // collide with, so the export may have it.
+    *guard = None;
+    Ok(())
 }
 
 /// The renderer the caller asked for, or the reason there is none. This is now
@@ -380,16 +493,9 @@ fn export_project_cmd(
     // left exactly as it was found, held by a lock nobody can vouch for, and the
     // export does not start. Naming that owner is a separate decision with its
     // own gate; this arm only refuses, and says what to do about it.
-    {
-        let (mut guard, poisoned) = lock_recovered(&state.preview, "preview renderer (export)");
-        if let Err(reason) = export_disposition(poisoned, guard.is_some()) {
-            exporting.store(false, Ordering::SeqCst);
-            return Err(reason);
-        }
-        // Either the lock was clean, or it was poisoned and an earlier refusal had
-        // already dropped the renderer; in both cases there is no device left to
-        // release, and the export may start.
-        *guard = None;
+    if let Err(reason) = export_preview_release(&state.preview, "preview renderer (export)") {
+        exporting.store(false, Ordering::SeqCst);
+        return Err(reason);
     }
     // Resolve relative output dirs against the process CWD so the reported path
     // is absolute and the user can find the file.
@@ -912,8 +1018,11 @@ mod tests {
     // named in the last test of this block.
 
     use super::{
-        export_disposition, lock_recovered, preview_disposition, preview_slot, Arc, Mutex,
+        export_disposition, export_preview_release, lock_recovered, preview_disposition,
+        preview_guard, preview_slot, Arc, Mutex,
     };
+    use std::cell::Cell;
+    use std::rc::Rc;
 
     /// Poison `m` the only way poisoning happens: a panic unwinding through a
     /// held guard, on a thread that then dies of it.
@@ -928,7 +1037,12 @@ mod tests {
     /// Expect a `thread '...' panicked at 'gate: …'` line in the log while these
     /// tests run. It is not a failure: that panic *is* the symptom under test,
     /// and the legs below assert which acquisition survives it.
-    fn poison_in_a_thread(m: &Arc<Mutex<usize>>) {
+    ///
+    /// Generic over the guarded value because the sequence gates poison both shapes
+    /// a preview slot has — `Some(renderer)` and `None` — and the two are licensed
+    /// differently at the recovery sites. The type is the only thing that changes;
+    /// the two assertions below are the whole contract.
+    fn poison_in_a_thread<T: Send + 'static>(m: &Arc<Mutex<T>>) {
         let holder = m.clone();
         let thread = std::thread::spawn(move || {
             let _held = holder.lock().unwrap();
@@ -1045,14 +1159,17 @@ mod tests {
         );
     }
 
-    /// `preview_disposition`, all three legs, on a `usize` standing in for the
-    /// renderer. The leg that matters is the fourth one: refusals must total
-    /// exactly one, because `std::sync::Mutex` keeps its poison flag for the life
-    /// of the process and a policy keyed on the *flag* would refuse every frame
-    /// after the first bad one — the dead app, arriving as a permanent refusal
-    /// instead of a panic.
+    /// `preview_disposition`, arm by arm, on a `usize` standing in for the
+    /// renderer. Every slot below is **hand-seeded by this test**, which is exactly
+    /// why the test is not enough on its own: it can only say what the policy does
+    /// with the slot it is handed, and the shipped caller hands it a *different*
+    /// slot each frame because `preview_guard` refills it on every accepted frame.
+    /// The session claim — one poison, one refusal — lives in
+    /// `one_poison_with_a_renderer_held_refuses_exactly_one_frame`, which drives the
+    /// real composition. Read the two together, and do not mistake leg 4 for a
+    /// session test: it replays the *arm*, with `None` seated by hand each time.
     #[test]
-    fn a_poisoned_preview_is_discarded_and_refused_exactly_once() {
+    fn preview_disposition_discards_and_refuses_arm_by_arm() {
         // Leg 1 — clean: nothing to decide, and nothing touched.
         let mut slot = Some(7usize);
         assert!(
@@ -1089,9 +1206,11 @@ mod tests {
             );
         }
 
-        // Leg 4 — the "once". Four more poisoned frames after the discard, on the
-        // same permanently-poisoned mutex: total refusals must still be exactly
-        // one, and the following frames are answered.
+        // Leg 4 — the *arm*, not the session. Four more poisoned frames, each with
+        // the slot hand-seeded to `None` exactly as the arm describes, all on a
+        // permanently poisoned mutex: none of them may refuse. What the shipped
+        // caller does with the slot between frames is outside this test's reach, and
+        // is gated by name in the sequence gate above.
         let mut refusals = 1;
         for frame in 1..=4 {
             let mut s: Option<usize> = None;
@@ -1141,6 +1260,318 @@ mod tests {
         }
     }
 
+    /// The composition gate this item shipped without: ONE poison, then eleven
+    /// frames driven through `preview_guard` — the function the shipped preview
+    /// commands actually call — so the slot is refilled between frames exactly as
+    /// the caller refills it. Everything below is a number, and every number is
+    /// asserted as an equality rather than `>= 1`: refusals == 1, refills == 1,
+    /// rendered == 10, and the poison flag clear at the end.
+    ///
+    /// Why the flag is the one that matters: `std::sync::Mutex` never clears it by
+    /// itself, and the accepted path puts a renderer back in the slot. So without a
+    /// clear on the recovery path the alternation is self-sustaining — frame 1 refuses
+    /// and discards, frame 2 is accepted *and builds a new renderer*, frame 3 therefore
+    /// meets `(poisoned, Some)` again and refuses — which is defect 5 rewritten as "one
+    /// bad frame halves the preview for the rest of the session", with every surviving
+    /// frame also paying a fresh `PreviewRenderer::new()` (a whole wgpu device request)
+    /// because the slot was emptied two frames earlier.
+    ///
+    /// Falsifiable, and measured in this exact shape: delete both `preview.clear_poison()`
+    /// calls in `preview_guard` and the same 11 frames print 6 refusals and 5 refills with
+    /// the flag still set (smoke/I7-1-mut-q1.log; smoke/I7-1-symptom.log is the same shape
+    /// measured on the tree before the fix existed) — the PM's standalone probe reproduced
+    /// against the shipped caller rather than against a copy of it. Delete only the
+    /// *discard* site and these counts do not move (smoke/I7-1-mut-q2.log): the rebuild
+    /// site clears the flag one frame later, so that site is pinned by `preview_guard`'s
+    /// call-site gate instead. No GPU and no window are needed, which is the whole point of
+    /// `preview_guard` being generic: `G` is `usize` and `init` is a counter.
+    #[test]
+    fn one_poison_with_a_renderer_held_refuses_exactly_one_frame() {
+        let frames = 11usize;
+        let m = Arc::new(Mutex::new(Some(7usize)));
+        poison_in_a_thread(&m);
+
+        let refills = Rc::new(Cell::new(0usize));
+        let mut refusals = 0;
+        let mut rendered = 0;
+        let mut held = None;
+        for _frame in 1..=frames {
+            let refills = Rc::clone(&refills);
+            match preview_guard(&*m, "sequence gate", move || {
+                refills.set(refills.get() + 1);
+                // A number the poisoned slot could not already be holding: if this
+                // value is what survives, it was built *after* the panic.
+                Ok(100usize)
+            }) {
+                Ok(guard) => {
+                    rendered += 1;
+                    held = *guard;
+                }
+                Err(reason) => {
+                    refusals += 1;
+                    assert!(
+                        reason.contains("discarded"),
+                        "the refusal does not say what happened to the renderer: {reason}"
+                    );
+                }
+            }
+        }
+        println!(
+            "SEQUENCE poison-with-renderer: frames={frames} rendered={rendered} \
+             refused={refusals} refills={} poison_at_end={}",
+            refills.get(),
+            m.is_poisoned()
+        );
+        assert_eq!(
+            refusals, 1,
+            "one poison caused {refusals} refusals across {frames} frames: the preview is \
+             running at half rate for the rest of the session, which is the dead-app defect \
+             with a user-facing error string instead of a panic"
+        );
+        assert_eq!(
+            rendered,
+            frames - 1,
+            "{rendered} of {frames} frames rendered after a single poison"
+        );
+        assert_eq!(
+            refills.get(),
+            1,
+            "the caller built {} renderers to survive one poison: every accepted frame is \
+             paying a wgpu device request because the slot keeps being emptied again",
+            refills.get()
+        );
+        assert_eq!(
+            held,
+            Some(100),
+            "the renderer on the last frame is {held:?}, not the one recovery built — either \
+             the poisoned renderer survived, or the fresh one did not outlive the next frame"
+        );
+        assert!(
+            !m.is_poisoned(),
+            "the poison flag survived the recovery, so the next stretch of clean frames is \
+             still armed to alternate"
+        );
+    }
+
+    /// The other half of the licence, and the reason there are two clear sites and
+    /// not one. A panic can cross the preview lock while the slot is **empty** — the
+    /// ordinary state right after an export released the device — and then no frame
+    /// is ever refused, so the discard site is never reached. If the rebuild site
+    /// does not clear, a perfectly healthy renderer ends up on a permanently
+    /// poisoned mutex and the frame *after* it refuses with nothing wrong to point
+    /// at. Asserted as refusals == 0, refills == 1, all frames rendered, flag clear.
+    ///
+    /// Falsifiable by deleting the `preview.clear_poison()` that follows the `init`
+    /// in `preview_guard`: measured 1 refusal and 2 refills over the same 5 frames,
+    /// flag clear at the end because the discard site catches it a frame later
+    /// (smoke/I7-1-mut-q3.log). Deleting only the discard site leaves this gate green
+    /// (smoke/I7-1-mut-q2.log) — the two sites are falsified by different gates, which
+    /// is why the counts are printed rather than merely asserted.
+    #[test]
+    fn one_poison_with_an_empty_slot_refuses_no_frame_at_all() {
+        let frames = 5usize;
+        let m: Arc<Mutex<Option<usize>>> = Arc::new(Mutex::new(None));
+        poison_in_a_thread(&m);
+
+        let refills = Rc::new(Cell::new(0usize));
+        let mut refusals = 0;
+        let mut rendered = 0;
+        let mut held = None;
+        for _frame in 1..=frames {
+            let refills = Rc::clone(&refills);
+            match preview_guard(&*m, "sequence gate (empty start)", move || {
+                refills.set(refills.get() + 1);
+                Ok(11usize)
+            }) {
+                Ok(guard) => {
+                    rendered += 1;
+                    held = *guard;
+                }
+                Err(_) => refusals += 1,
+            }
+        }
+        println!(
+            "SEQUENCE poison-with-empty-slot: frames={frames} rendered={rendered} \
+             refused={refusals} refills={} poison_at_end={}",
+            refills.get(),
+            m.is_poisoned()
+        );
+        assert_eq!(
+            refusals, 0,
+            "a poison that never held a renderer refused {refusals} frames: the flag outlived \
+             the value it described, and every later frame inherits a refusal with no cause"
+        );
+        assert_eq!(
+            rendered, frames,
+            "only {rendered} of {frames} frames rendered"
+        );
+        assert_eq!(
+            refills.get(),
+            1,
+            "the slot was rebuilt {} times for one poison with an empty start",
+            refills.get()
+        );
+        assert_eq!(held, Some(11), "the surviving renderer is {held:?}");
+        assert!(!m.is_poisoned(), "the flag survived the rebuild");
+    }
+
+    /// The export side, measured instead of promised: `export_disposition`'s
+    /// refusal is clearable by one preview frame, so a once-poisoned session may
+    /// refuse exactly **one** export and must let every later one through. The
+    /// rounds interleave the two commands the way the UI can reach them — press
+    /// export, then let a preview frame run.
+    ///
+    /// The refill count here is 5 and not 1, and that is this fix working as well as
+    /// it can: every accepted export empties the slot to release the device, which
+    /// is defect 6's design and lane B3's to answer, so each following frame builds
+    /// a renderer again. Pinning the number is the point — a change to that cycle
+    /// has to come here and say why, instead of quietly making the preview pay for it.
+    ///
+    /// Falsifiable by deleting both `preview.clear_poison()` sites: the same 6 rounds
+    /// then measure 3 export refusals and only 3 exports started, with 3 preview
+    /// refusals and the flag still set (smoke/I7-1-mut-q1.log) — the refusal string
+    /// telling the user to render a preview frame while that frame is itself refused
+    /// is the loop this gate exists to make impossible.
+    #[test]
+    fn a_poisoned_session_refuses_one_export_and_then_exports() {
+        let rounds = 6usize;
+        let m = Arc::new(Mutex::new(Some(7usize)));
+        poison_in_a_thread(&m);
+
+        let refills = Rc::new(Cell::new(0usize));
+        let mut export_refusals = 0;
+        let mut export_starts = 0;
+        let mut preview_refusals = 0;
+        for round in 0..rounds {
+            match export_preview_release(&*m, "sequence gate (export)") {
+                Ok(()) => export_starts += 1,
+                Err(reason) => {
+                    export_refusals += 1;
+                    assert!(
+                        reason.contains("preview frame"),
+                        "round {round}: the export refusal does not name the action that \
+                         unblocks it: {reason}"
+                    );
+                }
+            }
+            let refills = Rc::clone(&refills);
+            if preview_guard(&*m, "sequence gate (preview)", move || {
+                refills.set(refills.get() + 1);
+                Ok(100usize)
+            })
+            .is_err()
+            {
+                preview_refusals += 1;
+            }
+        }
+        println!(
+            "SEQUENCE export/preview interleaved: rounds={rounds} export_refusals=\
+             {export_refusals} export_starts={export_starts} preview_refusals={preview_refusals} \
+             refills={} poison_at_end={}",
+            refills.get(),
+            m.is_poisoned()
+        );
+        assert_eq!(
+            export_refusals, 1,
+            "one poison refused {export_refusals} exports across {rounds} rounds: the refusal \
+             string tells the user to render a preview frame, so if it survives one the remedy \
+             is a lie"
+        );
+        assert_eq!(
+            export_starts,
+            rounds - 1,
+            "only {export_starts} exports started"
+        );
+        assert_eq!(
+            preview_refusals, 1,
+            "the preview refused {preview_refusals} frames"
+        );
+        assert_eq!(
+            refills.get(),
+            5,
+            "the preview rebuilt {} times over {rounds} export rounds — that is the \
+             export-releases-the-device cycle, so if it moved, the move has to be argued for \
+             here and not discovered in a profile",
+            refills.get()
+        );
+        assert!(!m.is_poisoned(), "the session ended still poisoned");
+    }
+
+    /// `clear_poison` is the API that turns "a panic crossed this and we do not know
+    /// what it left" into "the guarded data is sound", so *where* it appears is a
+    /// rule and not a style question. The rule, as code: exactly two calls, both in
+    /// `preview_guard`, each one line after the value the panic crossed has stopped
+    /// existing (the discard) or been replaced by one this process just built (the
+    /// init), and always on the preview mutex through the `preview` binding.
+    ///
+    /// The `host` and `osc` mutexes are deliberately never cleared. For those the
+    /// chosen answer is *continue* precisely because the document cannot be vouched
+    /// for, so erasing the flag there would be the "recover without saying so"
+    /// mistake pointed the other way — and the flag is the only record a later
+    /// reader has that a panic crossed the project state.
+    ///
+    /// This is the only gate that reddens on *every* deletion probe: all three of
+    /// smoke/I7-1-mut-q1/q2/q3.log fail here, and q2 fails **only** here — deleting
+    /// the discard site changes no measured count, so a call-site rule is the whole
+    /// of what pins it. That is a limit of the design, disclosed rather than argued
+    /// away: the licence for that site is the prose above and the fact that the slot
+    /// holds `None` on the line before it, not a behaviour anyone can replay headless.
+    #[test]
+    fn clear_poison_is_called_only_where_the_value_is_gone_or_new() {
+        let lines = shell_code_lines(include_str!("lib.rs"));
+        let called = lines
+            .iter()
+            .filter(|l| l.contains("clear_poison("))
+            .cloned()
+            .collect::<Vec<String>>();
+        assert_eq!(
+            called,
+            vec!["preview.clear_poison();".to_string(); 2],
+            "the clear_poison call sites are {called:?}: the licensed two are the discard and \
+             the rebuild in preview_guard, and a third has to be argued for in prose before it \
+             can be counted here"
+        );
+        let findings = lines
+            .iter()
+            .filter(|l| unlicensed_clear_poison(l))
+            .cloned()
+            .collect::<Vec<String>>();
+        assert!(
+            findings.is_empty(),
+            "poison cleared where this file has not argued that the value is gone or new: \
+             {findings:?}"
+        );
+
+        // Non-vacuity, the way the lock ban does it: the shapes this gate exists to
+        // catch must actually be caught, or the green above means nothing.
+        for seed in [
+            "state.host.clear_poison();",
+            "state.osc.clear_poison();",
+            "host.clear_poison();",
+            "self.host.lock().unwrap().clear_poison();",
+            "m.clear_poison();",
+        ] {
+            assert!(
+                unlicensed_clear_poison(seed),
+                "{seed:?} would pass the clear_poison gate, so the gate is not checking what \
+                 its name claims"
+            );
+        }
+        assert!(
+            !unlicensed_clear_poison("preview.clear_poison();"),
+            "the licensed form is itself a finding, which makes this gate a ban on the word"
+        );
+    }
+
+    /// Any `clear_poison` that is not the one licensed call on the preview mutex.
+    /// A different receiver is a finding even when the receiver *is* the preview
+    /// mutex under another name: the binding's name is where the argument lives, and
+    /// `m.clear_poison()` in a helper is how a third site would arrive without
+    /// anyone having to say which value it was certifying.
+    fn unlicensed_clear_poison(line: &str) -> bool {
+        line.contains("clear_poison(") && line.trim() != "preview.clear_poison();"
+    }
+
     /// `preview_slot`'s two arms, as behaviour — possible because the function is
     /// generic over the slot, so no device is needed to reach the `None` arm the
     /// old code panicked on.
@@ -1182,14 +1613,20 @@ mod tests {
     fn no_command_unwraps_a_lock_or_a_slot() {
         let lines = shell_code_lines(include_str!("lib.rs"));
         // Anti-vacuity, before the assertion that could pass on an empty scan:
-        // the region the ban reads has to be the command bodies. Each of these
-        // three is a line the item put there, so if the scanner ever returns
-        // nothing — or stops early — the gate fails here instead of quietly
-        // greening over an unscanned file.
+        // the region the ban reads has to be the command bodies. Each of these is a
+        // line this lane put there, so if the scanner ever returns nothing — or
+        // stops early — the gate fails here instead of quietly greening over an
+        // unscanned file. Three of them name what I7 moved the acquisition behind —
+        // the composition (`preview_guard` / `export_preview_release`) and the two
+        // command paths that call it — because the ban has to keep covering the
+        // preview path after the extraction, not just the lines it used to be able
+        // to see.
         let joined = lines.join("\n");
         for seen in [
             "let (mut host, _) = lock_recovered(&state.host",
-            "let (mut guard, poisoned) = lock_recovered(&state.preview",
+            "let (mut guard, poisoned) = lock_recovered(preview, what);",
+            "let mut guard = preview_renderer(&state.preview)?;",
+            "if let Err(reason) = export_preview_release(&state.preview",
             "#[tauri::command]",
         ] {
             assert!(
