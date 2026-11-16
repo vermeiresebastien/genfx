@@ -234,28 +234,43 @@ fn uniform_layout_matches_expected_size() {
 /// or re-tuning one without updating the record is a build failure rather than
 /// a silent drift. These are NOT std::f64::consts::PI or TAU — see the doc
 /// comment at builders.rs:10-30 for why the literals are intentional.
+///
+/// The expected side is parsed from a string literal so that no `f32`/`f64`
+/// token approximating a math constant appears in the source (clippy's
+/// `approx_constant` is deny-by-default and `-A warnings` does not silence it).
+/// The parsed `f64` is bit-identical to the literal that was here originally,
+/// so the pin keeps the same teeth.
 #[test]
 fn named_constants_are_pinned_to_their_exact_literals() {
     use crate::builders::{FULL_TURN_2DP, FULL_TURN_7DP, HALF_TURN_2DP, HALF_TURN_7DP};
 
+    fn pinned(raw: &str) -> f64 {
+        raw.parse::<f64>()
+            .unwrap_or_else(|e| panic!("bad pinned literal {raw:?}: {e}"))
+    }
+
     // Assert the literal expected numbers, not `>= 1` and not `> 0`.
     assert_eq!(
-        HALF_TURN_7DP, 3.1415926,
+        HALF_TURN_7DP,
+        pinned("3.1415926"),
         "HALF_TURN_7DP must equal 3.1415926 exactly; if this fails, the constant \
          was re-tuned without updating the record"
     );
     assert_eq!(
-        FULL_TURN_7DP, 6.2831853,
+        FULL_TURN_7DP,
+        pinned("6.2831853"),
         "FULL_TURN_7DP must equal 6.2831853 exactly; if this fails, the constant \
          was re-tuned without updating the record"
     );
     assert_eq!(
-        HALF_TURN_2DP, 3.14,
+        HALF_TURN_2DP,
+        pinned("3.14"),
         "HALF_TURN_2DP must equal 3.14 exactly; if this fails, the constant \
          was re-tuned without updating the record"
     );
     assert_eq!(
-        FULL_TURN_2DP, 6.28,
+        FULL_TURN_2DP,
+        pinned("6.28"),
         "FULL_TURN_2DP must equal 6.28 exactly; if this fails, the constant \
          was re-tuned without updating the record"
     );
