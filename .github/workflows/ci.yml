@@ -57,6 +57,12 @@ jobs:
         run: cargo run -q -p xtask --bin requirements -- --check
       - name: Max for Live patch structure
         run: node apps/max-for-live/check-maxpat.cjs
+      # The cache-buster gate (I5 item 2). It runs `node bundle.mjs` end to end in a
+      # throwaway directory, so it needs the apps/desktop/ui devDependencies installed
+      # by the npm ci step above — and it is the check that proves the bundler versions
+      # the script tag rather than printing a hash and leaving index.html alone.
+      - name: UI bundle cache-buster
+        run: node apps/desktop/ui/check-bundle.mjs
       - name: Media fixtures
         run: cargo run -q -p xtask -- fixtures
       - name: Desktop GUI build

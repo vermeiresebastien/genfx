@@ -122,6 +122,15 @@ Step 'test-gpu' { cargo run -q -p xtask -- test-gpu --profile baseline }
 Step 'shaders-export' { cargo run -q -p xtask --bin export_shaders }
 Step 'requirements-freshness' { cargo run -q -p xtask --bin requirements -- --check }
 Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
+# The desktop UI cache-buster (I5 item 2). One command per block, as rule 1 requires.
+# This is deliberately a Step and not a Blocked() leg: apps/desktop/ui/check-bundle.mjs
+# runs the real bundler end to end, so on a host with no esbuild installed it exits
+# nonzero -- and it should, because `gui-build` below fails for the same reason since
+# I5 item 1 made the bundler a hard build prerequisite. Recording it as blocked_external
+# would let a machine that cannot build the webview at all report one fewer red than it
+# has. The gate writes only into apps/desktop/ui/.i5-probe-<pid>, so it cannot perturb
+# app.bundle.js or index.html that 'gui-build' then embeds.
+Step 'ui-bundle-cache-buster' { node apps/desktop/ui/check-bundle.mjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
