@@ -297,11 +297,13 @@ impl PreviewRenderer {
                 Err(_) => Arc::new(MediaAudioTimeline::empty(
                     start,
                     project.settings.audio.sample_rate,
+                    flux_domain::params::FeatureSource::DocumentOnly,
                 )),
             },
             Err(_) => Arc::new(MediaAudioTimeline::empty(
                 start,
                 project.settings.audio.sample_rate,
+                flux_domain::params::FeatureSource::DocumentOnly,
             )),
         };
         self.audio_cache = Some((signature, timeline.clone()));
@@ -1126,6 +1128,7 @@ pub fn contact_sheet(
     let sheet_baseline = crate::audio_features::MediaAudioTimeline::empty(
         RationalTime::ZERO,
         project.settings.audio.sample_rate,
+        flux_domain::params::FeatureSource::DocumentOnly,
     );
 
     for (i, eff) in effects.iter().enumerate() {

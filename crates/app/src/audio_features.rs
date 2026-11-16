@@ -34,14 +34,13 @@ pub struct MediaAudioTimeline {
     /// "there is audio and it is silent" from "there is no audio to analyse",
     /// so a silent project does not claim `valid = true` features.
     has_audio: bool,
-    /// The feature source class this timeline belongs to. Set during construction
-    /// from the actual source that built the timeline, not a constant. Media-audio
-    /// analysis is document-only by construction — a live capture device never
-    /// feeds this type — so this is always `DocumentOnly` for timelines built by
-    /// `from_stereo_mix` or `empty`. The field exists so that `feature_source()`
-    /// derives from what actually ran rather than asserting a constant, and so
-    /// that a future carrier (e.g. live audio folded into the timeline) can set
-    /// it to `Live` and have the export report truthfully.
+    /// The feature source class this timeline belongs to. The caller states it
+    /// at construction (`empty` and `from_stereo_mix` both take a
+    /// `FeatureSource`), rather than the type asserting a constant. Today every
+    /// production caller passes `FeatureSource::DocumentOnly`: media analysis
+    /// is document-only, and no live-capture carrier feeds this type yet. When
+    /// lane F wires one, it will construct with `Live` and the reported value
+    /// and every per-frame evidence label follow through `self.source`.
     source: FeatureSource,
 }
 
@@ -60,14 +59,16 @@ pub struct FrameAudioEvidence {
 
 impl MediaAudioTimeline {
     /// A timeline with nothing to report: every frame falls back to the silent
-    /// document-only baseline.
-    pub fn empty(start: RationalTime, sample_rate: u32) -> Self {
+    /// baseline for whatever source class the caller states. Every production
+    /// caller today passes `FeatureSource::DocumentOnly`; the parameter exists
+    /// so a future live carrier cannot silently disagree with what it reports.
+    pub fn empty(start: RationalTime, sample_rate: u32, source: FeatureSource) -> Self {
         Self {
             points: Vec::new(),
             start,
             sample_rate,
             has_audio: false,
-            source: FeatureSource::DocumentOnly,
+            source,
         }
     }
 
@@ -76,15 +77,18 @@ impl MediaAudioTimeline {
     ///
     /// `sample_rate` is the rate those samples actually have. Mono is
     /// `(L + R) / 2`, then `flux_audio::analyse_mono` enforces one `features()`
-    /// call per hop.
+    /// call per hop. `source` is stated by the caller (see the field doc on the
+    /// struct) so the class the export reports is the class the frame evidence
+    /// carries, without the type asserting it.
     pub fn from_stereo_mix(
         start: RationalTime,
         sample_rate: u32,
         interleaved: &[f32],
         has_audio: bool,
+        source: FeatureSource,
     ) -> Self {
         if !has_audio || sample_rate == 0 {
-            return Self::empty(start, sample_rate);
+            return Self::empty(start, sample_rate, source);
         }
         let mut mono = Vec::with_capacity(interleaved.len() / 2);
         for pair in interleaved.chunks_exact(2) {
@@ -100,7 +104,7 @@ impl MediaAudioTimeline {
             start,
             sample_rate,
             has_audio: true,
-            source: FeatureSource::DocumentOnly,
+            source,
         }
     }
 
@@ -116,15 +120,14 @@ impl MediaAudioTimeline {
         self.points.len()
     }
 
-    /// The class this timeline belongs to, derived from the source that built it
-    /// rather than asserted as a constant. Media-audio analysis is document-only
-    /// by construction — a live capture device never feeds this type — so this
-    /// returns `DocumentOnly` for every timeline built today. The derivation
-    /// exists so that a future carrier (e.g. live audio folded into the timeline)
-    /// can set `self.source = FeatureSource::Live` at construction and have the
-    /// export report truthfully, and so that a mutation which removes the
-    /// derivation (replacing it with a constant return) is caught by a test that
-    /// observes the field.
+    /// The class this timeline belongs to, read straight from the field the
+    /// caller set at construction. Media-audio analysis is document-only today
+    /// because every production caller passes `DocumentOnly` — no live-capture
+    /// carrier feeds this type yet — not because the accessor asserts it. A
+    /// mutation that replaces `self.source` with a constant is caught by the
+    /// test below that reads the field and mutates it; a mutation that replaces
+    /// `evidence_at`'s per-frame `source` with a constant is caught by the
+    /// invariant test `feature_source_and_evidence_source_derive_from_the_timeline_field`.
     pub fn feature_source(&self) -> FeatureSource {
         self.source
     }
@@ -175,7 +178,7 @@ impl MediaAudioTimeline {
                 tempo: w.tempo_bpm,
                 beat_confidence: w.tempo_confidence,
             },
-            source: FeatureSource::DocumentOnly,
+            source: self.source,
         })
     }
 
@@ -203,6 +206,7 @@ pub fn timeline_for_range(
         project.settings.audio.sample_rate,
         &mix.samples,
         mix.decoded_clips > 0,
+        FeatureSource::DocumentOnly,
     ))
 }
 
@@ -240,7 +244,13 @@ mod tests {
         let sr = 44_100;
         let frames = sr as usize; // one second
         let mix = tone_mix(sr, frames, 0.5);
-        let t = MediaAudioTimeline::from_stereo_mix(RationalTime::ZERO, sr, &mix, true);
+        let t = MediaAudioTimeline::from_stereo_mix(
+            RationalTime::ZERO,
+            sr,
+            &mix,
+            true,
+            FeatureSource::DocumentOnly,
+        );
 
         assert_eq!(
             t.sample_rate(),
@@ -260,6 +270,7 @@ mod tests {
             48_000,
             &tone_mix(48_000, 48_000, 0.5),
             true,
+            FeatureSource::DocumentOnly,
         );
         assert_eq!(t48.time_of_hop(0), Some(RationalTime::new(4, 375).unwrap()));
 
@@ -283,6 +294,7 @@ mod tests {
             sr,
             &tone_mix(sr, sr as usize, 0.5),
             true,
+            FeatureSource::DocumentOnly,
         );
 
         // Before the first hop has closed there is no evidence to report.
@@ -345,6 +357,7 @@ mod tests {
             sr,
             &vec![0.0f32; frames * 2],
             true,
+            FeatureSource::DocumentOnly,
         );
         assert!(silent.has_audio());
         let ev = silent
@@ -371,6 +384,7 @@ mod tests {
             sr,
             &tone_mix(sr, frames, 0.5),
             false,
+            FeatureSource::DocumentOnly,
         );
         assert!(!none.has_audio());
         assert_eq!(none.windows(), 0, "there was nothing to analyse");
@@ -384,6 +398,7 @@ mod tests {
             0,
             &tone_mix(48_000, 4_800, 0.5),
             true,
+            FeatureSource::DocumentOnly,
         );
         assert!(!bad.has_audio());
         assert_eq!(bad.windows(), 0);
@@ -400,7 +415,13 @@ mod tests {
         for (i, s) in interleaved.iter_mut().enumerate() {
             *s = if i % 2 == 0 { 0.5 } else { -0.5 };
         }
-        let t = MediaAudioTimeline::from_stereo_mix(RationalTime::ZERO, sr, &interleaved, true);
+        let t = MediaAudioTimeline::from_stereo_mix(
+            RationalTime::ZERO,
+            sr,
+            &interleaved,
+            true,
+            FeatureSource::DocumentOnly,
+        );
         let ev = t
             .evidence_at(RationalTime::from_secs(1))
             .expect("decoded audio");
@@ -412,8 +433,13 @@ mod tests {
     fn range_start_shifts_the_index_not_the_shape() {
         let sr = 48_000;
         let start = RationalTime::new(3, 2).unwrap();
-        let t =
-            MediaAudioTimeline::from_stereo_mix(start, sr, &tone_mix(sr, sr as usize, 0.5), true);
+        let t = MediaAudioTimeline::from_stereo_mix(
+            start,
+            sr,
+            &tone_mix(sr, sr as usize, 0.5),
+            true,
+            FeatureSource::DocumentOnly,
+        );
         let first = hop_at(start, 1, sr);
         assert_eq!(t.time_of_hop(0), Some(first));
         // Before and at the range start nothing has closed; one hop later it has.
@@ -430,29 +456,58 @@ mod tests {
     }
 
     #[test]
-    fn feature_source_derives_from_the_timeline_field_not_a_constant() {
-        // The mutation probe: if `feature_source()` is changed to return a
-        // constant `FeatureSource::DocumentOnly` instead of reading `self.source`,
-        // this test still passes because the timeline was built with
-        // `source = DocumentOnly`. To catch that mutation, we build a timeline
-        // with `source = Live` (which is not today's production path, but is
-        // allowed by the type) and assert the method returns what we set.
-        // This proves the derivation reads the field, not a constant.
-        let mut t = MediaAudioTimeline::empty(at(0, 48_000), 48_000);
-        assert_eq!(
-            t.feature_source(),
+    fn feature_source_and_evidence_source_derive_from_the_timeline_field() {
+        // The mutation probes cover two sites: `feature_source()` and the
+        // `evidence_at()` construction (previously hard-coded to
+        // `FeatureSource::DocumentOnly`, CR2 F3). Both must read `self.source`.
+        // No production writer of `Live` exists today — every caller passes
+        // `DocumentOnly` — so this test drives the field directly to `Live`
+        // from inside the module (the field is private) to prove the
+        // derivation is not a constant. It is named after what it actually
+        // proves: the derivation, not "live source propagates" (no live path).
+        let sr = 48_000;
+        let t_doc = MediaAudioTimeline::from_stereo_mix(
+            RationalTime::ZERO,
+            sr,
+            &tone_mix(sr, sr as usize, 0.5),
+            true,
             FeatureSource::DocumentOnly,
-            "empty timeline starts DocumentOnly"
         );
-        // Mutate the field to Live. If `feature_source()` reads the field, it
-        // returns Live. If it returns a constant, it returns DocumentOnly and
-        // this assertion fails — which is the red we need.
-        t.source = FeatureSource::Live;
+        assert_eq!(t_doc.feature_source(), FeatureSource::DocumentOnly);
+        let ev_doc = t_doc
+            .evidence_at(RationalTime::from_secs(1))
+            .expect("closed hop");
+        assert_eq!(ev_doc.source, FeatureSource::DocumentOnly);
         assert_eq!(
-            t.feature_source(),
-            FeatureSource::Live,
-            "feature_source() must derive from self.source, not return a constant; \
-             if this fails, the method has been mutated to `FeatureSource::DocumentOnly`"
+            ev_doc.source,
+            t_doc.feature_source(),
+            "per-frame evidence and reported source must not disagree"
         );
+
+        // Force the field to `Live`: if `feature_source()` or `evidence_at()`
+        // still returns a constant, one of the following assertions reddens.
+        let mut t_live = MediaAudioTimeline::from_stereo_mix(
+            RationalTime::ZERO,
+            sr,
+            &tone_mix(sr, sr as usize, 0.5),
+            true,
+            FeatureSource::DocumentOnly,
+        );
+        t_live.source = FeatureSource::Live;
+        assert_eq!(
+            t_live.feature_source(),
+            FeatureSource::Live,
+            "feature_source() must read self.source, not return a constant"
+        );
+        let ev_live = t_live
+            .evidence_at(RationalTime::from_secs(1))
+            .expect("closed hop");
+        assert_eq!(
+            ev_live.source,
+            FeatureSource::Live,
+            "evidence_at() must copy self.source, not hard-code \
+             FeatureSource::DocumentOnly (CR2 F3 site at audio_features.rs:178)"
+        );
+        assert_eq!(ev_live.source, t_live.feature_source());
     }
 }
