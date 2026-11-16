@@ -13,29 +13,27 @@ use flux_catalog::build_catalog;
 use flux_domain::{Dispatcher, FluxError, FluxResult, Project};
 use std::path::PathBuf;
 
-/// Format the render audit line. The frames_dir is only included if it exists,
-/// so we never print a path that doesn't exist. This function is testable: a
-/// test can call it with a non-existent path and verify the output omits it.
-fn format_render_audit_line(
-    frames: u64,
-    samples: usize,
-    frames_dir: &std::path::Path,
-    feature_source: flux_domain::params::FeatureSource,
-    audio_windows: usize,
-) -> String {
-    if frames_dir.exists() {
+/// The single render audit line for every CLI export path. Takes the whole
+/// `ExportResult` (not five loose fields) so a mutation that replaces one of
+/// the fields at a call site with a constant is caught: the caller no longer
+/// sees the fields, and this function is called with a synthetic result in the
+/// tests below. The `frames_dir` is only named if it exists, so we never print
+/// a path that was not written.
+fn render_audit_line(result: &export::ExportResult) -> String {
+    let dir_written = result.frames_dir.exists();
+    if dir_written {
         format!(
             "rendered {} frames, {} samples; frames in {}; audio: {:?} ({} windows)",
-            frames,
-            samples,
-            frames_dir.display(),
-            feature_source,
-            audio_windows
+            result.frames,
+            result.samples,
+            result.frames_dir.display(),
+            result.feature_source,
+            result.audio_windows
         )
     } else {
         format!(
             "rendered {} frames, {} samples; audio: {:?} ({} windows)",
-            frames, samples, feature_source, audio_windows
+            result.frames, result.samples, result.feature_source, result.audio_windows
         )
     }
 }
@@ -265,16 +263,7 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
             }
         })),
     )?;
-    println!(
-        "{}",
-        format_render_audit_line(
-            result.frames,
-            result.samples,
-            &result.frames_dir,
-            result.feature_source,
-            result.audio_windows
-        )
-    );
+    println!("{}", render_audit_line(&result));
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -310,10 +299,7 @@ fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<
             }
         })),
     )?;
-    println!(
-        "rendered {} frames, {} samples; audio: {:?} ({} windows)",
-        result.frames, result.samples, result.feature_source, result.audio_windows
-    );
+    println!("{}", render_audit_line(&result));
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -369,10 +355,7 @@ fn cmd_render(
             }
         })),
     )?;
-    println!(
-        "rendered {} frames, {} samples; audio: {:?} ({} windows)",
-        result.frames, result.samples, result.feature_source, result.audio_windows
-    );
+    println!("{}", render_audit_line(&result));
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
     }
@@ -1178,7 +1161,33 @@ fn capture_start(args: &[String]) -> FluxResult<()> {
         )));
     }
     let (snapshot, span) = live_audio::measure(&cfg, secs)?;
-    if wants_json(args) {
+    report_capture(
+        wants_json(args),
+        secs,
+        cfg.ring_ms,
+        &problems,
+        &snapshot,
+        span,
+    )
+}
+
+/// Print the capture report and decide the exit status. Kept separate from
+/// `capture_start` so a test can drive both the `--json` and human branches
+/// with the same synthetic zero-frame snapshot; without this seam, the two
+/// `validate_capture_snapshot_rejects_*` helper tests would pass even if
+/// production stopped calling the validator at all. Both branches now share
+/// one `outcome` computed once, so no branch-local `return Ok(())` can
+/// bypass it.
+fn report_capture(
+    as_json: bool,
+    secs: u32,
+    ring_ms: u32,
+    problems: &[String],
+    snapshot: &live_audio::LiveAudioSnapshot,
+    span: std::time::Duration,
+) -> FluxResult<()> {
+    let outcome = validate_capture_snapshot(snapshot);
+    if as_json {
         let mut json = snapshot.to_json();
         if let Some(obj) = json.as_object_mut() {
             obj.insert(
@@ -1186,11 +1195,11 @@ fn capture_start(args: &[String]) -> FluxResult<()> {
                 serde_json::json!(snapshot.measured_rate(span)),
             );
             obj.insert("requestedSeconds".into(), serde_json::json!(secs));
-            obj.insert("requestedRingMs".into(), serde_json::json!(cfg.ring_ms));
+            obj.insert("requestedRingMs".into(), serde_json::json!(ring_ms));
             obj.insert("configProblems".into(), serde_json::json!(problems));
         }
         println!("{}", capture_serialize(&json)?);
-        return Ok(());
+        return outcome;
     }
     let rate = snapshot.measured_rate(span);
     println!("tap={}", snapshot.tap);
@@ -1246,13 +1255,13 @@ fn capture_start(args: &[String]) -> FluxResult<()> {
         snapshot.onset, snapshot.tempo_bpm, snapshot.tempo_confidence, snapshot.beat_phase
     );
     println!("valid={} stalledMs={}", snapshot.valid, snapshot.stalled_ms);
-    for p in &problems {
+    for p in problems {
         println!("note: {p}");
     }
     if let Some(e) = &snapshot.error {
         println!("error: {e}");
     }
-    validate_capture_snapshot(&snapshot)
+    outcome
 }
 
 /// Validate that a capture snapshot represents a successful measurement.
@@ -1844,61 +1853,216 @@ mod tests {
     }
 
     #[test]
-    fn render_audit_line_omits_frames_dir_when_it_does_not_exist() {
-        // The audit line must never print a frames_dir path that doesn't exist.
-        // This test verifies the helper function omits it when the path is absent.
-        let nonexistent = std::path::Path::new("/tmp/this_path_does_not_exist_12345");
+    fn render_audit_line_names_every_field_of_the_export_result() {
+        // One formatter, whole result, pairwise-distinctive values. Swapping
+        // `frames` and `audio_windows`, hard-coding `feature_source`, or
+        // printing `result.samples` as a literal each reddens this assertion.
+        let missing = std::path::PathBuf::from("/tmp/flux_audit_missing_dir_zzz_9");
         assert!(
-            !nonexistent.exists(),
-            "test precondition: path must not exist"
+            !missing.exists(),
+            "test precondition: frames_dir must not exist"
         );
-
-        let line = super::format_render_audit_line(
-            100,
-            48000,
-            nonexistent,
-            flux_domain::params::FeatureSource::DocumentOnly,
-            93,
+        let r = flux_app::export::ExportResult {
+            frames: 100,
+            samples: 48000,
+            frames_dir: missing.clone(),
+            wav: None,
+            video: None,
+            feature_source: flux_domain::params::FeatureSource::Live,
+            audio_windows: 93,
+        };
+        let line = super::render_audit_line(&r);
+        assert_eq!(
+            line, "rendered 100 frames, 48000 samples; audio: Live (93 windows)",
+            "audit line must name every ExportResult field, and must omit a \
+             frames_dir that was not written"
         );
-
-        // The line must not contain the nonexistent path.
-        assert!(
-            !line.contains("this_path_does_not_exist"),
-            "audit line must not name a frames_dir that does not exist: {}",
-            line
-        );
-        // But it must still report the frame count and audio info.
-        assert!(line.contains("100 frames"), "line: {}", line);
-        assert!(line.contains("48000 samples"), "line: {}", line);
-        assert!(line.contains("DocumentOnly"), "line: {}", line);
-        assert!(line.contains("93 windows"), "line: {}", line);
     }
 
     #[test]
-    fn render_audit_line_includes_frames_dir_when_it_exists() {
-        // When the frames_dir exists, the audit line must include it.
-        let temp = std::env::temp_dir().join("flux_test_frames_dir_exists");
+    fn render_audit_line_includes_frames_dir_only_when_written() {
+        // When frames_dir exists, the same field values must yield the longer
+        // line that names it. Distinctive values again: frames=7, samples=1234,
+        // windows=42, feature_source=DocumentOnly (not the default in the other
+        // test). Any field swap reddens both tests together.
+        let temp = std::env::temp_dir().join("flux_audit_frames_dir_present");
         std::fs::create_dir_all(&temp).expect("create temp dir");
-        assert!(temp.exists(), "test precondition: path must exist");
-
-        let line = super::format_render_audit_line(
-            50,
-            24000,
-            &temp,
-            flux_domain::params::FeatureSource::DocumentOnly,
-            46,
+        let r = flux_app::export::ExportResult {
+            frames: 7,
+            samples: 1234,
+            frames_dir: temp.clone(),
+            wav: None,
+            video: None,
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
+            audio_windows: 42,
+        };
+        let line = super::render_audit_line(&r);
+        let expected = format!(
+            "rendered 7 frames, 1234 samples; frames in {}; audio: DocumentOnly (42 windows)",
+            temp.display()
         );
-
-        // The line must contain the path.
-        assert!(
-            line.contains(&temp.display().to_string()),
-            "audit line must name the frames_dir when it exists: {}",
-            line
+        assert_eq!(
+            line, expected,
+            "audit line must name frames_dir exactly when it was written"
         );
-        assert!(line.contains("50 frames"), "line: {}", line);
-        assert!(line.contains("24000 samples"), "line: {}", line);
-
-        // Clean up.
         std::fs::remove_dir_all(&temp).ok();
+    }
+
+    #[test]
+    fn report_capture_zero_frames_exits_nonzero_on_both_branches() {
+        // Both the `--json` branch and the human branch must run through the
+        // same outcome. Removing `let outcome = validate_capture_snapshot(...)`
+        // or replacing it with `Ok(())` reddens the JSON arm of this test —
+        // that is the D036 defect: printing a failure payload and exiting 0.
+        let snap = zero_frame_snapshot();
+        let json_result = super::report_capture(
+            true,
+            1,
+            100,
+            &[],
+            &snap,
+            std::time::Duration::from_millis(500),
+        );
+        let human_result = super::report_capture(
+            false,
+            1,
+            100,
+            &[],
+            &snap,
+            std::time::Duration::from_millis(500),
+        );
+
+        let json_err = json_result.expect_err(
+            "--json branch must not return Ok on zero frames; deleting the \
+             validator call in report_capture would let `capture start --json` \
+             print a failure payload and exit 0 (D036)",
+        );
+        assert!(
+            json_err.message.contains("zero frames"),
+            "--json error names the reason: {}",
+            json_err.message
+        );
+
+        let human_err = human_result.expect_err("human branch must not return Ok on zero frames");
+        assert!(
+            human_err.message.contains("zero frames"),
+            "human error names the reason: {}",
+            human_err.message
+        );
+    }
+
+    #[test]
+    fn report_capture_error_field_exits_nonzero_on_both_branches() {
+        let mut snap = ok_snapshot();
+        snap.error = Some("device disconnected".into());
+        assert!(
+            super::report_capture(
+                true,
+                1,
+                100,
+                &[],
+                &snap,
+                std::time::Duration::from_millis(500)
+            )
+            .is_err(),
+            "--json must reject an errored snapshot"
+        );
+        assert!(
+            super::report_capture(
+                false,
+                1,
+                100,
+                &[],
+                &snap,
+                std::time::Duration::from_millis(500)
+            )
+            .is_err(),
+            "human must reject an errored snapshot"
+        );
+    }
+
+    #[test]
+    fn report_capture_valid_snapshot_exits_zero_on_both_branches() {
+        // The gate only bites on the failure shapes. A real success must be Ok
+        // in both branches, so a mutation that inverts the exit status is also
+        // caught (the two tests above assert Err for failure; this one asserts
+        // Ok for success).
+        let snap = ok_snapshot();
+        assert!(
+            super::report_capture(
+                true,
+                1,
+                100,
+                &[],
+                &snap,
+                std::time::Duration::from_millis(500)
+            )
+            .is_ok(),
+            "--json must accept a good snapshot"
+        );
+        assert!(
+            super::report_capture(
+                false,
+                1,
+                100,
+                &[],
+                &snap,
+                std::time::Duration::from_millis(500)
+            )
+            .is_ok(),
+            "human must accept a good snapshot"
+        );
+    }
+
+    fn base_snapshot() -> live_audio::LiveAudioSnapshot {
+        live_audio::LiveAudioSnapshot {
+            running: false,
+            compiled: true,
+            tap: "loopback".into(),
+            endpoint_id: "test".into(),
+            endpoint_name: "test".into(),
+            sample_rate: 48000,
+            channels: 2,
+            bits_per_sample: 16,
+            format_tag: 1,
+            float_wire: false,
+            extensible: false,
+            buffer_ms: 10,
+            period_default_ms: 10.0,
+            period_min_ms: 3.0,
+            ring_ms: 100,
+            ring_ms_effective: 100.0,
+            input_db: 0.0,
+            valid: true,
+            rms: 0.0,
+            peak: 0.0,
+            onset: false,
+            flux: 0.0,
+            bands: [0.0; 5],
+            centroid_hz: 0.0,
+            tempo_bpm: 0.0,
+            tempo_confidence: 0.0,
+            beat_phase: 0.0,
+            windows: 0,
+            onsets: 0,
+            packets: 0,
+            frames: 100,
+            silent_frames: 0,
+            overflow_events: 0,
+            stalled_ms: 0,
+            elapsed_ms: 1000,
+            error: None,
+            feature_source: flux_domain::params::FeatureSource::Live,
+        }
+    }
+
+    fn zero_frame_snapshot() -> live_audio::LiveAudioSnapshot {
+        let mut s = base_snapshot();
+        s.frames = 0;
+        s
+    }
+
+    fn ok_snapshot() -> live_audio::LiveAudioSnapshot {
+        base_snapshot()
     }
 }
