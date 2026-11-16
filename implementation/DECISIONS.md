@@ -2003,9 +2003,17 @@ race — is the reason this paragraph stops at the counts.
 
 ### What this does not close
 
-- Only `counts` is driven among the three non-`records` top-level keys. `specVersion` and
-  `generatedBy` reach the same two lines of the same loop, so they are covered by the shape of the code
-  and not by a measurement; a future edit that special-cased one of them would still pass this suite.
+- [done: D035 drove `specVersion` and `generatedBy` together, and its control — a loop told to skip
+  those two keys — reddened exactly that test. The same read-through found two shapes this list itself
+  had missed, because the list was written from D033's named residues rather than from the branches:
+  `short(None)`, reached when a key is present on one side only, serves both loops and is now
+  asserted; and the forward one-sided id loop, which never had a test at all, and is the direction a
+  real checkout drifts in. D035 also asserted the row the parse branch prints, not just its exit code —
+  its control: the ten tests as this lane committed them stayed green, exit 0, with that branch
+  rewritten to return no rows. See D035.] Among the three non-`records` top-level keys only `counts`
+  was driven;
+  `specVersion` and `generatedBy` reached the same two lines, so they were covered by the shape of the
+  code and not by a measurement, and an edit that special-cased one of them would have passed.
 - The cap's text stays unasserted, deliberately. Nothing reddens if `take(20)` becomes `take(10)`; what
   reddens is a report that stops naming records. That is the trade described above, not an oversight.
 - The gate can only compare the committed bytes against what this tree's generator writes. It cannot
@@ -2034,11 +2042,14 @@ race — is the reason this paragraph stops at the counts.
   true`: **9 passed / 1 failed**, `freshness::a_hand_edited_counts_block_is_named` panicking at the
   reported line 898, which is the `assert!` starting at `crates/xtask/src/bin/requirements.rs:897` in
   the file as committed — one line of difference, which is the one `const` the probe added above it.
-  The probe files were not kept, so that arithmetic cannot be re-derived; what was re-derived is the
+  D035's two edits sit above it in the same module and moved it to `:955` (+23 for the parse-test
+  assertions, +35 for the sixth test). The probe files were
+  not kept, so that arithmetic cannot be re-derived; what was re-derived is the
   committed number, read off the reverted file rather than computed from the panic. Probe B, the per-field loop replaced by a single generic
   `{id}: differs` row: **9 passed / 1 failed**, `twenty_five_drifts_are_counted_record_by_record` at
-  reported 944, which was `:940` in the file the probe ran against and is `:943` in the tree as
-  committed — this lane's own doc comment later added three lines above it, which is the churn rule
+  reported 944, which was `:940` in the file the probe ran against and is `:943` in the tree as D034
+  committed it — `:1001` since D035 — which is this lane's own doc comment adding three lines above it,
+  which is the churn rule
   biting inside a single lane rather than across two. That is worth noting on its own: probe B still
   produced exactly 25
   rows, so the `report.len() == 25` assertion passed under a broken comparator and it was the
@@ -2100,7 +2111,8 @@ arrives one commit later, as it did for D032 and D033.
 
 `requirements.rs` grows only at the end (870 → 956), below `:584` and `:528-571`, so no citation into
 it moves. The probe panics were reported at `:898` and `:944`, which are line numbers in files that no
-longer exist; this record cites the `assert!`s at the committed `:897` and `:943` instead, re-read off
+longer exist; this record cites the `assert!`s at `:897` and `:943`, which is where they sat in the
+tree this lane committed — D035 put them at `:955` and `:1001` — re-read off
 the reverted tree — and `:943` is itself three lines below the `:940` that the probe ran against,
 because this lane's own doc comment landed between them. That is the churn rule biting inside a single
 lane rather than across two, and it is why the number in the paragraph is the one the file says. This
@@ -2155,5 +2167,170 @@ Measured after those edits, un-piped: `cargo fmt --all -- --check` exit 0, and `
 --bin requirements -- --check` exit 0 printing `is fresh` — the gate holding on a tree whose only
 changes are prose. `implementation/STATE.json` parses at 188 lines, `README.md` is 119 with its
 deepest inbound citation at `:60`, `FINAL-REPORT.md` at 290 and `docs/PERFORMANCE-READINESS.md` at
-1 076, and this file is 2 159 lines with the D034 heading at `:1923`, which is the number the churn
-paragraph above now carries rather than the `:1919` it was written with.
+1 076, and this file was 2 159 lines at `53a66fc`, the commit that carries those edits — a claim that
+had already gone stale in the working tree by the time D035 read it back, which is why the count it
+turns into is recorded there rather than here.
+
+---
+
+## D035 — 2026-11-15 the freshness gate is read as a branch table, and six shapes turn out to have no invocation
+
+D034's "What this does not close" named two residues and both were real. The method was the problem:
+that list was written from D033's handover sentence and from the two tests the lane had just added, so
+it could only report what the previous lane had already thought about. This lane opened
+`check_freshness` (`crates/xtask/src/bin/requirements.rs:598-624`) and `drift_lines` (`:629-683`),
+enumerated every `out.push`, `eprintln!` and `return` in them, and grepped the `freshness` module for
+the assertion that pins each. Two entries came out of that which no residue list would have produced:
+the loop at `:658-660`, for a record this tree generates and the committed file lacks — the single most
+likely way a generated file goes stale in practice, a row added to `spec/` and `--check` never run —
+and `short(None)` at `:710-712`, the word `absent`, reachable from both reporting loops and named by
+no test.
+
+| # | arm | line | what it can print | asserted before this lane | asserted now |
+|---|---|---|---|---|---|
+| 1 | ledger unreadable | `:599-604` | `cannot read …`, then exit 2 | nothing (D034's own list named it) | `a_missing_ledger_exits_two`, `:1061` |
+| 2 | bytes equal | `:607-610` | `… is fresh`, exit 0 | `committed_ledger_is_fresh`, `:748` | unchanged |
+| 3 | one side unparseable | `:634-639` | `one side is not valid JSON; first differing line is N` | the exit code only | row, prefix and parsed number, `:801-818` |
+| 4 | top-level key `counts` | `:646-652` | `counts: committed {…}, generated {…}` | D034, `:936` | unchanged |
+| 5 | top-level `specVersion`, `generatedBy` | same loop | same shape | nothing | `the_two_header_scalars_are_named`, `:1024` |
+| 6 | id only in the committed file | `:655-657` | `<id>: in the committed file, not in this tree` | D033, `:831` | unchanged |
+| 7 | id only in what this tree generates | `:658-660` | `<id>: in this tree, not in the committed file` | nothing | `a_record_only_this_tree_generated_is_named`, `:866` |
+| 8 | field differs on a shared id | `:666-673` | `<id>.<field>: committed X, generated Y` | D032 `:761`, D034 `:978` | unchanged |
+| 9 | key present on one side only | `:710-712`, via 5 and 8 | the word `absent` | nothing | `a_key_either_side_lost_is_reported_absent`, `:1078` |
+| 10 | value longer than 96 chars | `:714-718` | the capped quote `'…...'` | D034 `:936` (cap exercised, text not asserted) | unchanged |
+| 11 | equal meaning, unequal bytes | `:676-681` | `first differing line is N` | D033, `:900` | unchanged |
+| 12 | every line pairs equal | `:730` | `N = min(lines) + 1`, one past EOF | nothing | `an_eof_newline_is_drift_reported_past_the_last_line`, `:1134` |
+| 13 | more than 20 rows | `:616-621` | 20 rows, then `... and N more` | executed by `:978`, asserted by nothing | unchanged |
+
+Thirteen arms, six newly asserted, five tests added plus one strengthened, one arm (`13`) still carrying
+no assertion at all. Every line number in the left columns is identical in the tree D034 committed and
+in this one: `git diff -U0` puts all four hunks inside `mod freshness` at or past committed `:791`, so
+the comparator itself did not move and no citation into `generate()`, `check_freshness` or
+`drift_lines` needed re-resolving.
+
+### The controls
+
+Each new test was run against a comparator mutated to break exactly it — one edit at a time, reverted
+before the next, the source re-verified against `target/req.d035.base2.rs`
+(`1e040300fb2acfbded6e30ac1dbe6884090951383f17e3821d8cd26923e7d5c7`) after every revert, and the clean
+tree re-run at the end.
+
+| probe | mutation | outcome |
+|---|---|---|
+| P1 | `:634-639` reduced to `return vec![]` | 14 / 1: `a_broken_ledger_is_located_not_panicked` at reported `:800`, which is committed `:801` — one line down, because the mutation is one line shorter than the four-line row it replaces |
+| P2 | `:643` `key == "records"` → `key != "counts"` | 13 / 2: `the_two_header_scalars_are_named` at `:1040`, `a_key_either_side_lost_is_reported_absent` at `:1109` |
+| P3 | `:603` `return 2` → `return 1` | 14 / 1: `a_missing_ledger_exits_two` at `:1069` |
+| P4 | `:712` `"absent"` → `"null"` | 14 / 1: `a_key_either_side_lost_is_reported_absent` at `:1114` |
+| P5 | `:730` fallback loses its `+ 1` | 14 / 1: `an_eof_newline_is_drift_reported_past_the_last_line` at `:1141`, `4050` against the expected `4051` |
+| P6 | `:659` forward row given the reverse wording | 14 / 1: `a_record_only_this_tree_generated_is_named` at `:884` |
+
+Two of them are worth more than the counts.
+
+- **P2 did not silence the gate.** With the two header scalars skipped, the report that
+  `the_two_header_scalars_are_named` received was `["first differing line is 2"]`: arm 11 caught what
+  arms 5 and 9 stopped naming. So the mutation costs the reader the key name and both values, not the
+  verdict — which is precisely the distinction D032 wrote `drift_lines` to make, and the reason the
+  assertions in these tests are on row text rather than on exit codes.
+- **The blindness control.** `git show HEAD:crates/xtask/src/bin/requirements.rs` — 956 lines, the ten
+  tests exactly as D034 committed them — with P1 applied to it gives **10 passed / 0 failed, exit 0**. A
+  comparator that returns *no rows at all* for an unparseable ledger, printing the header, the `fix:`
+  line, and nothing that names where the file broke, was invisible to that suite; the pre-D035 test
+  pinned the exit code and the fact of a message, not the message. That is the strongest argument in
+  this lane for the shape of the edit: arm 3 became an assertion because `:796`'s body grew by twenty
+  lines, and none of the five new tests would have reddened under P1 either — the parse test is the
+  only thing in the module that reaches that arm.
+
+### The EOF question, settled rather than smoothed
+
+`generate()` returns `serde_json::to_string_pretty(&out).unwrap()` (`:176`) with no trailing newline,
+and `normalize_newlines` (`:592-594`) folds carriage returns only. So an editor that insists on a final
+newline writes bytes the generator does not, and the honest options were to call that drift or to trim
+it. Trimming was rejected: the gate's contract, stated at D032, is byte equality with what this tree
+generates, and forgiving one byte at EOF means printing `is fresh` about a file nothing produced. What
+`an_eof_newline_is_drift_reported_past_the_last_line` asserts instead is the shape of the report when
+that newline is the only difference — every line pairs equal, `out` is empty, and `first_diff_line`
+(`:725-731`) counts one past the shorter side, naming line 4 051 of a 4 050-line file. The message
+points at a line nobody can open. That is a real limit of the report, and after this lane it is a
+tested limit rather than a surprise; P5's `left` value also re-measured the ledger's own shape, because
+`body.lines().count()` printed 4 050.
+
+### What this does not close
+
+- Arm 13, `... and N more` (`:616-621`), still has no assertion. It executes — D034's 25-drift test
+  reaches it and printed it under `--exact --nocapture` — but nothing reddens if the sentence is
+  rewritten or `take(20)` becomes `take(10)`. D034 called that a deliberate trade; this lane keeps the
+  trade and stops describing it as an oversight it fixed.
+- Arm 1 is asserted in the module and unreachable from either harness: `verify.ps1:123` and
+  `ci.yml:46` both point `--check` at a tracked path, and `git ls-files --error-unmatch
+  implementation/requirements.json` succeeds, so exit 2 means only a deleted or never-checked-out
+  ledger. The test exists so the verdict is not a lie if a checkout does hit it, not because a run
+  produced it. Arm 12 is the reverse case: reachable — any tool that appends a final newline to the
+  file would hit it — and never once produced here, because every run this lane made wrote the bytes
+  either from `generate()` or from `to_string_pretty`.
+- `records_by_id`'s `unwrap_or_default()` (`:693`) and the `unwrap_or_default()` for a record with no
+  `id` (`:690`) have no invocation. What they do is reasoned from reading, and it is not silence: a
+  one-sided non-array `records` makes every id one-sided, which is 345 rows, and a both-sides
+  non-array falls through to arm 11's line number. Neither was measured, and no ledger in this tree is
+  in either shape.
+- Duplicate ids collapse silently in the BTreeMap (`:685`), and no test asserts that the 345 ids are
+  unique. They are unique because nothing in `generate()` emits two rows with one id; nothing guards a
+  change that does, and the loss would show up as a shorter report, not as a wrong one.
+- The structural limit is untouched. The gate compares committed bytes against this tree's generator,
+  so an arm that derives a status the spec no longer means — D025's `AT060` and `AT063`, fixed by
+  reading — stays invisible here by construction. Five more tests cannot see it.
+- All six probes ran against the `requirements` bin alone, which D034 already called the weakest
+  possible control for the `flux-render` crash. This lane re-ran the workspace suite once and reported
+  what it printed; it did not attempt a rate for a fault that has now appeared once in four long
+  invocations across two lanes.
+
+### Measured
+
+- `cargo test -p xtask --bin requirements -- --test-threads=1` — **15 passed / 0 failed**, exit 0, read
+  from cargo's own status into `target/final-clean.log` rather than through a pipe. Was 10; the +5 are
+  the five new tests. `mod freshness` now holds 13 of the 15, the other two being the
+  `mod tests` routing guards from D028.
+- `cargo test --workspace -- --test-threads=1` — exit 0, **227 passed / 0 failed / 0 ignored across the
+  same 40 result lines**, with zero `FAILED`, zero `error[` and zero
+  `STATUS_ACCESS_VIOLATION` lines in `target/ws-d035-final.log`, and
+  `a_record_only_this_tree_generated_is_named` and `an_eof_newline_is_drift_reported_past_the_last_line`
+  both `ok` inside it. The log is a gitignored scratch file, so the re-runnable claim is the command,
+  not the number. The +5 over D034's 222 are this lane's five new tests, all in the `requirements` bin
+  target that has been one of those 40 lines since D028 — and therefore executed by CI's workspace run
+  and by no step of `infrastructure/verify.ps1`.
+- `cargo run -q -p xtask --bin requirements -- --check` — exit 0 printing `is fresh`, on the tree that
+  carries these five tests.
+- `cargo fmt --all -- --check` — exit 0, after one `cargo fmt --all` pass that reformatted only the new
+  test body.
+- The six probes and the blindness control, each with the counts in the table above. Every one was
+  followed by a revert and a `sha256sum -c` of the source against the pre-probe snapshot, `OK` each
+  time, and no mutation survived into this commit.
+- `requirements.rs` 956 → 1 154 lines, `199 insertions(+), 1 deletion(-)`: the deletion is one doc
+  comment sentence at `:791` and every insertion is inside `mod freshness`.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/xtask/src/bin/requirements.rs` | Five tests added to `mod freshness` (`:866`, `:1024`, `:1061`, `:1078`, `:1134`) and `:796`'s parse test grown to assert its row and the number inside it. No comparator line changed: the four diff hunks all start at or past committed `:791`. |
+| `implementation/DECISIONS.md` | this record, plus three in-place corrections to D034: its first "does not close" bullet annotated `[done: D035 …]` with the two shapes it had missed stated as missed, its probe-A and probe-B citations re-pointed to `:955` and `:1001`, and its own "this file is 2 159 lines" claim dated to the commit that made it true. |
+| `implementation/STATE.json` | `test_totals` 222 → 227 with what the +5 are; the lane-20 "next open inside this gate" sentence discharged in place; a lane-21 paragraph added; the `:966` citation in lane-20's text re-pointed to `:1001`. |
+| `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md`, `AGENTS.md` | the suite total and the D028-D034 range it carries, re-labelled for D035. |
+| `implementation/evidence/` | only what a gate rewrites when it runs; nothing in this lane edits them by hand, and `manifest.json` stays outside the freshness gate for the reason recorded at D032. |
+
+### Citation churn
+
+`requirements.rs` grew inside the module rather than only at its end, which is the case the churn rule
+exists for: `:860-893` (35 lines for arm 7's test) sits above four of the five new tests, so the
+numbers written while they were being developed — `:989`, `:1024`, `:1043`, `:1099` — moved to
+`:1024`, `:1061`, `:1078`, `:1134`, and the probes were re-run afterwards so that every line quoted in
+this record is a line the committed file actually has. D034's two citations into the same module,
+`:920` and `:966`, became `:955` and `:1001` for the same reason, and STATE's copy of the `:966`
+citation moved with it. Into `requirements.rs` from elsewhere the citations that matter are
+`docs/IMPLEMENTATION-ARCHITECTURE.md:100` (`:22-32`) and `:330` (`:26-32`), and
+`docs/PERFORMANCE-READINESS.md:245` (`:424`, `:512`) and `:426` (`:393`, `:494`), all of them above
+`:791`, so none of them moved. `AGENTS.md` stays at 214 lines and `STATE.json` at 188: the changes there are inside
+single JSON strings and one bullet, not new lines. `README.md` stays at 119, `FINAL-REPORT.md` at 290
+and `docs/PERFORMANCE-READINESS.md` at 1 076 — all three forced by the citation ceilings already
+recorded at D034, so their edits are in-place reflows. This file is 2 336 lines at the commit that
+carries this record, with the D035 heading at `:2176`; the only citation into it from outside is still `DECISIONS.md:116`, twice, from
+`docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869`, both above every line this lane touched.

@@ -788,12 +788,35 @@ mod freshness {
     }
 
     /// A hand-edit that breaks the syntax is the worst case, so the report still
-    /// has to say where the file diverges instead of panicking on a parse.
+    /// has to say where the file diverges instead of panicking on a parse. The
+    /// exit code alone never pinned that: a branch returning no rows at all would
+    /// have printed nothing, exited 1, and left this test green, so the row is
+    /// asserted and its line number is checked against the truncation point.
     #[test]
     fn a_broken_ledger_is_located_not_panicked() {
         let body = generate();
         let cut = body.chars().count() / 2;
         let broken = body.chars().take(cut).collect::<String>() + "\"trailing\": ,}";
+        let report = drift_lines(&normalize_newlines(&broken), &normalize_newlines(&body));
+        assert_eq!(
+            report.len(),
+            1,
+            "one unparseable side is one row: {report:?}"
+        );
+        let prefix = "one side is not valid JSON; first differing line is ";
+        assert!(
+            report[0].starts_with(prefix),
+            "not the parse branch: {report:?}"
+        );
+        let named: usize = report[0][prefix.len()..]
+            .trim()
+            .parse()
+            .unwrap_or_else(|e| panic!("{} is not a line number: {e}", report[0]));
+        assert_eq!(
+            named,
+            broken.lines().count(),
+            "the row points away from where the file was cut"
+        );
         let path = scratch("broken");
         std::fs::write(&path, &broken).unwrap();
         assert_eq!(check_freshness(&path, &body), 1);
@@ -831,6 +854,41 @@ mod freshness {
         let path = scratch("committed-only");
         std::fs::write(&path, &body).unwrap();
         assert_eq!(check_freshness(&path, &shortened), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The mirror of the test above, and the direction a real checkout drifts in:
+    /// a record this tree now generates that the committed ledger never had — a
+    /// row added to `spec/` and the file not regenerated. Nothing asserted the
+    /// second one-sided loop until this, so an edit that turned it into a
+    /// no-op would have reported the missing record only as a line number.
+    #[test]
+    fn a_record_only_this_tree_generated_is_named() {
+        let body = normalize_newlines(&generate());
+        let mut committed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let before = committed["records"].as_array().unwrap().len();
+        let kept = committed["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["id"].as_str() != Some("AT062"))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kept.len(),
+            before - 1,
+            "AT062 was not the record dropped — this control proves nothing"
+        );
+        committed["records"] = serde_json::Value::Array(kept);
+        let shortened = serde_json::to_string_pretty(&committed).unwrap();
+        assert_eq!(
+            drift_lines(&normalize_newlines(&shortened), &body),
+            vec!["AT062: in this tree, not in the committed file".to_string()],
+            "a record this tree generated and the file lacks should be named, not located"
+        );
+        let path = scratch("tree-only");
+        std::fs::write(&path, &shortened).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -950,6 +1008,146 @@ mod freshness {
         assert!(!report.iter().any(|r| r.starts_with("first differing line")));
         let path = scratch("truncation");
         std::fs::write(&path, &edited).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// D034 measured the `counts` row of the top-level loop and left the two
+    /// scalars above it uninvoked. They are the drift a reader of `ci.yml` most
+    /// wants named by key rather than by line: a `specVersion` the generator stops
+    /// matching says the ledger was written against another spec, and a
+    /// `generatedBy` that moved says it came from another command. Order is
+    /// alphabetical here for a different reason than in the record loop —
+    /// `union_keys` collects into a `BTreeSet` — so `generatedBy` precedes
+    /// `specVersion` even though the file writes them the other way round.
+    #[test]
+    fn the_two_header_scalars_are_named() {
+        let body = normalize_newlines(&generate());
+        let original: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let mut committed = original.clone();
+        committed["specVersion"] = serde_json::Value::String("9.9".to_string());
+        committed["generatedBy"] = serde_json::Value::String("probe".to_string());
+        let edited = serde_json::to_string_pretty(&committed).unwrap();
+        assert_ne!(
+            normalize_newlines(&edited),
+            body,
+            "no header field was changed — this control proves nothing"
+        );
+        let want = |key: &str, probe: &str| -> String {
+            format!("{key}: committed \"{probe}\", generated {}", original[key])
+        };
+        let report = drift_lines(&edited, &body);
+        assert_eq!(report.len(), 2, "two header rows, nothing else: {report:?}");
+        for expected in [want("specVersion", "9.9"), want("generatedBy", "probe")] {
+            assert!(
+                report.contains(&expected),
+                "the loop must name the key and both values; wanted {expected}, got {report:?}"
+            );
+        }
+        let path = scratch("header");
+        std::fs::write(&path, &edited).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Exit 2 is the only verdict the module has never asserted, because every
+    /// other test writes a file before asking about it. No harness reaches it
+    /// either: `verify.ps1` and `ci.yml` both point `--check` at a tracked path,
+    /// so 2 means the ledger is absent — a deleted file, or a checkout that never
+    /// had it. The difference from 1 is not the gate's red/green, it is the
+    /// instruction printed under it: 1 sends the reader to regenerate, and
+    /// regenerating a file the repository does not have fixes nothing.
+    #[test]
+    fn a_missing_ledger_exits_two() {
+        let path = scratch("missing");
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            !path.exists(),
+            "{} exists, so nothing is being tested",
+            path.display()
+        );
+        assert_eq!(check_freshness(&path, &generate()), 2);
+    }
+
+    /// D034 changed a top-level value and D032 changed a record field; neither
+    /// removed a key, which is the drift a generator actually produces when an arm
+    /// stops writing one. `short(None)` prints `absent` and is reached from both
+    /// loops, so this drops `generatedBy` at the top and one record's `blocker`
+    /// below, and asks for two rows that say which side lost what.
+    #[test]
+    fn a_key_either_side_lost_is_reported_absent() {
+        let body = normalize_newlines(&generate());
+        let mut committed: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let generator = committed
+            .as_object_mut()
+            .expect("the ledger is not an object")
+            .remove("generatedBy")
+            .expect("generatedBy is not a top-level key");
+        let records = committed["records"]
+            .as_array_mut()
+            .expect("records is not an array");
+        let lost = records
+            .iter()
+            .position(|r| r.get("blocker").is_some())
+            .expect("no record carries a blocker to drop");
+        let id = records[lost]["id"]
+            .as_str()
+            .expect("a record has no id")
+            .to_string();
+        let blocker = records[lost]
+            .as_object_mut()
+            .expect("the located record is not an object")
+            .remove("blocker")
+            .expect("the located record has no blocker");
+        let edited = serde_json::to_string_pretty(&committed).unwrap();
+        assert_ne!(
+            normalize_newlines(&edited),
+            body,
+            "no key was dropped — this control proves nothing"
+        );
+        let report = drift_lines(&edited, &body);
+        assert_eq!(report.len(), 2, "one row per dropped key: {report:?}");
+        for expected in [
+            format!("generatedBy: committed absent, generated {generator}"),
+            format!("{id}.blocker: committed absent, generated {blocker}"),
+        ] {
+            assert!(
+                report.contains(&expected),
+                "absent must be named on the side that lost it; wanted {expected}, got {report:?}"
+            );
+        }
+        let path = scratch("absent");
+        std::fs::write(&path, &edited).unwrap();
+        assert_eq!(check_freshness(&path, &body), 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The one drift with no change of meaning behind it: an editor that insists on
+    /// a final newline writes bytes this generator never produces — the committed
+    /// ledger ends at its last `}`, and `normalize_newlines` folds carriage returns
+    /// only. Both sides parse and every line pairs equal, so the fallback counts one
+    /// past the shorter file and the report names a line nobody can open. That is
+    /// asserted here rather than smoothed over, because the alternative — ignoring a
+    /// trailing newline — would let the gate say "fresh" about bytes the generator
+    /// does not write.
+    #[test]
+    fn an_eof_newline_is_drift_reported_past_the_last_line() {
+        let body = normalize_newlines(&generate());
+        let committed = format!("{body}\n");
+        assert!(
+            !body.ends_with('\n'),
+            "the generator already ends with a newline, so there is no drift to test"
+        );
+        assert_eq!(
+            drift_lines(&committed, &body),
+            vec![format!(
+                "first differing line is {}",
+                body.lines().count() + 1
+            )],
+            "one fallback row, naming the line just past the end"
+        );
+        let path = scratch("eof-newline");
+        std::fs::write(&path, &committed).unwrap();
         assert_eq!(check_freshness(&path, &body), 1);
         let _ = std::fs::remove_file(&path);
     }

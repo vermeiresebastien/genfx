@@ -24,8 +24,8 @@ wgpu Vulkan, driver 560.94, rustc 1.99.0 stable, Node 24.19.0, FFmpeg 9.0.
   measured 2026-11-15 (D034), `cargo test --workspace -- --test-threads=1` exited 139 after 11
   result lines on `0xc0000005, STATUS_ACCESS_VIOLATION` inside `flux-render`'s
   `tests::row_stride_matches_preview_copy`, while that binary alone exited 0 ten times and the
-  re-run finished at 222 passed. No mechanism is known — re-run before blaming your own change,
-  and never quote a truncated run's totals.
+  re-run finished at 222 passed; D035's one invocation printed 227 and no fault, so the rate is 1 in 4.
+  No mechanism is known — re-run before blaming your own change, and never quote a truncated run.
 - **Missing prerequisite is `blocked_external`, never `passed`.** Detector-only is not
   integration. A `.maxpat` is not a `.amxd`. A codec test is not a control path.
 - When code and documentation disagree, **the code wins** and the divergence gets
@@ -107,9 +107,9 @@ them first.
   (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
   **read the `limitation` string, not the boolean.**
 - **A green `verify.ps1` does not mean the workspace suite ran.** Its `unit-tests` step is eight
-  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 222 across 40
+  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 227 across 40
   result lines. Every test inside a `[[bin]]` target (the `requirements` and `xtask` guards D028
-  through D034 add) is therefore executed by CI's workspace run and by **no** step in this script.
+  through D035 add) is therefore executed by CI's workspace run and by **no** step in this script.
   So after adding one, the honest claim is "`cargo test -p xtask --bin requirements` passes" plus a
   workspace run; `VERIFY: PASS` alone cannot see it.
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting
