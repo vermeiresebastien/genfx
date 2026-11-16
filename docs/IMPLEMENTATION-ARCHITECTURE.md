@@ -519,8 +519,11 @@ export was more than 5 % slower than the clip length.
 
 Shell: Tauri 2 + vanilla ES modules, bundled by esbuild (`apps/desktop/ui/bundle.mjs`:
 `format:"iife"`, `target:"es2020"`, `entryPoints:["main.js"]`) which then rewrites the
-`<script src>` query in `index.html` with a 12-hex content hash specifically to defeat the
-WebView2 cache (`bundle.mjs:1-5, 33-40`). Sources: `main.js` (887 lines), `commands.js`,
+`<script src>` query of **every document it is told to serve** — one row per document in
+`VERSIONED`, so `index.html` gets the bundle's hash and `monitor.html` gets `monitor.js`'s
+own hash (`monitor.js` is not bundled: it has no imports, and a second entry would move the
+artifact the Tauri window points at) — with a 12-hex content hash specifically to defeat the
+WebView2 cache (`bundle.mjs:1-5, 48-98`). Sources: `main.js` (887 lines), `commands.js`,
 `ipc.js`, `store.js`, `monitor.js` and `view/{canvas,node,cable,inspector,library,overlay,
 timeline}.js`; `app.bundle.js` is the committed build output.
 

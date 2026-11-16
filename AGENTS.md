@@ -219,9 +219,12 @@ them first.
   does nothing" is a port fight rather than a decoder bug. `osc_status` reports
   `bound`, `bindError` and a counter per outcome.
 - **The webview ships `app.bundle.js`, not `main.js`.** `src-tauri/build.rs` runs
-  `node bundle.mjs`, which versions `index.html`'s single `?v=` tag from the bytes it
-  just wrote; a bundler that cannot run, or cannot version exactly one tag, stops the
-  build. Gate: `node apps/desktop/ui/check-bundle.mjs` (11 legs), in CI and `verify.ps1`.
+  `node bundle.mjs`, which versions exactly one `?v=` tag per served document — the
+  bundle row (`index.html`) and the monitor row (`monitor.html`, plain `monitor.js`,
+  added by I15 item 1) — each token hashed from the bytes of the script that document
+  actually loads. A bundler that cannot run, or cannot version exactly one tag in any
+  row, stops the build.
+  Gate: `node apps/desktop/ui/check-bundle.mjs` (22 legs), in CI and `verify.ps1`.
 - **Exact rational time.** `RationalTime{i64 num, u32 den}`, always reduced,
   numerator serialized as a decimal string. No wall clock in deterministic kernels.
 - **The frame ABI is 96 bytes** and is currently hand-written in three places
