@@ -582,7 +582,11 @@ mod evidence_routing {
             // the source sample rather than on the clock.
             (
                 "AT017",
-                &["media_audio_reactive", "point_at_sample", "mediaaudiotimeline"],
+                &[
+                    "media_audio_reactive",
+                    "point_at_sample",
+                    "mediaaudiotimeline",
+                ],
                 &["spout", "ndi"],
             ),
             ("AT054", &["webcam"], &["microphone", "loopback", "cursor"]),

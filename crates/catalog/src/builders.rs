@@ -7,6 +7,36 @@
 
 use crate::manifest::*;
 
+/// The catalog's three π-ish range literals, named instead of inlined.
+///
+/// They are NOT `std::f64::consts::PI` or `TAU`. Measured at f64 (the type
+/// [`p_float`] takes), every one of them differs from the constant it is
+/// closest to:
+///
+///   `6.2831853` vs `TAU` = 8,083,495 ulp, abs gap 7.18e-9
+///   `3.1415926` vs `PI`  = 120,673,486 ulp, abs gap 5.36e-8
+///   `6.28`      vs `TAU` = 3.59e12 ulp, abs gap 3.19e-3
+///   `3.14`      vs `PI`  = 3.59e12 ulp, abs gap 1.59e-3
+///
+/// (The same tokens, narrowed to f32, *do* agree with TAU at 7 digits — but
+/// `p_float` takes f64, and the values are stored in the shipped parameter
+/// ranges and printed in the catalog manifest. Substituting the constants would
+/// move emitted numbers by up to 3.2e-3 for a lint, which is the rendered-value
+/// change the brief forbids silently making.)
+///
+/// `clippy::approx_constant` cannot tell a preserved literal from a careless
+/// one, so each value gets a name here — one allow per const, with the reason
+/// in the doc comment — and the 22 call sites stop being linted because they
+/// reference a named constant instead of a bare literal.
+#[allow(clippy::approx_constant)] // see doc comment: the literal is intentional
+pub const HALF_TURN_7DP: f64 = 3.1415926;
+#[allow(clippy::approx_constant)]
+pub const FULL_TURN_7DP: f64 = 6.2831853;
+#[allow(clippy::approx_constant)]
+pub const HALF_TURN_2DP: f64 = 3.14;
+#[allow(clippy::approx_constant)]
+pub const FULL_TURN_2DP: f64 = 6.28;
+
 pub fn p_float(id: &str, label: &str, default: f64, min: f64, max: f64, unit: &str) -> ParamDecl {
     ParamDecl {
         id: id.into(),

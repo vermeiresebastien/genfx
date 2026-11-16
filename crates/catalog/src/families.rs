@@ -222,7 +222,7 @@ pub fn fx103_blur() -> (&'static str, Manifest, &'static str) {
                 &["gaussian", "directional", "radial", "focal"]
             ),
             p_float("radius", "Radius", 8.0, 0.0, 128.0, "output_px"),
-            p_float("angle", "Angle", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("angle", "Angle", 0.0, 0.0, FULL_TURN_7DP, "rad"),
         ],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
@@ -336,7 +336,7 @@ pub fn fx105_chromatic() -> (&'static str, Manifest, &'static str) {
         [
             p_enum("mode", "Mode", "split", &["split", "prism", "tape"]),
             p_float("amount", "Amount", 4.0, 0.0, 32.0, "output_px"),
-            p_float("angle", "Angle", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("angle", "Angle", 0.0, 0.0, FULL_TURN_7DP, "rad"),
             p_float("mix", "Mix", 1.0, 0.0, 1.0, ""),
         ],
         r#"
@@ -710,7 +710,14 @@ pub fn fx113_materials() -> (&'static str, Manifest, &'static str) {
             ),
             p_float("strength", "Strength", 1.0, 0.0, 4.0, ""),
             p_float("roughness", "Roughness", 0.3, 0.0, 1.0, ""),
-            p_float("lightAngle", "Light angle", 0.7, -3.14, 3.14, "rad"),
+            p_float(
+                "lightAngle",
+                "Light angle",
+                0.7,
+                -HALF_TURN_2DP,
+                HALF_TURN_2DP,
+                "rad"
+            ),
         ],
         r#"
 fn hsv(h: f32, s: f32, v: f32) -> vec3<f32> {
@@ -1200,7 +1207,14 @@ pub fn fx123_transforms() -> (&'static str, Manifest, &'static str) {
             p_enum("mode", "Mode", "affine", &["affine", "crop"]),
             p_vec2("position", "Position", [0.0, 0.0], -1.0, 1.0, ""),
             p_float("scale", "Scale", 1.0, 0.01, 8.0, ""),
-            p_float("rotation", "Rotation", 0.0, -6.2831853, 6.2831853, "rad"),
+            p_float(
+                "rotation",
+                "Rotation",
+                0.0,
+                -FULL_TURN_7DP,
+                FULL_TURN_7DP,
+                "rad"
+            ),
             p_vec2("cropMin", "Crop min", [0.0, 0.0], 0.0, 1.0, ""),
             p_vec2("cropMax", "Crop max", [1.0, 1.0], 0.0, 1.0, ""),
         ],

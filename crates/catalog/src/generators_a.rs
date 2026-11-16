@@ -58,7 +58,7 @@ pub fn g002_gradient() -> (&'static str, Manifest, &'static str) {
         "Linear, radial and conic gradients with editable stops and repeat/clamp.",
         [
             p_enum("kind", "Kind", "linear", &["linear", "radial", "conic"]),
-            p_float("angle", "Angle", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("angle", "Angle", 0.0, 0.0, FULL_TURN_7DP, "rad"),
             p_vec2("origin", "Origin", [0.5, 0.5], 0.0, 1.0, ""),
             p_float("radius", "Radius", 0.5, 0.0, 2.0, ""),
             p_color("stop0", "Stop 0", [0.0, 0.0, 0.0, 1.0]),
@@ -545,7 +545,7 @@ pub fn g016_lissajous() -> (&'static str, Manifest, &'static str) {
                 &["lissajous", "rose", "spirograph"]
             ),
             p_vec2("ratios", "Ratios", [3.0, 2.0], 1.0, 12.0, ""),
-            p_float("phase", "Phase", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("phase", "Phase", 0.0, 0.0, FULL_TURN_7DP, "rad"),
             p_float("lineWidth", "Line width", 1.5, 0.5, 8.0, "output_px"),
             p_float("speed", "Speed", 0.1, -2.0, 2.0, "cycles/s"),
         ],

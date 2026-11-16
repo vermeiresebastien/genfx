@@ -548,14 +548,7 @@ mod imp {
                     None => addr_of!(wave),
                 };
                 client
-                    .Initialize(
-                        AUDCLNT_SHAREMODE_SHARED,
-                        flags,
-                        buffer_hns,
-                        0,
-                        block,
-                        None,
-                    )
+                    .Initialize(AUDCLNT_SHAREMODE_SHARED, flags, buffer_hns, 0, block, None)
                     .map_err(|e| {
                         err(format!(
                             "Initialize failed on {endpoint_id} ({} channels, {} Hz, tag {}, \
@@ -832,7 +825,10 @@ mod imp {
             let f = classify(wave, Some(ext)).expect("float32 extensible mix format must open");
             assert!(f.float, "extensible float32 was classified as integer PCM");
             assert!(f.extensible, "the sub-format, not the tag, decided this");
-            assert_eq!((f.sample_rate, f.channels, f.bits_per_sample), (48_000, 2, 32));
+            assert_eq!(
+                (f.sample_rate, f.channels, f.bits_per_sample),
+                (48_000, 2, 32)
+            );
             assert_eq!(f.frame_bytes(), 8);
         }
 

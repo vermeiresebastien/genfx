@@ -181,7 +181,7 @@ fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
 pub fn g055_heightfield() -> (&'static str, Manifest, &'static str) {
     animator!("gen.heightfield", "Heightfield image", "anim_heightfield", QualityClass::M, "G055", TimeModel::Analytic,
         "Luminance-driven pseudo-relief shading with configurable light angle; does not claim reconstructed geometry.",
-        [p_float("relief", "Relief", 2.0, 0.0, 16.0, ""), p_float("lightAngle", "Light angle", 0.7, -3.14, 3.14, "rad")],
+        [p_float("relief", "Relief", 2.0, 0.0, 16.0, ""), p_float("lightAngle", "Light angle", 0.7, -HALF_TURN_2DP, HALF_TURN_2DP, "rad")],
         r#"
 fn process(uv: vec2<f32>, src: vec4<f32>) -> vec4<f32> {
   let e = px_to_uv(p_relief());

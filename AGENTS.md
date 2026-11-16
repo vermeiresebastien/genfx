@@ -38,6 +38,7 @@ Match `.github/workflows/ci.yml`; anything else is not CI parity.
 
 ```
 cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -A warnings
 cargo test --workspace -- --test-threads=1        # the flag is required, not optional
 cargo run -q -p xtask -- catalog
 cargo run -q -p xtask -- doctor
@@ -45,7 +46,9 @@ cargo run -q -p xtask -- test-gpu --profile baseline
 cargo run -q -p xtask --bin export_shaders
 cargo run -q -p xtask --bin requirements -- --check
 node apps/max-for-live/check-maxpat.cjs
+cargo run -q -p xtask -- fixtures
 cargo build -p flux-desktop
+cargo build --release -p flux-app
 ```
 
 `--test-threads=1` is only in CI and `infrastructure/verify.ps1`; there is no

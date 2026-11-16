@@ -57,7 +57,7 @@ pub fn g031_path_editor() -> (&'static str, Manifest, &'static str) {
             p_color("fill", "Fill", [0.9, 0.3, 0.5, 1.0]),
             p_color("stroke", "Stroke", [1.0, 1.0, 1.0, 1.0]),
             p_float("strokeWidth", "Stroke width", 3.0, 0.0, 32.0, "output_px"),
-            p_float("rotation", "Rotation", 0.0, -3.1415926, 3.1415926, "rad"),
+            p_float("rotation", "Rotation", 0.0, -HALF_TURN_7DP, HALF_TURN_7DP, "rad"),
         ]
     )
 }
@@ -382,7 +382,7 @@ pub fn g074_text_3d() -> (&'static str, Manifest, &'static str) {
     vgen!(
         "gen.text_3d", "3D text", "Typography", "gen_vector", QualityClass::M, "G074", TimeModel::Analytic,
         "Extruded glyph outlines with holes, bevel and scene lighting (rendered by the mesh scene path).",
-        vec![], [p_text("content", "Text", "FLUX"), p_float("depth", "Depth", 0.2, 0.0, 2.0, "m"), p_float("bevel", "Bevel", 0.02, 0.0, 0.1, "m"), p_float("yaw", "Yaw", 0.3, -3.14, 3.14, "rad")]
+        vec![], [p_text("content", "Text", "FLUX"), p_float("depth", "Depth", 0.2, 0.0, 2.0, "m"), p_float("bevel", "Bevel", 0.02, 0.0, 0.1, "m"), p_float("yaw", "Yaw", 0.3, -HALF_TURN_2DP, HALF_TURN_2DP, "rad")]
     )
 }
 

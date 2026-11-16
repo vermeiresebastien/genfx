@@ -75,7 +75,7 @@ pub fn fx002_bokeh() -> (&'static str, Manifest, &'static str) {
         vec![
             p_float("radius", "Aperture radius", 12.0, 0.0, 96.0, "output_px"),
             p_int("blades", "Blades", 6, 3, 12),
-            p_float("rotation", "Rotation", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("rotation", "Rotation", 0.0, 0.0, FULL_TURN_7DP, "rad"),
             p_float("highlightBoost", "Highlight boost", 0.0, 0.0, 4.0, ""),
             p_enum("quality", "Quality", "32", &["16", "32", "64"]),
         ],
@@ -173,7 +173,7 @@ pub fn fx004_chromatic_metal() -> (&'static str, Manifest, &'static str) {
             p_float("roughness", "Roughness", 0.25, 0.0, 1.0, ""),
             p_float("metallic", "Metallic", 1.0, 0.0, 1.0, ""),
             p_float("hueShift", "Hue shift", 0.0, -1.0, 1.0, ""),
-            p_float("lightAngle", "Light angle", 0.7, -3.1415926, 3.1415926, "rad"),
+            p_float("lightAngle", "Light angle", 0.7, -HALF_TURN_7DP, HALF_TURN_7DP, "rad"),
             p_float("environmentSpeed", "Environment speed", 0.1, 0.0, 2.0, "cycles/s"),
         ],
         "Treats source luminance as relief and shades it with a rainbow environment and Fresnel rim. This is a stylized 2D material, not reconstructed 3D geometry.",

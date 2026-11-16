@@ -107,7 +107,7 @@ pub fn sdf_rows() -> Vec<(&'static str, Manifest, &'static str)> {
             vec![
                 p_float("scale", "Scale", 3.0, 0.5, 16.0, ""),
                 p_float("thickness", "Thickness", 0.1, 0.01, 0.5, ""),
-                p_float("phase", "Phase", 0.0, 0.0, 6.28, ""),
+                p_float("phase", "Phase", 0.0, 0.0, FULL_TURN_2DP, ""),
             ],
         ),
     ));
@@ -166,7 +166,7 @@ pub fn mesh_rows() -> Vec<(&'static str, Manifest, &'static str)> {
     ));
     v.push(scene_row("g092", scene_gen("gen.extrusion", "Path extrusion", "3D Mesh", "G092", TimeModel::Analytic,
         "Tube/ribbon along a path with parallel-transport frames, taper, twist and ribbon width.",
-        vec![p_float("radius", "Radius", 0.2, 0.001, 2.0, "m"), p_float("twist", "Twist", 0.0, -6.28, 6.28, "rad"), p_float("taper", "Taper", 0.0, -1.0, 1.0, "")])));
+        vec![p_float("radius", "Radius", 0.2, 0.001, 2.0, "m"), p_float("twist", "Twist", 0.0, -FULL_TURN_2DP, FULL_TURN_2DP, "rad"), p_float("taper", "Taper", 0.0, -1.0, 1.0, "")])));
     v.push(scene_row(
         "g093",
         scene_gen(
@@ -380,7 +380,7 @@ pub fn particle_rows() -> Vec<(&'static str, Manifest, &'static str)> {
                  p_float("rate", "Rate", 1000.0, 0.0, 20000.0, "/s"), p_float("burst", "Burst", 0.0, 0.0, 10000.0, ""), p_float("lifetime", "Lifetime", 3.0, 0.05, 30.0, "s")])),
         cpu_row("g111", cpu_node("gen.particle_init", "Particle initializer", "Particles", "G111", TimeModel::FixedStep,
             "Direction/cone/speed ranges and lifetime distribution, initial color/size/rotation.",
-            vec![p_float("speed", "Speed", 1.0, 0.0, 10.0, "m/s"), p_float("cone", "Cone angle", 0.4, 0.0, 3.14, "rad"), p_float("size", "Size", 0.02, 0.001, 0.5, "m")])),
+            vec![p_float("speed", "Speed", 1.0, 0.0, 10.0, "m/s"), p_float("cone", "Cone angle", 0.4, 0.0, HALF_TURN_2DP, "rad"), p_float("size", "Size", 0.02, 0.001, 0.5, "m")])),
         cpu_row("g112", cpu_node("gen.particle_forces", "Particle forces", "Particles", "G112", TimeModel::FixedStep,
             "Gravity, wind, drag, curl noise, vector field, attract/repel, vortex/orbit and springs.",
             vec![p_float("gravity", "Gravity", 0.0, -30.0, 30.0, "m/s2"), p_float("wind", "Wind", 0.0, -30.0, 30.0, "m/s2"), p_float("drag", "Drag", 0.1, 0.0, 10.0, ""), p_float("curl", "Curl", 0.0, 0.0, 4.0, "")])),

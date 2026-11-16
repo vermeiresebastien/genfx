@@ -1368,7 +1368,10 @@ mod tests {
         let waited = wait_or_stop(Duration::from_secs(10));
         let landed = stopper.join().unwrap_or(false);
         let _ = std::fs::remove_file(status_file());
-        assert!(landed, "there was a sidecar, so the request must have landed");
+        assert!(
+            landed,
+            "there was a sidecar, so the request must have landed"
+        );
         assert!(
             waited < Duration::from_secs(3),
             "the wait ignored the stop request and slept {waited:?}"

@@ -425,7 +425,7 @@ pub fn fx015_pattern_refraction() -> (&'static str, Manifest, &'static str) {
             p_enum("pattern", "Pattern", "stripes", &["stripes", "grid", "cellular", "waves"]),
             p_float("strength", "Strength", 12.0, 0.0, 256.0, "output_px"),
             p_float("scale", "Scale", 32.0, 2.0, 1024.0, "output_px"),
-            p_float("rotation", "Rotation", 0.0, 0.0, 6.2831853, "rad"),
+            p_float("rotation", "Rotation", 0.0, 0.0, FULL_TURN_7DP, "rad"),
             p_float("ior", "IOR", 1.45, 1.0, 2.5, ""),
             p_float("chromaticSplit", "Chromatic split", 0.0, 0.0, 12.0, "output_px"),
             p_float("speed", "Speed", 0.1, 0.0, 2.0, "cycles/s"),
