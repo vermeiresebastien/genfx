@@ -322,6 +322,10 @@ try {
     const token = bundleUrlToken(readFileSync(probeMonitorScript));
     assertContains(readFileSync(probeMonitor, "utf8"), `src="${MONITOR}?v=${token}"`, "monitor tag");
     assertContains(r.output, `versioned ${MONITOR}?v=${token}`, "marker line agrees");
+    assert(
+      token !== bundleUrlToken(readFileSync(probeBundle)),
+      "the monitor row was versioned with the bundle's token, not monitor.js's own bytes",
+    );
     assert(countScriptTags(readFileSync(probeMonitor, "utf8"), MONITOR) === 1, "one tag remains");
     afterPlainMonitorRun = probeMonitorState();
   });
@@ -433,10 +437,15 @@ try {
     );
     const token = bundleUrlToken(readFileSync(join(here, MONITOR)));
     assertContains(html, `src="${MONITOR}?v=${token}"`, "committed monitor.html vs monitor.js");
+    // The cross-row discriminator. A per-file table's specific failure mode is
+    // reusing the row above it, and nothing else here would notice: the tag
+    // would be 12 hex, present, and stable across runs. An implementation that
+    // hashed the *document* instead of the script is already ruled out by the
+    // assertion above — no document hash equals a different file's hash unless
+    // the two files are byte-identical, so that arm needed no extra assert.
     assert(
-      token !== bundleUrlToken(Buffer.from(html)),
-      "the monitor token equals the hash of monitor.html itself: the tag describes the " +
-        "document, not the script the window loads",
+      token !== bundleUrlToken(readFileSync(join(here, "app.bundle.js"))),
+      "the monitor tag carries the BUNDLE's hash: the table reuses the row above it",
     );
     assert(
       countScriptTags(html) === 0,
