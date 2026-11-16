@@ -601,3 +601,112 @@ fn try_acquire_single_instance() -> bool {
 fn try_acquire_single_instance() -> bool {
     true
 }
+
+#[cfg(test)]
+mod tests {
+    /// `build.rs` is the one place the webview bundle is produced, and a test
+    /// cannot run it: cargo has already executed it before the test binary
+    /// exists. So the invariant is read off the source, the way
+    /// `capability_report_never_derives_verified_from_a_build_feature` reads the
+    /// capability table. What these two gates cannot see is stated in the test
+    /// that owns the shape: `smoke/I5-1-negative-child.log` (bundler exits
+    /// nonzero -> `cargo build -p flux-desktop` exits 101) is the end-to-end
+    /// proof, and the same probe against the previous `build.rs` exited 0.
+    ///
+    /// Ban 1: a bundle failure may never be reported as `cargo:warning` again.
+    /// That is precisely how the defect shipped — both arms warned and fell
+    /// through, so a green build proved nothing about which `app.bundle.js` was
+    /// embedded, and the only trace was a line in
+    /// `target/debug/build/flux-desktop-*/output`.
+    #[test]
+    fn ui_bundle_failure_is_never_reported_as_a_warning() {
+        let script = include_str!("../build.rs");
+        // Comment lines are excluded on purpose: build.rs *explains* the old
+        // warning arms, so the string `cargo:warning` legitimately appears in
+        // prose. What is banned is emitting it — a line of code.
+        let warned: Vec<&str> = script
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.starts_with("//"))
+            .filter(|line| line.contains("cargo:warning"))
+            .collect();
+        assert!(
+            warned.is_empty(),
+            "build.rs still emits an ungated warning: {warned:?}. A warning that the build \
+             continues past is the defect this gate exists to keep out."
+        );
+        // Both arms must be *decisions about the child*, not prose about it: the
+        // nonzero-exit arm and the spawn-failure arm each carry their own message,
+        // and the exit status is inspected before anything is concluded.
+        for needle in [
+            "if !out.status.success()",
+            "ui bundle failed",
+            "could not start",
+            "bundle_ui(&ui)",
+        ] {
+            assert!(
+                script.contains(needle),
+                "build.rs no longer contains {needle:?}: the bundle step is not gated the way \
+                 item 1 left it (status inspected, both failure arms fatal, no `let _ =`)."
+            );
+        }
+        assert!(
+            !script.contains("let _ = bundle_ui"),
+            "build.rs ignores the bundle step's result"
+        );
+    }
+
+    /// Ban 2: every top-level UI source the bundler reads must be a *reason for
+    /// cargo to re-run it*. At 63bc321 five were missing (`bundle.mjs`,
+    /// `monitor.js`, `monitor.html`, `package.json`, `package-lock.json`), so
+    /// editing the bundler or the monitor did not re-bundle at all — the build
+    /// script never ran, and a green build embedded the old bundle. The gate
+    /// enumerates the directory instead of restating the list, so a new UI file
+    /// is caught the same way.
+    #[test]
+    fn every_ui_source_the_bundler_reads_is_watched() {
+        let script = include_str!("../build.rs");
+        let ui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../ui");
+        let mut unwatched: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(&ui).expect("apps/desktop/ui is not readable") {
+            let path = entry.expect("ui directory entry").path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .expect("ui file name")
+                .to_string_lossy()
+                .to_string();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            // `mjs` and `cjs` are listed explicitly: matching only `js` would
+            // skip `bundle.mjs` — the single most important input here — because
+            // a file extension is not a substring match. Measured: the first
+            // version of this gate missed it and reported four unwatched files
+            // where there are five (smoke/I5-1-mut-watchset.log).
+            if !matches!(ext, "js" | "mjs" | "cjs" | "html" | "json") {
+                continue;
+            }
+            // Two exemptions, both load-bearing:
+            //  * `app.bundle.js` is this script's own *output*. Watching an output
+            //    makes every build re-run the build script, which is the cycle that
+            //    hid the rerun asymmetry at 63bc321 (measured: two consecutive
+            //    `cargo build -p flux-desktop` both re-ran with nothing touched).
+            //  * `check-*.mjs` are gate scripts (item 2's bundle check); they are
+            //    not inputs to a bundle.
+            if name == "app.bundle.js" || name.starts_with("check-") {
+                continue;
+            }
+            let want = format!("cargo:rerun-if-changed=../ui/{name}");
+            if !script.contains(&want) {
+                unwatched.push(name);
+            }
+        }
+        assert!(
+            unwatched.is_empty(),
+            "build.rs does not watch {unwatched:?} in apps/desktop/ui. Editing those files does \
+             not re-run the bundler, so `cargo build -p flux-desktop` embeds the previously \
+             built app.bundle.js and reports success."
+        );
+    }
+}

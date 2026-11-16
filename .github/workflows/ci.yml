@@ -25,6 +25,17 @@ jobs:
       - name: Install FFmpeg (Windows)
         if: runner.os == 'Windows'
         run: choco install ffmpeg -y
+      # Any step that builds flux-desktop runs apps/desktop/src-tauri/build.rs,
+      # and since I5 item 1 a bundler that cannot run is a hard build failure.
+      # apps/desktop/ui/node_modules is gitignored, so a fresh checkout could not
+      # execute `node bundle.mjs` at all: measured at 63bc321 that died with
+      # ERR_MODULE_NOT_FOUND, was swallowed as `cargo:warning=ui bundle failed
+      # with exit ...`, and embedded the committed app.bundle.js under a green
+      # build — the defect item 1 removes. Installing the lockfile's exact tree
+      # is what makes the new gate runnable here rather than merely red.
+      - name: Install UI bundler dependencies (apps/desktop/ui)
+        run: npm ci
+        working-directory: apps/desktop/ui
       - name: Format check
         run: cargo fmt --all -- --check
       - name: Clippy (no deny)
