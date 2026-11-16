@@ -512,4 +512,69 @@ mod tests {
         );
         assert_eq!(ev_live.source, t_live.feature_source());
     }
+
+    #[test]
+    fn constructors_store_the_source_class_they_are_given() {
+        // CR3 defect 4: `source` arrives as a *parameter* on both constructors
+        // (`empty` writes the field, `from_stereo_mix` writes the field, and the
+        // `!has_audio` early return forwards it) and NO test observed any of
+        // those writes. The gate above drives the private field directly with
+        // `t_live.source = Live`, so it proves only that the *accessors* read
+        // the field; replacing either constructor initialiser with the literal
+        // `FeatureSource::DocumentOnly` left the whole suite green. This test
+        // hands the class IN and reads it BACK. The expectations are keyed on
+        // the loop variable, never a second literal, so it is a two-way
+        // differential: substituting either constant reddens exactly one arm.
+        let sr = 48_000;
+        let mix = tone_mix(sr, sr as usize, 0.5);
+        for src in [FeatureSource::DocumentOnly, FeatureSource::Live] {
+            let t = MediaAudioTimeline::from_stereo_mix(RationalTime::ZERO, sr, &mix, true, src);
+            // Pre-check: without closed hops every `evidence_at` assertion below
+            // is vacuous, so state the fixture's shape before reading it.
+            assert!(
+                t.windows() > 1,
+                "fixture bug: {} windows, need a closed hop at one second",
+                t.windows()
+            );
+            assert_eq!(
+                t.feature_source(),
+                src,
+                "from_stereo_mix must store the `source` parameter it was given \
+                 ({src:?}); a literal at that field initialiser reddens here"
+            );
+            let ev = t
+                .evidence_at(RationalTime::from_secs(1))
+                .expect("hop closed at one second");
+            assert_eq!(
+                ev.source, src,
+                "the per-frame evidence class must be the class the constructor \
+                 was handed ({src:?}), not a constant"
+            );
+
+            // `empty` carries no points, so `evidence_at` is `None` by design
+            // (asserted, so this arm cannot silently become non-empty); the only
+            // observable is the reported class.
+            let e = MediaAudioTimeline::empty(RationalTime::ZERO, sr, src);
+            assert!(
+                e.evidence_at(RationalTime::from_secs(1)).is_none(),
+                "empty must still report nothing for any class"
+            );
+            assert_eq!(
+                e.feature_source(),
+                src,
+                "empty must store the `source` parameter it was given ({src:?})"
+            );
+
+            // The `!has_audio` early return delegates to `empty` and must
+            // forward the caller's class rather than substitute one.
+            let na = MediaAudioTimeline::from_stereo_mix(RationalTime::ZERO, sr, &mix, false, src);
+            assert!(!na.has_audio());
+            assert_eq!(
+                na.feature_source(),
+                src,
+                "the has_audio=false early return must forward `source` ({src:?}) \
+                 into empty, not drop it"
+            );
+        }
+    }
 }
