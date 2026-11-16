@@ -5,7 +5,7 @@
 // Usage: node bundle.mjs
 // Imported by check-bundle.mjs for the pure parts (see isEntry at the bottom).
 //
-// Three rules this file exists to obey, and the one it broke at 63bc321:
+// Four rules this file exists to obey, and the one it broke at 63bc321:
 //
 //   1. A run must PROVE it versioned the tag. The old pattern required `?v=`
 //      to be present already, so a plain `src="app.bundle.js"` in index.html was
@@ -30,6 +30,15 @@
 //      bytes in an IIFE, change the artifact on disk, and move the Tauri config
 //      and the `WebviewUrl::App("monitor.html")` that names it. Versioning the
 //      file that is already served has no such blast radius.
+//   4. The artifact's bytes must not depend on WHERE the bundler was started.
+//      esbuild prints one `// <path>` comment per module, relative to its
+//      working directory, so the committed sources measured 98,555 bytes from
+//      apps/desktop/ui (which is what build.rs runs it with) and 98,747 from the
+//      repo root — the same program, two artifacts, both tracked. absWorkingDir
+//      is therefore pinned in BUNDLE_OPTIONS, and BUNDLE_OPTIONS is exported so
+//      the freshness gate re-bundles through THE SAME options instead of a
+//      copy that can drift. That pinning is what makes a byte digest usable as
+//      a freshness claim at all.
 //
 // What is deliberately NOT done here: the hashed-file NAME form
 // (`app.bundle.<hash>.js`) is accepted on the left and normalised away on the
@@ -55,6 +64,22 @@ export const VERSIONED = [
   { html: "index.html", script: "app.bundle.js", built: true, marker: "bundled" },
   { html: "monitor.html", script: "monitor.js", built: false, marker: "versioned" },
 ];
+
+// The bundle's path and the options that produce it. Exported because the
+// freshness gate (check-bundle.mjs, I15 item 2) must build the SAME bytes the
+// build writes: two option objects means two programs, and a gate that builds
+// something else than the build ships proves nothing.
+export const bundlePath = join(here, "app.bundle.js");
+export const BUNDLE_OPTIONS = {
+  bundle: true,
+  format: "iife",
+  target: "es2020",
+  logLevel: "silent",
+  platform: "browser",
+  // Pinned, not inherited: see rule 4 above. Callers that work on a different
+  // directory (a probe tree) override this with that directory.
+  absWorkingDir: here,
+};
 
 // The script src attribute for one row, whether or not it carries a version
 // query and whether or not it carries the hashed-file form of the name.
@@ -117,36 +142,95 @@ function refuse(refusals) {
   process.exit(1);
 }
 
-async function runEsbuild() {
-  // Imported dynamically so that reading the pure functions above from another
-  // script does not require esbuild to be installed. A missing esbuild still
-  // ends the run: the import rejects, this reports why, and
-  // apps/desktop/src-tauri/build.rs (I5 item 1) turns the nonzero exit into a
-  // build failure instead of embedding the old bundle.
+/**
+ * The bytes `dir`'s ES-module entry produces, built in memory and NEVER
+ * written. Shared by the bundler and by the freshness gate.
+ *
+ * esbuild is imported dynamically so that reading the pure functions above
+ * does not require it to be installed. When it is missing this THROWS rather
+ * than exiting: the bundler turns that into a nonzero exit (its own failure
+ * path below), and a gate that cannot build must report a failed leg, not a
+ * skipped one — a skipped freshness check is the same D036 defect as one that
+ * prints a hash and means nothing.
+ */
+export async function bundleFromSources(dir = here) {
   let build;
   try {
     ({ build } = await import("esbuild"));
   } catch (e) {
-    console.error(
+    throw new Error(
       `esbuild could not be loaded from apps/desktop/ui (${e.message}). Run ` +
-        `"npm ci" in apps/desktop/ui; this script does not fall back to the ` +
-        "committed bundle.",
+        `"npm ci" in apps/desktop/ui; neither the build nor the freshness gate ` +
+        `falls back to the committed bundle.`,
     );
-    process.exit(1);
   }
   const result = await build({
-    entryPoints: [join(here, "main.js")],
-    bundle: true,
-    format: "iife",
-    target: "es2020",
-    outfile: join(here, "app.bundle.js"),
-    logLevel: "silent",
-    platform: "browser",
+    ...BUNDLE_OPTIONS,
+    absWorkingDir: dir,
+    entryPoints: [join(dir, "main.js")],
+    write: false,
   });
-  if (result.errors.length) {
-    console.error("bundle failed", result.errors);
+  if (result.errors && result.errors.length) {
+    throw new Error(`esbuild reported ${result.errors.length} error(s) building ${dir}/main.js`);
+  }
+  return Buffer.from(result.outputFiles[0].text, "utf8");
+}
+
+const toLF = (bytes) => Buffer.from(bytes.toString("utf8").split("\r\n").join("\n"), "utf8");
+
+/**
+ * Is `artifact` the program `sources` produces?
+ *
+ * `fresh` compares CONTENT, because that is the question item 2 asks: an
+ * artifact whose bytes equal what the inputs produce is not stale, whatever
+ * its mtime says. `lineEndingsOnly` is reported separately and does NOT make a
+ * run stale: the hosted checkout can rewrite a tracked file's separators
+ * (measured on this host: `git checkout -- app.bundle.js` under
+ * core.autocrlf=true produced a copy whose sha256 moved
+ * bd750f689077 -> 7c7d333c210f with no code change), and the tag-vs-bytes leg
+ * in check-bundle.mjs is the arm that owns the served-bytes claim.
+ */
+export function staleReport(sources, artifact) {
+  if (sources.equals(artifact)) return { fresh: true, lineEndingsOnly: false, detail: "" };
+  if (toLF(sources).equals(toLF(artifact))) {
+    return {
+      fresh: true,
+      lineEndingsOnly: true,
+      detail:
+        `identical program, different line endings (sources ${sources.length} bytes, ` +
+        `artifact ${artifact.length} bytes)`,
+    };
+  }
+  let offset = 0;
+  while (offset < Math.min(sources.length, artifact.length) && sources[offset] === artifact[offset]) {
+    offset += 1;
+  }
+  return {
+    fresh: false,
+    lineEndingsOnly: false,
+    detail:
+      `the sources produce ${sources.length} bytes, the artifact on disk is ` +
+      `${artifact.length} bytes; first difference at byte ${offset}`,
+  };
+}
+
+async function runEsbuild() {
+  // The bundle write is guarded for the same reason the HTML writes are (rule
+  // 2): app.bundle.js is a tracked file, so an unconditional rewrite made every
+  // no-op build bump its mtime — and with a content-addressed tag, a build that
+  // rewrote identical bytes was indistinguishable from one that shipped a
+  // different program.
+  let bytes;
+  try {
+    bytes = await bundleFromSources(here);
+  } catch (e) {
+    // apps/desktop/src-tauri/build.rs (I5 item 1) turns this nonzero exit into a
+    // build failure instead of embedding the old bundle.
+    console.error(String(e.message || e));
     process.exit(1);
   }
+  const onDisk = existsSync(bundlePath) ? readFileSync(bundlePath) : null;
+  if (!onDisk || !onDisk.equals(bytes)) writeFileSync(bundlePath, bytes);
 }
 
 async function main() {

@@ -1,10 +1,13 @@
-// Gate for apps/desktop/ui/bundle.mjs (I5 item 2, extended by I15 item 1).
+// Gate for apps/desktop/ui/bundle.mjs (I5 item 2, extended by I15 items 1-2).
 //
 // Node-only, no cargo, no GUI, no network: it drives the bundler's own
 // decision — the one the old script made silently — over inputs crafted to
-// disagree with it. Ten of the legs run the REAL bundler as a child process in
-// a throwaway copy of the ui directory, because "exits nonzero when nothing was
-// substituted" is a property of the process, not of a function.
+// disagree with it. Thirteen of the legs run the REAL bundler as a child
+// process in a throwaway copy of the ui directory, because "exits nonzero when
+// nothing was substituted" is a property of the process, not of a function.
+// Three more call esbuild in-process, through bundle.mjs's own exported
+// BUNDLE_OPTIONS: the freshness comparison (item 2) has to build with the same
+// options the build uses, or it is comparing a program nobody ships.
 //
 // I15 item 1 is the second row of bundle.mjs's VERSIONED table: monitor.html
 // used to load a plain, unversioned monitor.js, so a changed monitor script
@@ -28,7 +31,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
-import { bundleUrlToken, countScriptTags, versionScriptTag } from "./bundle.mjs";
+import {
+  bundleUrlToken,
+  countScriptTags,
+  versionScriptTag,
+  bundleFromSources,
+  staleReport,
+} from "./bundle.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -39,6 +48,20 @@ function check(name, fn) {
   checks += 1;
   try {
     fn();
+    console.log(`ok   ${name}`);
+  } catch (e) {
+    failures += 1;
+    console.error(`FAIL ${name}: ${e && e.message ? e.message : e}`);
+  }
+}
+
+// The freshness legs have to AWAIT esbuild, so they need the same bookkeeping
+// one level up. Both counters are shared: one number, one verdict, no leg that
+// can report a result the summary does not count.
+async function checkAsync(name, fn) {
+  checks += 1;
+  try {
+    await fn();
     console.log(`ok   ${name}`);
   } catch (e) {
     failures += 1;
@@ -191,6 +214,41 @@ check("MONITOR: zero and two tags are counted as the refusal inputs they are", (
   assert(r.matched === 2, `expected 2 matched, got ${r.matched}`);
 });
 
+// --- pure legs: the freshness comparison (I15 item 2) ---
+
+check("FRESHNESS: byte-identical is fresh, and that is the whole claim", () => {
+  const src = Buffer.from("var x = 1;\nconsole.log(x);\n");
+  const r = staleReport(src, Buffer.from(src));
+  assert(r.fresh === true, `identical bytes reported stale: ${JSON.stringify(r)}`);
+  assert(r.lineEndingsOnly === false, "identical bytes cannot be a line-endings case");
+  assert(r.detail === "", `a fresh comparison should have nothing to say, said ${r.detail}`);
+});
+
+check("FRESHNESS: same length, different program is STALE — the case an mtime rule cannot see", () => {
+  // The fixture is deliberately the same size on both sides. An
+  // mtime(bundle) >= mtime(inputs) rule reads this tree as fresh whenever the
+  // bundle was touched after the edit, which is every tree a skipped rebuild
+  // produces; a byte digest has no such blind spot.
+  const src = Buffer.from("var x = 1;\nvar y = 2;\n");
+  const art = Buffer.from("var x = 1;\nvar y = 3;\n");
+  assert(src.length === art.length, "fixture is no longer same-length; the point is lost");
+  const r = staleReport(src, art);
+  assert(r.fresh === false, `a one-byte program difference read as fresh: ${JSON.stringify(r)}`);
+  assertContains(r.detail, "first difference at byte 19", "staleness detail");
+  assertContains(r.detail, `${src.length} bytes`, "both sizes are named");
+});
+
+check("FRESHNESS: line endings alone are reported, never called stale", () => {
+  // The hosted checkout can rewrite a tracked file's separators without
+  // changing its program (measured on this host with app.bundle.js). This
+  // comparison is about the program; the tag-vs-served-bytes leg owns the
+  // other claim, and saying so here keeps the two from being confused.
+  const r = staleReport(Buffer.from("a\nb\n"), Buffer.from("a\r\nb\r\n"));
+  assert(r.fresh === true, `a line-endings-only difference was called stale: ${JSON.stringify(r)}`);
+  assert(r.lineEndingsOnly === true, "the line-endings case must be visible in the result");
+  assertContains(r.detail, "different line endings", "report detail");
+});
+
 // --- end-to-end legs: the real script, as a child process, in a throwaway tree ---
 
 const probeRoot = join(here, `.i5-probe-${process.pid}`);
@@ -200,6 +258,7 @@ const probeMonitor = join(probeRoot, "monitor.html");
 const probeMonitorScript = join(probeRoot, MONITOR);
 let afterPlainRun = null; // state the later legs depend on, so they cannot pass vacuously
 let afterPlainMonitorRun = null;
+let stalenessSeen = null; // the report the stale-artifact leg produced, for its sequel
 
 const PLAIN_INDEX = `<html><body><script src="app.bundle.js"></script></body></html>`;
 const PLAIN_MONITOR = `<html><body><script src="${MONITOR}"></script></body></html>`;
@@ -406,6 +465,97 @@ try {
     assertContains(r.output, "monitor.js is not on disk", "refusal reason");
     assertThrows(() => readFileSync(probeBundle), "the run wrote app.bundle.js after refusing");
   });
+
+  // --- freshness legs: bundle vs the sources that produced it (I15 item 2) ---
+
+  await checkAsync(
+    "FRESHNESS END-TO-END: an input moves, nobody re-bundles, and the gate says STALE",
+    async () => {
+      makeProbeTree();
+      const first = runProbe();
+      assert(first.status === 0, `setup run exited ${first.status} (output: ${first.output})`);
+      const built = await bundleFromSources(probeRoot);
+      assert(
+        staleReport(built, readFileSync(probeBundle)).fresh,
+        "a tree that was just bundled does not read fresh — the comparison itself is broken",
+      );
+      // The defect, in its own words: an input changes and the artifact does
+      // not. Nothing else in this file looks at this pair.
+      writeFileSync(join(probeRoot, "main.js"), "export const probe = 3;\n// moved\n");
+      const moved = await bundleFromSources(probeRoot);
+      const report = staleReport(moved, readFileSync(probeBundle));
+      assert(
+        report.fresh === false,
+        `editing main.js left the artifact reading FRESH (${JSON.stringify(report)}): the ` +
+          "gate cannot see the inputs it is supposed to compare",
+      );
+      assertContains(report.detail, "first difference at byte", "staleness detail");
+      stalenessSeen = report;
+    },
+  );
+
+  await checkAsync("FRESHNESS END-TO-END: re-running the bundler makes the same tree fresh", () => {
+    assert(stalenessSeen !== null, "the stale-artifact leg recorded nothing; this leg is vacuous");
+    const r = runProbe();
+    assert(r.status === 0, `expected exit 0, got ${r.status} (output: ${r.output})`);
+    return bundleFromSources(probeRoot).then((bytes) => {
+      const report = staleReport(bytes, readFileSync(probeBundle));
+      assert(report.fresh, `after a real run the artifact still reads stale: ${report.detail}`);
+      assertContains(bytes.toString("utf8"), "probe = 3", "the rebuilt bundle carries the edit");
+    });
+  });
+
+  await checkAsync("FRESHNESS END-TO-END: a no-op run does not rewrite app.bundle.js either", () => {
+    // The write guard exists for index.html and monitor.html; app.bundle.js is
+    // tracked too, so rewriting identical bytes there is the same class of
+    // noise — a build that cannot be told apart from one that shipped a
+    // different program.
+    const before = { mtimeMs: statSync(probeBundle).mtimeMs, bytes: readFileSync(probeBundle) };
+    const r = runProbe();
+    assert(r.status === 0, `expected exit 0, got ${r.status} (output: ${r.output})`);
+    const after = readFileSync(probeBundle);
+    assert(
+      statSync(probeBundle).mtimeMs === before.mtimeMs && after.equals(before.bytes),
+      `app.bundle.js was rewritten by a no-op run (mtime ${before.mtimeMs} -> ` +
+        `${statSync(probeBundle).mtimeMs}); the bundle write is not guarded`,
+    );
+  });
+
+  await checkAsync(
+    "FRESHNESS REAL TREE: the committed app.bundle.js is what the committed sources produce",
+    async () => {
+      // What this arm cannot see, stated where the reader decides to trust it:
+      //   * only main.js's import graph. style.css, monitor.js, monitor.html,
+      //     package.json and tauri.conf.json are not inputs to this digest —
+      //     and none of them can make app.bundle.js stale. monitor.js got its
+      //     own token in item 1; the rest are covered only by build.rs's
+      //     rerun-if-changed list.
+      //   * a touched-but-identical file reads fresh, which is the correct
+      //     answer and the reason this is a digest and not an mtime rule.
+      //   * a different esbuild (node_modules is watched by nothing) produces
+      //     different bytes from the same sources and reddens this leg with a
+      //     size/offset report; it cannot tell you WHICH input moved.
+      //   * it reads the worktree, so it says nothing about what an installer
+      //     someone built last week shipped.
+      // The option set is shared with the build by construction — BUNDLE_OPTIONS
+      // is the only copy — which is the point: if the build ever stops using it,
+      // this comparison is the leg that notices.
+      const bytes = await bundleFromSources(here);
+      assert(
+        bytes.length > 1000,
+        `an in-memory bundle of ${bytes.length} bytes is not the app graph; this leg would ` +
+          "then be comparing the wrong artifact",
+      );
+      const report = staleReport(bytes, readFileSync(join(here, "app.bundle.js")));
+      if (report.lineEndingsOnly) console.log(`     note: ${report.detail}`);
+      assert(
+        report.fresh,
+        `STALE BUNDLE — ${report.detail}. A desktop build embeds apps/desktop/ui/app.bundle.js, ` +
+          "so this tree ships a UI that is not its sources. Run the bundler and commit both " +
+          "files together.",
+      );
+    },
+  );
 
   check("REAL TREE: index.html has one tag and already matches the committed bundle", () => {
     // The `git status` question, stated as an assertion instead of as a report:

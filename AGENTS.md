@@ -222,9 +222,15 @@ them first.
   `node bundle.mjs`, which versions exactly one `?v=` tag per served document — the
   bundle row (`index.html`) and the monitor row (`monitor.html`, plain `monitor.js`,
   added by I15 item 1) — each token hashed from the bytes of the script that document
-  actually loads. A bundler that cannot run, or cannot version exactly one tag in any
-  row, stops the build.
-  Gate: `node apps/desktop/ui/check-bundle.mjs` (22 legs), in CI and `verify.ps1`.
+  actually loads, and rewrites a tracked file only when its content changed
+  (`index.html`/`monitor.html` are `cargo:rerun-if-changed` inputs of that build script;
+  `app.bundle.js` is deliberately not, because it is its output). A bundler that cannot
+  run, or cannot version exactly one tag in any row, stops the build. The gate also
+  re-bundles `main.js` in memory through the same exported `BUNDLE_OPTIONS` and compares
+  bytes, so a committed bundle its own sources do not produce is red rather than green
+  (I15 item 2); `absWorkingDir` is pinned because esbuild's `// <path>` comments made the
+  artifact depend on the directory the bundler was started from.
+  Gate: `node apps/desktop/ui/check-bundle.mjs` (29 legs), in CI and `verify.ps1`.
 - **Exact rational time.** `RationalTime{i64 num, u32 den}`, always reduced,
   numerator serialized as a decimal string. No wall clock in deterministic kernels.
 - **The frame ABI is 96 bytes** and is currently hand-written in three places

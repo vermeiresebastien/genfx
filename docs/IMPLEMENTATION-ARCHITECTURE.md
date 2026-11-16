@@ -523,9 +523,13 @@ Shell: Tauri 2 + vanilla ES modules, bundled by esbuild (`apps/desktop/ui/bundle
 `VERSIONED`, so `index.html` gets the bundle's hash and `monitor.html` gets `monitor.js`'s
 own hash (`monitor.js` is not bundled: it has no imports, and a second entry would move the
 artifact the Tauri window points at) — with a 12-hex content hash specifically to defeat the
-WebView2 cache (`bundle.mjs:1-5, 48-98`). Sources: `main.js` (887 lines), `commands.js`,
+WebView2 cache (`bundle.mjs:1-5, 57-123, 156-215`). Sources: `main.js` (887 lines), `commands.js`,
 `ipc.js`, `store.js`, `monitor.js` and `view/{canvas,node,cable,inspector,library,overlay,
-timeline}.js`; `app.bundle.js` is the committed build output.
+timeline}.js`; `app.bundle.js` is the committed build output, and it is now *gated* against
+those sources: `check-bundle.mjs` re-bundles `main.js` in memory through the same exported
+`BUNDLE_OPTIONS` (`absWorkingDir` pinned, so the artifact does not depend on the launcher's
+directory) and compares bytes — a committed bundle that its own sources do not produce is a
+red gate, not a green build (I15 item 2).
 
 Exactly **10** IPC commands are registered (`apps/desktop/src-tauri/src/lib.rs:430-441`):
 `dispatch`, `open_monitor`, `toggle_monitor_fullscreen`, `render_preview`,
@@ -824,10 +828,10 @@ Naga-validates every shader with the same validator the native renderer uses).
 | GPU test serialisation lock (only two files) | `crates/tests/tests/dag_parallel.rs`, `node_editor.rs` | `10-17`, `15-19` |
 | Full-catalog GPU shader compile (panics without GPU) | `crates/render/src/tests.rs` | `13-33` |
 | Evidence JSON writer | `crates/xtask/src/main.rs` | `18-100, 129-347` |
-| Requirements coverage generator | `crates/xtask/src/bin/requirements.rs` | `17-32` |
+| Requirements coverage generator + the CI command-carrier gate (`--test-threads=1`, I15 item 0) | `crates/xtask/src/bin/requirements.rs` | `17-32, 821-978` |
 | Tauri IPC surface (10 commands) | `apps/desktop/src-tauri/src/lib.rs` | `16-24, 32-47, 78, 95-98, 154-275, 308-349, 430-441` |
 | UI preview sizing (the effective cap) | `apps/desktop/ui/main.js` | `185-196, 198-215` |
-| UI bundling and cache-busting | `apps/desktop/ui/bundle.mjs` | `1-5, 16-40` |
+| UI bundling, cache-busting and bundle-freshness comparison | `apps/desktop/ui/bundle.mjs` | `1-5, 8-48, 57-82, 156-215` |
 
 ---
 
