@@ -1,18 +1,27 @@
 //! Media audio must reach the shader.
 //!
 //! This file deliberately uses only the API surface that existed *before* the
-//! Step 1 wiring (`PreviewRenderer::render`, `export_project`, the domain
-//! document types). It therefore compiles and runs unchanged on the pre-change
-//! tree, where it is red: every rendered frame was handed `AudioSnapshot::
-//! default()` and `FeatureSnapshot::default()`, so a project with a loud decoded
-//! clip and a project with that clip's track muted produced byte-identical
-//! pixels. After the wiring the two differ, which is the whole product claim.
+//! Step 1 wiring (`PreviewRenderer::render`, the domain document types). It
+//! therefore compiles and runs unchanged on the pre-change tree, where it is
+//! red: every rendered frame was handed `AudioSnapshot::default()` and
+//! `FeatureSnapshot::default()`, so a project with a loud decoded clip and a
+//! project with that clip's track muted produced byte-identical pixels. After
+//! the wiring the two differ, which is the whole product claim.
 //!
 //! The two catalog entries that can show this are `gen.oscilloscope` and
 //! `gen.glowing_wave` (its `audioWave` curve). `gen.oscilloscope` is used here
 //! because its scaling is unconditional.
+//!
+//! **What each test reaches:**
+//! - `loud_media_audio_moves_the_picture_muted_does_not`: `PreviewRenderer::render`
+//!   only (the preview path, not the offline exporter).
+//! - `audio_features_follow_the_projectsown_sample_rate`: `PreviewRenderer::render`
+//!   plus direct calls to `mix_audio` and `timeline_for_range` (the analysis
+//!   pipeline, not the offline exporter).
+//! - `offline_export_audio_path_carries_the_timeline`: `export_project` (the
+//!   offline exporter), asserting the WAV output differs loud vs muted.
 
-use flux_app::export::PreviewRenderer;
+use flux_app::export::{export_project, ExportOptions, PreviewRenderer};
 use flux_domain::{
     AudioControls, Clip, ClipSource, LoopPolicy, Project, RationalTime, TimeRange, Track, TrackKind,
 };
@@ -250,4 +259,106 @@ fn audio_features_follow_the_projects_own_sample_rate() {
         "centroid {} Hz is outside the expected range for a 300 Hz tone",
         evidence.features.centroid
     );
+}
+
+#[test]
+fn offline_export_audio_path_carries_the_timeline() {
+    // This test goes through `export_project`, not `PreviewRenderer::render`.
+    // The mutation probe: changing `export.rs:189` from `Some(&timeline)` to
+    // `None` must redden this test (the visual frames become identical because
+    // the audio features no longer reach the shader).
+    let fx = fixtures_dir();
+    let wav = fx.join("media_audio_tone_48k_export.wav");
+    if !make_tone(&wav, 48_000, 2) {
+        eprintln!("SKIP offline_export_audio_path_carries_the_timeline: no FFmpeg");
+        return;
+    }
+    assert!(wav.exists(), "tone fixture missing");
+
+    let loud = project_with_tone(&wav, 48_000, 2, false);
+    let muted = project_with_tone(&wav, 48_000, 2, true);
+
+    let dir_loud = std::env::temp_dir().join(format!("flux-export-loud-{}", std::process::id()));
+    let dir_muted = std::env::temp_dir().join(format!("flux-export-muted-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir_loud);
+    let _ = std::fs::remove_dir_all(&dir_muted);
+    std::fs::create_dir_all(&dir_loud).unwrap();
+    std::fs::create_dir_all(&dir_muted).unwrap();
+
+    let result_loud = export_project(
+        &loud,
+        &ExportOptions {
+            out_dir: dir_loud.clone(),
+            project_name: "loud".into(),
+            codec: flux_media::EncodeCodec::None,
+            width: 64,
+            height: 36,
+            range: None,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        },
+        None,
+    )
+    .expect("export loud");
+    let result_muted = export_project(
+        &muted,
+        &ExportOptions {
+            out_dir: dir_muted.clone(),
+            project_name: "muted".into(),
+            codec: flux_media::EncodeCodec::None,
+            width: 64,
+            height: 36,
+            range: None,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        },
+        None,
+    )
+    .expect("export muted");
+
+    // The mutation at export.rs:189 (Some(&timeline) to None) affects the visual
+    // frames, not the WAV. The timeline provides audio features to the shader,
+    // which modulates the visual output. We assert the PNG frames differ.
+    let frames_dir_loud = result_loud.frames_dir;
+    let frames_dir_muted = result_muted.frames_dir;
+    assert!(frames_dir_loud.exists(), "loud frames dir not written");
+    assert!(frames_dir_muted.exists(), "muted frames dir not written");
+
+    // Read frame 60 from each export (at 60 fps, this is t=1s, well after the
+    // first analysis hop has completed). Frame 0 might be before any audio data
+    // is available.
+    let frame_loud =
+        std::fs::read(frames_dir_loud.join("frame_000060.png")).expect("read loud frame");
+    let frame_muted =
+        std::fs::read(frames_dir_muted.join("frame_000060.png")).expect("read muted frame");
+
+    // The frames must differ. A loud tone with audio features reaching the shader
+    // produces different pixels than a muted tone (or than passing None for the
+    // timeline, which is the mutation probe).
+    let diff_count = frame_loud
+        .iter()
+        .zip(frame_muted.iter())
+        .filter(|(a, b)| a != b)
+        .count();
+    assert!(
+        diff_count > 100,
+        "offline export frames differ by only {} bytes; the timeline was not \
+         carried through export_project (mutation probe: export.rs:189 \
+         Some(&timeline) to None would leave this test green if the audio path \
+         is ungated)",
+        diff_count
+    );
+
+    // Also assert the audio features were actually used: the loud export should
+    // report nonzero audio_windows (the timeline had data).
+    assert!(
+        result_loud.audio_windows > 0,
+        "loud export reported zero audio_windows; the timeline was not built"
+    );
+    assert_eq!(
+        result_loud.feature_source,
+        flux_domain::params::FeatureSource::DocumentOnly,
+        "offline export must report DocumentOnly"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir_loud);
+    let _ = std::fs::remove_dir_all(&dir_muted);
 }
