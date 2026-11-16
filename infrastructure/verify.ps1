@@ -141,8 +141,12 @@ Step 'gui-build' { cargo build -p flux-desktop }
 # be built at all — that is blocked_external, not passed.
 $onWindows = ($env:OS -eq 'Windows_NT') -or ([bool](Get-Variable -Name IsWindows -ValueOnly -ErrorAction SilentlyContinue))
 if ($onWindows) {
+    # Both legs carry --test-threads=1 and the flag is the reason they finish: the
+    # app leg without it is a measured deadlock (63 of 65 ok lines, no verdict),
+    # with it 65 passed. AGENTS.md carries the numbers; xtask --bin requirements
+    # --check gates the flag on every live-audio cargo test line in this file.
     Step 'live-audio-platform' { cargo test -p flux-platform --features live-audio -- --test-threads=1 }
-    Step 'live-audio-app' { cargo test -p flux-app --features live-audio }
+    Step 'live-audio-app' { cargo test -p flux-app --features live-audio -- --test-threads=1 }
 } else {
     Blocked 'live-audio-platform' 'live-audio is cfg(windows); this host cannot build it'
     Blocked 'live-audio-app' 'live-audio is cfg(windows); this host cannot build it'

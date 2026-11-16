@@ -630,15 +630,36 @@ mod evidence_routing {
 }
 
 /// No flag: write the ledger. `--check`: say whether the committed ledger is what
-/// this tree would produce, and write nothing. The second form exists because
-/// neither `ci.yml` nor `verify.ps1` used to run this generator at all, so a
-/// hand-edit of `requirements.json` — or a status that drifted away from the
-/// `at_status()` arm that is supposed to derive it — survived CI silently.
+/// this tree would produce, whether the repo's own live-audio command lines are
+/// serialised, and write nothing. The second form exists because neither `ci.yml`
+/// nor `verify.ps1` used to run this generator at all, so a hand-edit of
+/// `requirements.json` — or a status that drifted away from the `at_status()` arm
+/// that is supposed to derive it — survived CI silently.
+///
+/// `--check` now answers two questions, because the second one has the same shape
+/// as the first: a tracked carrier whose text nobody reads drifts. The exit code
+/// is the worst of the two, and both reports print, so a ledger failure cannot
+/// hide a command-carrier failure or the other way round. 2 is still reserved for
+/// "there is no ledger to compare", since regenerating a file the repository does
+/// not have fixes nothing.
 fn main() {
     let body = generate();
     let path = root().join("implementation/requirements.json");
     if std::env::args().any(|a| a == "--check") {
-        std::process::exit(check_freshness(&path, &body));
+        let ledger = check_freshness(&path, &body);
+        let (findings, _) = check_test_command_carriers(&root());
+        for f in &findings {
+            eprintln!("requirements: {f}");
+        }
+        if !findings.is_empty() {
+            eprintln!(
+                "requirements: {} finding(s) in the command carriers — fix the line, do not \
+                 relax this gate (the serialised form is the only one that finishes)",
+                findings.len()
+            );
+        }
+        let carriers = if findings.is_empty() { 0 } else { 1 };
+        std::process::exit(ledger.max(carriers));
     }
     std::fs::write(&path, &body).unwrap();
     println!("wrote {}", path.display());
@@ -787,6 +808,279 @@ fn first_diff_line(a: &str, b: &str) -> usize {
         .position(|(x, y)| x != y)
         .map(|i| i + 1)
         .unwrap_or_else(|| a.lines().count().min(b.lines().count()) + 1)
+}
+
+// ---------------------------------------------------------------------------
+// Item 0 (I15 lane B2): the live-audio legs must be serialised, in the repo's
+// own words and in CI.
+// ---------------------------------------------------------------------------
+
+/// The heading whose fenced block is `AGENTS.md`'s command list. Scanning only
+/// that block is what keeps prose about `cargo test` out of the census: the file
+/// names the command in five sentences that are not commands.
+const CANONICAL_HEADING: &str = "## Canonical commands";
+
+/// The legs this gate is about: a `cargo test` that turns on `live-audio`.
+const LIVE_AUDIO_FEATURE: &str = "--features live-audio";
+
+/// The flag that makes them finish. See `AGENTS.md` "Canonical commands" for the
+/// measurement that says why, and do not read that measurement as "fixed": the
+/// deadlock itself is open (tranche C item 9), which is exactly why the flag has
+/// to be unable to quietly fall out of a carrier line.
+const SERIALISE: &str = "--test-threads=1";
+
+/// Every carrier that names a live-audio `cargo test` command. All three run on
+/// this host without a device, a GPU or cmake, which is the property item 0 asked
+/// for — and unlike a fresh `xtask` bin, all three are already wired into CI, so
+/// this gate has a runner the day it is written: `ci.yml` runs `--check`, and so
+/// does `verify.ps1`'s `requirements-freshness` step.
+///
+/// That is also why it lives in a ledger checker instead of a doc checker. The
+/// honest cost is that `requirements -- --check` now answers two questions —
+/// "is the ledger fresh" and "is the command list serialised" — and a failure in
+/// either exits nonzero with its own report. The alternative homes were all
+/// worse: `build.rs` and `check-bundle.mjs` need node and the UI devDependencies,
+/// `cargo fmt`/`clippy` cannot see a doc, and a new bin would have needed new CI
+/// wiring, which is a change to a lane this brief does not own.
+fn test_command_carriers() -> [(&'static str, &'static str); 3] {
+    [
+        ("AGENTS.md", "the canonical-commands fenced block"),
+        (".github/workflows/ci.yml", "any non-comment line"),
+        ("infrastructure/verify.ps1", "any non-comment line"),
+    ]
+}
+
+/// The shell/YAML/PowerShell part of a line: everything before the first `#`.
+///
+/// In all three carriers `#` opens a comment, and the only `#` that appears in a
+/// command line here is the `#` of a comment after the command. A `#` inside a
+/// quoted string would be mis-cut — measured, not assumed: `grep -c '#'` over the
+/// three carriers' `cargo test` lines finds one, and it is `AGENTS.md`'s own
+/// trailing comment.
+fn code_part(line: &str) -> &str {
+    match line.find('#') {
+        Some(i) => &line[..i],
+        None => line,
+    }
+}
+
+/// The lines of a carrier that ARE commands, as `(1-based line, code part)`.
+///
+/// `AGENTS.md` is filtered to its canonical-commands fence; the other two are
+/// whole files, because a command there is a command wherever it is written.
+fn command_lines(carrier: &str, text: &str) -> Vec<(usize, String)> {
+    let kept = |l: &str| code_part(l).contains("cargo test");
+    if carrier != "AGENTS.md" {
+        return text
+            .lines()
+            .enumerate()
+            .filter(|(_, l)| kept(l))
+            .map(|(i, l)| (i + 1, code_part(l).trim().to_string()))
+            .collect();
+    }
+    let mut in_heading = false;
+    let mut in_fence = false;
+    let mut out = vec![];
+    for (i, line) in text.lines().enumerate() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("## ") {
+            in_heading = rest.trim() == CANONICAL_HEADING.trim_start_matches("## ");
+            in_fence = false;
+            continue;
+        }
+        if t.starts_with("```") {
+            if in_heading && !in_fence {
+                in_fence = true;
+            } else if in_fence {
+                return out;
+            }
+            continue;
+        }
+        if in_fence && kept(line) {
+            out.push((i + 1, code_part(line).trim().to_string()));
+        }
+    }
+    out // no closing fence: the caller sees an empty census and reports it
+}
+
+/// Findings for one carrier's text. Pure over `(carrier, text)` so a fixture can
+/// drive the arms the committed tree must never contain.
+fn serialisation_findings(carrier: &str, text: &str) -> Vec<String> {
+    let lines = command_lines(carrier, text);
+    let live: Vec<(usize, String)> = lines
+        .iter()
+        .filter(|(_, code)| code.contains(LIVE_AUDIO_FEATURE))
+        .cloned()
+        .collect();
+    let mut findings: Vec<String> = live
+        .iter()
+        .filter(|(_, code)| !code.contains(SERIALISE))
+        .map(|(n, code)| {
+            format!(
+                "{carrier}:{n} runs a live-audio `cargo test` without {SERIALISE}: {code} \
+                 — that form is a measured deadlock (63 of 65 ok lines, no `test result:` \
+                 line, still spinning 2 h 38 m later)"
+            )
+        })
+        .collect();
+    if lines.is_empty() {
+        findings.push(format!(
+            "{carrier} names no `cargo test` command line at all, so this gate is reading \
+             nothing. If the command list moved, move this check with it — do not leave it \
+             green and blind."
+        ));
+    } else if live.is_empty() {
+        let n = lines.len();
+        findings.push(format!(
+            "{carrier} names {n} `cargo test` line(s) but none with {LIVE_AUDIO_FEATURE}: the \
+             live-audio leg this gate exists for has left the carrier."
+        ));
+    }
+    findings
+}
+
+/// Read every carrier and report. `(findings, lines_scanned)`: the second number
+/// is what a red log has to be able to say out loud, so a run that read nothing
+/// cannot be mistaken for a run that found nothing.
+fn check_test_command_carriers(root: &Path) -> (Vec<String>, usize) {
+    let mut findings = vec![];
+    let mut scanned = 0;
+    let mut read = vec![];
+    for (path, where_) in test_command_carriers() {
+        let full = root.join(path);
+        let text = match std::fs::read_to_string(&full) {
+            Ok(t) => t,
+            Err(e) => {
+                findings.push(format!(
+                    "{path} could not be read ({e}) — the command carriers are this gate's \
+                     input, and a missing one is a finding, not a skip"
+                ));
+                continue;
+            }
+        };
+        let text = normalize_newlines(&text);
+        let n = command_lines(path, &text).len();
+        scanned += n;
+        findings.extend(serialisation_findings(path, &text));
+        read.push(format!("{path} — {where_} [{n}]"));
+    }
+    if findings.is_empty() {
+        println!(
+            "requirements: {scanned} `cargo test` command lines read from {} carriers, every \
+             live-audio leg carries {SERIALISE}: {}",
+            read.len(),
+            read.join(", ")
+        );
+    }
+    (findings, scanned)
+}
+
+#[cfg(test)]
+mod ci_command_parity {
+    use super::{
+        check_test_command_carriers, command_lines, normalize_newlines, root,
+        serialisation_findings,
+    };
+
+    /// The same assertion CI makes, inside the suite.
+    #[test]
+    fn the_committed_carriers_are_serialised() {
+        let (findings, scanned) = check_test_command_carriers(&root());
+        assert!(findings.is_empty(), "carrier findings: {findings:?}");
+        // Three live-audio legs per carrier would be the floor; assert the census
+        // moved so a reader can see the gate is reading real lines.
+        assert!(scanned >= 9, "only {scanned} cargo test lines were read");
+    }
+
+    /// Control for the control: a gate that always returns no findings is
+    /// indistinguishable from a passing one, so the exact defect must be visible
+    /// on a fixture.
+    #[test]
+    fn a_live_audio_line_without_the_flag_is_a_finding() {
+        let text = "run: cargo test -p flux-app --features live-audio\n";
+        let f = serialisation_findings("x.yml", text);
+        assert_eq!(f.len(), 1, "the missing flag must be named: {f:?}");
+        assert!(f[0].contains("--test-threads=1"), "{}", f[0]);
+        assert!(
+            f[0].contains("x.yml:1"),
+            "the finding names its line: {}",
+            f[0]
+        );
+        // and the same line with the flag is clean — the gate is about the flag,
+        // not about the feature.
+        let fixed = text.trim_end().to_owned() + " -- --test-threads=1\n";
+        assert!(
+            serialisation_findings("x.yml", &fixed).is_empty(),
+            "the serialised form must not be reported"
+        );
+    }
+
+    /// Prose and comments are not commands. Without this leg the gate would either
+    /// shout at `AGENTS.md`'s English or quietly scan only the first carrier.
+    #[test]
+    fn prose_and_comments_are_not_commands() {
+        let agents = "See also `cargo test -p flux-app --features live-audio`, which is prose.\n\n\
+                      ## Canonical commands\n\n```\n# cargo test -p flux-app --features live-audio\n\
+                      cargo test -p flux-app --features live-audio -- --test-threads=1\n```\n";
+        assert_eq!(
+            command_lines("AGENTS.md", &agents).len(),
+            1,
+            "only the fence's real command may be read"
+        );
+        assert!(serialisation_findings("AGENTS.md", &agents).is_empty());
+        let yml = "# run: cargo test -p flux-app --features live-audio\n";
+        assert!(
+            command_lines(".github/workflows/ci.yml", yml).is_empty(),
+            "a commented-out command is not a command"
+        );
+    }
+
+    /// A carrier whose block moved would leave the gate green while reading
+    /// nothing, which is the same defect as a gate that prints a failure and
+    /// exits 0. The census is therefore asserted, not just the flag.
+    #[test]
+    fn a_carrier_that_stopped_naming_the_leg_is_itself_a_finding() {
+        // A carrier that still runs `cargo test`, just not the live-audio leg:
+        // syntactically a command, so it is counted — and then named, because the
+        // gate would otherwise be reading a command list that no longer has the
+        // thing it exists to protect.
+        let lost_the_leg = "run: cargo test --workspace -- --test-threads=1\n";
+        assert_eq!(command_lines("x.yml", lost_the_leg).len(), 1);
+        let f = serialisation_findings("x.yml", lost_the_leg);
+        assert!(
+            f.iter()
+                .any(|s| s.contains("none with --features live-audio")),
+            "the lost leg must be named: {f:?}"
+        );
+        // A carrier with no command lines at all (the only `cargo test` left is a
+        // comment) must not pass silently either.
+        let no_commands = "# run: cargo test -p flux-app --features live-audio\n";
+        assert!(command_lines("x.yml", no_commands).is_empty());
+        let f = serialisation_findings("x.yml", no_commands);
+        assert!(
+            f.iter().any(|s| s.contains("names no `cargo test`")),
+            "an empty census must not pass silently: {f:?}"
+        );
+    }
+
+    /// The real tree, mutated in memory: this is the arm the falsifier log drives
+    /// on disk, asserted here so the probe has a named expectation.
+    #[test]
+    fn the_real_ci_carrier_reddens_when_the_flag_is_dropped() {
+        let text = std::fs::read_to_string(root().join(".github/workflows/ci.yml")).unwrap();
+        let with = normalize_newlines(&text);
+        assert!(serialisation_findings(".github/workflows/ci.yml", &with).is_empty());
+        let without = with.replace(
+            "cargo test -p flux-app --features live-audio -- --test-threads=1",
+            "cargo test -p flux-app --features live-audio",
+        );
+        assert_ne!(
+            without, with,
+            "the needle is not in ci.yml — this control proves nothing"
+        );
+        let f = serialisation_findings(".github/workflows/ci.yml", &without);
+        assert_eq!(f.len(), 1, "one line lost its flag, one finding: {f:?}");
+    }
 }
 
 #[cfg(test)]

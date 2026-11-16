@@ -80,7 +80,14 @@ jobs:
         run: cargo test -p flux-platform --features live-audio -- --test-threads=1
       - name: Live-audio app tests
         if: runner.os == 'Windows'
-        run: cargo test -p flux-app --features live-audio
+        # --test-threads=1 is load-bearing, not hygiene: without it this leg is a
+        # measured deadlock (63 of 65 ok lines, no `test result:` line, still
+        # spinning 2 h 38 m later), with it the same binary is 65 passed in 18.45 s
+        # at ecf0274. Gated by `xtask --bin requirements -- --check`, which reads
+        # this file, AGENTS.md and infrastructure/verify.ps1. The deadlock itself is
+        # open: these tests reach export_project (a real GPU device) with no
+        # gpu_lock() serialiser, unlike crates/tests/tests/dag_parallel.rs.
+        run: cargo test -p flux-app --features live-audio -- --test-threads=1
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:

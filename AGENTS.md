@@ -39,9 +39,10 @@ Match `.github/workflows/ci.yml`; anything else is not CI parity.
 ```
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -A warnings
-cargo test --workspace -- --test-threads=1        # the flag is required, not optional
+# --test-threads=1 is required on every cargo test line below, not optional
+cargo test --workspace -- --test-threads=1
 cargo test -p flux-platform --features live-audio -- --test-threads=1
-cargo test -p flux-app --features live-audio
+cargo test -p flux-app --features live-audio -- --test-threads=1
 cargo run -q -p xtask -- catalog
 cargo run -q -p xtask -- doctor
 cargo run -q -p xtask -- test-gpu --profile baseline
@@ -53,10 +54,28 @@ cargo build -p flux-desktop
 cargo build --release -p flux-app
 ```
 
-`--test-threads=1` is only in CI and `infrastructure/verify.ps1`; there is no
-`.cargo/config.toml` default, so a bare `cargo test` races GPU device creation.
-GPU tests are serialised per test binary by a function-local mutex, which means
-different files hold different mutexes.
+`--test-threads=1` is passed by hand — this list, `.github/workflows/ci.yml` and
+`infrastructure/verify.ps1` all carry it, and there is no `.cargo/config.toml`
+default, so a bare `cargo test` races GPU device creation. GPU tests are
+serialised per test binary by a function-local mutex, which means different
+files hold different mutexes.
+
+On the live-audio legs the flag is not hygiene, it is the only form that
+finishes. Without it, `cargo test -p flux-app --features live-audio` printed 63
+of the 65 `ok` lines, no `test result:` line, and was still spinning 2 h 38 m
+later; with it, the same bytes finished 65 passed / 0 failed in 17.91 s —
+re-measured on this host at `ecf0274` as 18.45 s (`smoke/` is untracked, so the
+numbers are written here rather than cited).
+The two tests that never return in parallel are
+`export::tests::document_only_run_reports_document_only` and
+`export::tests::an_export_reports_the_class_its_options_asked_for_and_nothing_else`;
+each calls `export_project` directly, as does
+`record::tests::recording_produces_frames_for_duration` through
+`record_project`, and no test in that binary takes the `gpu_lock()` serialiser
+`crates/tests/tests/dag_parallel.rs` uses. That is where the deadlock lives and
+it is NOT fixed here: the list carries the flag because the flag is the form that
+works. `cargo run -q -p xtask --bin requirements -- --check` reads these three
+carriers and fails if any live-audio `cargo test` line loses the flag.
 
 Never wrap a verification command in a pipe or a trailing `echo` — it replaces the
 tool's exit status with the echo's. Check the exit code of the thing you are claiming.
