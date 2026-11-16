@@ -1855,56 +1855,82 @@ mod tests {
     #[test]
     fn render_audit_line_names_every_field_of_the_export_result() {
         // One formatter, whole result, pairwise-distinctive values. Swapping
-        // `frames` and `audio_windows`, hard-coding `feature_source`, or
-        // printing `result.samples` as a literal each reddens this assertion.
+        // `frames` and `audio_windows`, hard-coding `feature_source` on the
+        // not-written branch to either enum value, or printing `result.samples`
+        // as a literal each reddens this assertion. I11's arm A2 was green
+        // because the earlier single-value fixture (`Live`) equalled the wrong
+        // arm's constant; the loop over both enum values (I12 Item 1) closes
+        // that, and the expected `feature_source` is derived from the fixture
+        // rather than a second literal.
         let missing = std::path::PathBuf::from("/tmp/flux_audit_missing_dir_zzz_9");
         assert!(
             !missing.exists(),
             "test precondition: frames_dir must not exist"
         );
-        let r = flux_app::export::ExportResult {
-            frames: 100,
-            samples: 48000,
-            frames_dir: missing.clone(),
-            wav: None,
-            video: None,
-            feature_source: flux_domain::params::FeatureSource::Live,
-            audio_windows: 93,
-        };
-        let line = super::render_audit_line(&r);
-        assert_eq!(
-            line, "rendered 100 frames, 48000 samples; audio: Live (93 windows)",
-            "audit line must name every ExportResult field, and must omit a \
-             frames_dir that was not written"
-        );
+        for src in [
+            flux_domain::params::FeatureSource::Live,
+            flux_domain::params::FeatureSource::DocumentOnly,
+        ] {
+            let r = flux_app::export::ExportResult {
+                frames: 100,
+                samples: 48000,
+                frames_dir: missing.clone(),
+                wav: None,
+                video: None,
+                feature_source: src,
+                audio_windows: 93,
+            };
+            let line = super::render_audit_line(&r);
+            let expected = format!(
+                "rendered 100 frames, 48000 samples; audio: {:?} (93 windows)",
+                src
+            );
+            assert_eq!(
+                line, expected,
+                "audit line must name every ExportResult field (feature_source={:?}), \
+                 and must omit a frames_dir that was not written",
+                src
+            );
+        }
     }
 
     #[test]
     fn render_audit_line_includes_frames_dir_only_when_written() {
         // When frames_dir exists, the same field values must yield the longer
         // line that names it. Distinctive values again: frames=7, samples=1234,
-        // windows=42, feature_source=DocumentOnly (not the default in the other
-        // test). Any field swap reddens both tests together.
+        // windows=42 (so no other arm's constant collides), and BOTH enum
+        // values of `feature_source` in turn (I11 arm A1/A3: the earlier
+        // single-value fixture `DocumentOnly` equalled the dir-written branch's
+        // wrong constant and left that mutation green). Any field swap or
+        // hard-coded enum value now reddens one iteration of this loop.
         let temp = std::env::temp_dir().join("flux_audit_frames_dir_present");
         std::fs::create_dir_all(&temp).expect("create temp dir");
-        let r = flux_app::export::ExportResult {
-            frames: 7,
-            samples: 1234,
-            frames_dir: temp.clone(),
-            wav: None,
-            video: None,
-            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
-            audio_windows: 42,
-        };
-        let line = super::render_audit_line(&r);
-        let expected = format!(
-            "rendered 7 frames, 1234 samples; frames in {}; audio: DocumentOnly (42 windows)",
-            temp.display()
-        );
-        assert_eq!(
-            line, expected,
-            "audit line must name frames_dir exactly when it was written"
-        );
+        for src in [
+            flux_domain::params::FeatureSource::Live,
+            flux_domain::params::FeatureSource::DocumentOnly,
+        ] {
+            let r = flux_app::export::ExportResult {
+                frames: 7,
+                samples: 1234,
+                frames_dir: temp.clone(),
+                wav: None,
+                video: None,
+                feature_source: src,
+                audio_windows: 42,
+            };
+            let line = super::render_audit_line(&r);
+            let expected = format!(
+                "rendered 7 frames, 1234 samples; frames in {}; audio: {:?} (42 windows)",
+                temp.display(),
+                src
+            );
+            assert_eq!(
+                line, expected,
+                "audit line must name frames_dir exactly when it was written \
+                 (feature_source={:?})",
+                src
+            );
+        }
         std::fs::remove_dir_all(&temp).ok();
     }
 

@@ -505,8 +505,10 @@ mod tests {
         assert_eq!(
             ev_live.source,
             FeatureSource::Live,
-            "evidence_at() must copy self.source, not hard-code \
-             FeatureSource::DocumentOnly (CR2 F3 site at audio_features.rs:178)"
+            "evidence_at() must copy self.source into the FrameAudioEvidence \
+             `source` field, not hard-code FeatureSource::DocumentOnly \
+             (CR2 F3 site: MediaAudioTimeline::evidence_at, the `source` \
+             initialiser of the returned FrameAudioEvidence)"
         );
         assert_eq!(ev_live.source, t_live.feature_source());
     }
