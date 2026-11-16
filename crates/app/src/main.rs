@@ -1252,6 +1252,25 @@ fn capture_start(args: &[String]) -> FluxResult<()> {
     if let Some(e) = &snapshot.error {
         println!("error: {e}");
     }
+    validate_capture_snapshot(&snapshot)
+}
+
+/// Validate that a capture snapshot represents a successful measurement.
+/// Returns an error if the snapshot has an error, produced zero frames, or is invalid.
+fn validate_capture_snapshot(snapshot: &live_audio::LiveAudioSnapshot) -> FluxResult<()> {
+    if let Some(e) = &snapshot.error {
+        return Err(capture_bad(format!("capture failed: {e}")));
+    }
+    if snapshot.frames == 0 {
+        return Err(capture_bad(
+            "capture produced zero frames; the device may be disabled or unavailable",
+        ));
+    }
+    if !snapshot.valid {
+        return Err(capture_bad(
+            "capture snapshot is not valid; measurement failed",
+        ));
+    }
     Ok(())
 }
 
@@ -1655,6 +1674,176 @@ mod tests {
         assert_eq!(e.code, flux_domain::ErrorCode::InvalidCommand);
         assert!(
             e.message.contains("configuration errors"),
+            "error must name the problem: {}",
+            e.message
+        );
+    }
+
+    #[test]
+    fn validate_capture_snapshot_rejects_zero_frames() {
+        // A snapshot with zero frames must fail validation, so capture start
+        // exits nonzero when nothing was captured.
+        let snapshot = flux_app::live_audio::LiveAudioSnapshot {
+            running: false,
+            compiled: true,
+            tap: "loopback".into(),
+            endpoint_id: "test".into(),
+            endpoint_name: "test".into(),
+            sample_rate: 48000,
+            channels: 2,
+            bits_per_sample: 16,
+            format_tag: 1,
+            float_wire: false,
+            extensible: false,
+            buffer_ms: 10,
+            period_default_ms: 10.0,
+            period_min_ms: 3.0,
+            ring_ms: 100,
+            ring_ms_effective: 100.0,
+            input_db: 0.0,
+            valid: true,
+            rms: 0.0,
+            peak: 0.0,
+            onset: false,
+            flux: 0.0,
+            bands: [0.0; 5],
+            centroid_hz: 0.0,
+            tempo_bpm: 0.0,
+            tempo_confidence: 0.0,
+            beat_phase: 0.0,
+            windows: 0,
+            onsets: 0,
+            packets: 0,
+            frames: 0, // Zero frames: must fail
+            silent_frames: 0,
+            overflow_events: 0,
+            stalled_ms: 0,
+            elapsed_ms: 1000,
+            error: None,
+            feature_source: flux_domain::params::FeatureSource::Live,
+        };
+
+        let result = super::validate_capture_snapshot(&snapshot);
+        assert!(
+            result.is_err(),
+            "zero frames must fail validation, not succeed"
+        );
+        let e = result.unwrap_err();
+        assert_eq!(e.code, flux_domain::ErrorCode::InvalidCommand);
+        assert!(
+            e.message.contains("zero frames"),
+            "error must name the problem: {}",
+            e.message
+        );
+    }
+
+    #[test]
+    fn validate_capture_snapshot_rejects_error_field() {
+        // A snapshot with an error message must fail validation.
+        let snapshot = flux_app::live_audio::LiveAudioSnapshot {
+            running: false,
+            compiled: true,
+            tap: "loopback".into(),
+            endpoint_id: "test".into(),
+            endpoint_name: "test".into(),
+            sample_rate: 48000,
+            channels: 2,
+            bits_per_sample: 16,
+            format_tag: 1,
+            float_wire: false,
+            extensible: false,
+            buffer_ms: 10,
+            period_default_ms: 10.0,
+            period_min_ms: 3.0,
+            ring_ms: 100,
+            ring_ms_effective: 100.0,
+            input_db: 0.0,
+            valid: true,
+            rms: 0.0,
+            peak: 0.0,
+            onset: false,
+            flux: 0.0,
+            bands: [0.0; 5],
+            centroid_hz: 0.0,
+            tempo_bpm: 0.0,
+            tempo_confidence: 0.0,
+            beat_phase: 0.0,
+            windows: 0,
+            onsets: 0,
+            packets: 0,
+            frames: 100,
+            silent_frames: 0,
+            overflow_events: 0,
+            stalled_ms: 0,
+            elapsed_ms: 1000,
+            error: Some("device disconnected".into()), // Error: must fail
+            feature_source: flux_domain::params::FeatureSource::Live,
+        };
+
+        let result = super::validate_capture_snapshot(&snapshot);
+        assert!(
+            result.is_err(),
+            "snapshot with error must fail validation"
+        );
+        let e = result.unwrap_err();
+        assert!(
+            e.message.contains("device disconnected"),
+            "error must include the snapshot error: {}",
+            e.message
+        );
+    }
+
+    #[test]
+    fn validate_capture_snapshot_rejects_invalid() {
+        // A snapshot with valid=false must fail validation.
+        let snapshot = flux_app::live_audio::LiveAudioSnapshot {
+            running: false,
+            compiled: true,
+            tap: "loopback".into(),
+            endpoint_id: "test".into(),
+            endpoint_name: "test".into(),
+            sample_rate: 48000,
+            channels: 2,
+            bits_per_sample: 16,
+            format_tag: 1,
+            float_wire: false,
+            extensible: false,
+            buffer_ms: 10,
+            period_default_ms: 10.0,
+            period_min_ms: 3.0,
+            ring_ms: 100,
+            ring_ms_effective: 100.0,
+            input_db: 0.0,
+            valid: false, // Invalid: must fail
+            rms: 0.0,
+            peak: 0.0,
+            onset: false,
+            flux: 0.0,
+            bands: [0.0; 5],
+            centroid_hz: 0.0,
+            tempo_bpm: 0.0,
+            tempo_confidence: 0.0,
+            beat_phase: 0.0,
+            windows: 0,
+            onsets: 0,
+            packets: 0,
+            frames: 100,
+            silent_frames: 0,
+            overflow_events: 0,
+            stalled_ms: 0,
+            elapsed_ms: 1000,
+            error: None,
+            feature_source: flux_domain::params::FeatureSource::Live,
+        };
+
+        let result = super::validate_capture_snapshot(&snapshot);
+        assert!(
+            result.is_err(),
+            "invalid snapshot must fail validation"
+        );
+        let e = result.unwrap_err();
+        assert!(
+            e.message.contains("not valid"),
             "error must name the problem: {}",
             e.message
         );
