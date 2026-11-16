@@ -445,6 +445,50 @@ fn audio_signature(project: &Project, start: RationalTime, duration: RationalTim
     s
 }
 
+/// Attach the audio evidence for this frame's exact project time and return the
+/// feature snapshot to fold into parameter resolution.
+///
+/// Until I9 this path rendered with `AudioSnapshot::default()` at every frame, so
+/// the `audio` uniform every generated shader binds was zeros. The rule now: the
+/// class named on a frame is the *run's* class — one binding, the same
+/// `timeline.feature_source()` the export reports as `ExportResult::feature_source`
+/// (export.rs:253) — stamped explicitly in **both** arms. Before this only the
+/// has-evidence arm wrote `ctx.feature_source`, so a frame whose hop had not
+/// closed yet kept whatever `FrameContext::for_project` put there
+/// (crates/engine/src/frame.rs:135, the `DocumentOnly` struct default) even when
+/// the run it belongs to reports another class: CR3 defect 2. That default only
+/// stayed invisible because every run the harness can currently produce *is*
+/// `DocumentOnly`, so the gate below has to hand in a `Live` timeline to see the
+/// difference at all. When no timeline was handed in there is no run-level class
+/// to take, and the frame keeps the baseline it was constructed with — stated
+/// here, not implied by a fall-through.
+///
+/// Split out of `render_single_frame` because nothing downstream of a rendered
+/// pixel is reachable without a GPU; as a function of `(ctx, timeline)` the
+/// both-arms rule is gateable deterministically.
+fn stamp_audio_evidence(
+    ctx: &mut FrameContext,
+    audio: Option<&crate::audio_features::MediaAudioTimeline>,
+) -> flux_domain::params::FeatureSnapshot {
+    let run_source = audio.map(|t| t.feature_source());
+    match audio.and_then(|t| t.evidence_at(ctx.project_time)) {
+        Some(ev) => {
+            ctx.audio = ev.audio;
+            ctx.music = ev.music;
+            if let Some(source) = run_source {
+                ctx.feature_source = source;
+            }
+            ev.features
+        }
+        None => {
+            if let Some(source) = run_source {
+                ctx.feature_source = source;
+            }
+            flux_domain::params::FeatureSnapshot::default()
+        }
+    }
+}
+
 fn render_single_frame(
     gpu: &Gpu,
     catalog: &Catalog,
@@ -466,20 +510,10 @@ fn render_single_frame(
     ctx.output_height = height;
     ctx.source_width = width;
     ctx.source_height = height;
-    // Attach the audio evidence for this frame's exact project time. Until now
-    // this path always rendered with `AudioSnapshot::default()`, so the `audio`
-    // uniform every generated shader binds was zeros. When there is no audio
-    // timeline — a generator-only project, or a caller that has not decoded any
-    // — the silent document-only baseline is kept and *named*, not faked.
-    let snapshot = match audio.and_then(|t| t.evidence_at(ctx.project_time)) {
-        Some(ev) => {
-            ctx.audio = ev.audio;
-            ctx.music = ev.music;
-            ctx.feature_source = ev.source;
-            ev.features
-        }
-        None => flux_domain::params::FeatureSnapshot::default(),
-    };
+    // Attach the audio evidence for this frame's exact project time, and name
+    // the run's source class on the frame whether or not a hop had closed.
+    // See `stamp_audio_evidence` for why both arms must write it.
+    let snapshot = stamp_audio_evidence(&mut ctx, audio);
     let ctx = &ctx;
     // Pick the TOP-MOST visible clip at this time (last in bottom-to-top order),
     // matching normal compositor semantics: a newly added scene on a higher track
@@ -1282,5 +1316,89 @@ mod tests {
             "a project with no audio timeline must report zero windows"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stamp_audio_evidence_writes_the_runs_class_in_both_arms() {
+        // CR3 defect 2. The export makes ONE class claim for a run
+        // (`timeline.feature_source()`, the value reported as
+        // `ExportResult::feature_source`), so every frame of that run must be
+        // stamped from that binding — including a frame whose hop has not closed.
+        // The fallback arm used to write nothing and keep
+        // `FrameContext::for_project`'s struct default, which is `DocumentOnly`:
+        // a constant that agrees with every run the harness can currently
+        // produce, which is exactly why this gate hands in a `Live` timeline.
+        // No GPU: the stamp is a function of (ctx, timeline).
+        use flux_domain::params::FeatureSource;
+        let sr = 48_000u32;
+        let tone: Vec<f32> = (0..(sr as usize) * 2)
+            .map(|i| {
+                let n = (i / 2) as f32;
+                (std::f32::consts::TAU * 300.0 * n / sr as f32).sin() * 0.5
+            })
+            .collect();
+        let timeline = crate::audio_features::MediaAudioTimeline::from_stereo_mix(
+            RationalTime::ZERO,
+            sr,
+            &tone,
+            true,
+            FeatureSource::Live,
+        );
+        // Fixture pre-checks. Without them the assertions below could pass
+        // vacuously: hops must have closed, the timeline must carry the class,
+        // the frame default must be the *other* class (otherwise a deleted stamp
+        // agrees with the run and cannot be observed), and `valid` must separate
+        // the two arms.
+        assert!(
+            timeline.windows() > 1,
+            "fixture closed only {} hops",
+            timeline.windows()
+        );
+        assert_eq!(timeline.feature_source(), FeatureSource::Live);
+        let project = flux_domain::Project::new("stamp", 1);
+        assert_eq!(
+            FrameContext::for_project(&project, RationalTime::ZERO, 0).feature_source,
+            FeatureSource::DocumentOnly,
+            "fixture bug: the frame default no longer differs from the run's \
+             class, so deleting a stamp could not be observed by this gate"
+        );
+        assert!(
+            !flux_domain::params::FeatureSnapshot::default().valid,
+            "fixture bug: the silent baseline must be distinguishable from evidence"
+        );
+
+        // Arm 1 — no closed hop yet: the fallback arm.
+        let mut ctx = FrameContext::for_project(&project, RationalTime::ZERO, 0);
+        let snap = stamp_audio_evidence(&mut ctx, Some(&timeline));
+        assert_eq!(snap, flux_domain::params::FeatureSnapshot::default());
+        assert_eq!(
+            ctx.feature_source,
+            FeatureSource::Live,
+            "the no-evidence arm must stamp the run's class explicitly; leaving \
+             it out is CR3 defect 2 — the frame silently keeps the struct default"
+        );
+
+        // Arm 2 — one second in, hops are closed: the has-evidence arm.
+        let mut ctx = FrameContext::for_project(&project, RationalTime::from_secs(1), 0);
+        let snap = stamp_audio_evidence(&mut ctx, Some(&timeline));
+        assert!(
+            snap.valid,
+            "fixture bug: t = 1 s must land inside a closed hop, or this arm \
+             silently re-measures arm 1"
+        );
+        assert_eq!(
+            ctx.feature_source,
+            FeatureSource::Live,
+            "the has-evidence arm must take the class from the same run binding"
+        );
+
+        // Arm 3 — no timeline handed in at all: the baseline is kept and named.
+        // This arm cannot redden under a stamp-deletion mutation (there is no
+        // run-level class to disagree with the default), so it documents intent
+        // rather than claiming to gate it.
+        let mut ctx = FrameContext::for_project(&project, RationalTime::from_secs(1), 0);
+        let snap = stamp_audio_evidence(&mut ctx, None);
+        assert_eq!(snap, flux_domain::params::FeatureSnapshot::default());
+        assert_eq!(ctx.feature_source, FeatureSource::DocumentOnly);
     }
 }
