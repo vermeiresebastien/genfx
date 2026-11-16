@@ -114,7 +114,9 @@ pub struct FrameContext {
 impl FrameContext {
     /// The document-only frame context: no audio evidence has been supplied, so
     /// the audio snapshot is the silent baseline and the recorded source says
-    /// so. Callers that do have audio use [`FrameContext::with_audio`].
+    /// so. Callers that have audio mutate `ctx.audio`, `ctx.music`, and
+    /// `ctx.feature_source` in place after this call — the seam is the field
+    /// assignment, not a separate constructor.
     pub fn for_project(project: &Project, project_time: RationalTime, frame_index: u64) -> Self {
         let size = project.settings.size;
         Self {
@@ -135,25 +137,6 @@ impl FrameContext {
             sim_dt: project.settings.simulation_step.as_f64() as f32,
             sim_interpolation: 0.0,
         }
-    }
-
-    /// The same frame context with real audio evidence attached, as produced by
-    /// decoding the project's media audio through `flux_audio::Analyzer`. This
-    /// is the seam the export and preview paths use; it replaces the historical
-    /// hard-stubbed `AudioSnapshot::default()`.
-    pub fn with_audio(
-        project: &Project,
-        project_time: RationalTime,
-        frame_index: u64,
-        audio: AudioSnapshot,
-        music: MusicState,
-        source: flux_domain::params::FeatureSource,
-    ) -> Self {
-        let mut ctx = Self::for_project(project, project_time, frame_index);
-        ctx.audio = audio;
-        ctx.music = music;
-        ctx.feature_source = source;
-        ctx
     }
 
     /// Time split for the 96-byte ABI: high = floor(seconds/1024)*1024 (used as

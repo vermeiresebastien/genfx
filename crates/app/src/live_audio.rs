@@ -31,7 +31,7 @@
 //! property the owner cannot see.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -60,6 +60,11 @@ pub const ENV_DEVICE: &str = "FLUX_LIVE_AUDIO_DEVICE";
 pub const ENV_RING_MS: &str = "FLUX_LIVE_AUDIO_RING_MS";
 /// Explicit input trim in dBFS. Default `+0.0`, never auto-adjusted.
 pub const ENV_INPUT_DB: &str = "FLUX_LIVE_AUDIO_INPUT_DB";
+/// Where the status sidecar lives. Unset means one machine-global rendezvous
+/// file, which is the contract `flux capture status`/`stop` depend on; naming a
+/// path here is how a second deliberate run — or a second user on this machine —
+/// gets its own record instead of silently sharing the first one's.
+pub const ENV_STATUS_PATH: &str = "FLUX_LIVE_AUDIO_STATUS";
 
 pub const DEFAULT_MODE: LiveMode = LiveMode::Off;
 pub const DEFAULT_RING_MS: u32 = 100;
@@ -382,10 +387,13 @@ struct Shared {
     /// When the sidecar was last rewritten, so publishing at hop rate does not
     /// mean writing a file at hop rate.
     last_status_write_ms: AtomicU64,
+    /// Which record this run publishes itself into. Held as a value, not
+    /// re-resolved per write, so a test never lands on another test's file.
+    sidecar: Sidecar,
 }
 
 impl Shared {
-    fn new(ring_samples: usize) -> Self {
+    fn with_sidecar(ring_samples: usize, sidecar: Sidecar) -> Self {
         Self {
             stop: AtomicBool::new(false),
             capture_alive: AtomicBool::new(false),
@@ -397,6 +405,7 @@ impl Shared {
             slot: Mutex::new(None),
             error: Mutex::new(None),
             last_status_write_ms: AtomicU64::new(0),
+            sidecar,
         }
     }
 
@@ -453,8 +462,16 @@ impl LiveAudioBridge {
     /// A device that cannot be opened is an error from this call, exactly like
     /// `OscBridge`'s failed bind — never a bridge that runs and hears nothing.
     pub fn start(config: &LiveAudioConfig) -> FluxResult<Self> {
+        Self::start_at(config, Sidecar::default())
+    }
+
+    /// `start`, with the record file supplied rather than resolved. Production
+    /// callers never see this: a test that reaches the bridge has to publish into
+    /// its own sidecar, or it is asserting against whatever another thread's run
+    /// last wrote.
+    fn start_at(config: &LiveAudioConfig, sidecar: Sidecar) -> FluxResult<Self> {
         let capture_config = config.capture_config()?;
-        let shared = Arc::new(Shared::new(config.ring_samples()));
+        let shared = Arc::new(Shared::with_sidecar(config.ring_samples(), sidecar));
         let started = Instant::now();
         let (tx, rx) = mpsc::channel::<FluxResult<StreamInfo>>();
 
@@ -462,7 +479,7 @@ impl LiveAudioBridge {
         // this, a `stopRequested` left behind by `flux capture stop` at the end
         // of the previous run kills the first poll of this one, and the failure
         // looks like a device that will not stream.
-        claim_status_file(config);
+        shared.sidecar.claim(config);
 
         let pump_shared = Arc::clone(&shared);
         let pump_config = capture_config.clone();
@@ -478,7 +495,9 @@ impl LiveAudioBridge {
             Ok(Ok(info)) => info,
             Ok(Err(e)) => {
                 let _ = capture.join();
-                write_failed_start(config, &format!("{e:?}"));
+                shared
+                    .sidecar
+                    .record_failed_start(config, &format!("{e:?}"));
                 return Err(e);
             }
             Err(_) => {
@@ -486,7 +505,7 @@ impl LiveAudioBridge {
                 let detail = shared.error().unwrap_or_else(|| {
                     "the capture thread ended before it reported a stream".to_string()
                 });
-                write_failed_start(config, &detail);
+                shared.sidecar.record_failed_start(config, &detail);
                 return Err(invalid(detail));
             }
         };
@@ -496,7 +515,7 @@ impl LiveAudioBridge {
             &info,
             flux_platform::capture::LIVE_AUDIO_COMPILED,
         ));
-        write_status_file(&shared.snapshot().unwrap_or_default());
+        shared.sidecar.write(&shared.snapshot().unwrap_or_default());
 
         let feed_shared = Arc::clone(&shared);
         let feed_rate = info.format.sample_rate;
@@ -596,7 +615,7 @@ impl LiveAudioBridge {
         let mut s = self.snapshot().unwrap_or_default();
         fold(&self.shared, &mut s, self.started);
         s.running = false;
-        write_status_file(&s);
+        self.shared.sidecar.write(&s);
         s
     }
 
@@ -699,7 +718,7 @@ fn capture_thread(
     let mut tmp: Vec<f32> = Vec::with_capacity(8192);
     let mut last_check = Instant::now();
     loop {
-        if shared.stop.load(Ordering::Acquire) || stop_requested(&mut last_check) {
+        if shared.stop.load(Ordering::Acquire) || shared.sidecar.stop_requested(&mut last_check) {
             break;
         }
         tmp.clear();
@@ -799,7 +818,7 @@ fn throttle_status_write(shared: &Arc<Shared>, started: Instant) {
     if now.saturating_sub(last) >= STATUS_WRITE_INTERVAL_MS {
         shared.last_status_write_ms.store(now, Ordering::Relaxed);
         if let Some(s) = shared.snapshot() {
-            write_status_file(&s);
+            shared.sidecar.write(&s);
         }
     }
 }
@@ -823,157 +842,232 @@ fn endpoint_name_for(id: &str) -> String {
 
 /// Where a running bridge records itself, so `flux capture status` and
 /// `flux capture stop` — separate processes — can reach it. One machine, one
-/// live capture at a time: that is the contract this file makes, and the CLI
-/// says so rather than pretending to multiplex.
+/// live capture at a time unless `FLUX_LIVE_AUDIO_STATUS` says otherwise: that is
+/// the contract this file makes, and the CLI says so rather than pretending to
+/// multiplex.
+///
+/// Resolved once per process, by whoever starts a run or issues a command. Every
+/// other path takes the resulting [`Sidecar`] as a value — the module header's
+/// "no process-global state" claim is only true if nothing re-reads the
+/// environment mid-run.
 pub fn status_file() -> PathBuf {
-    std::env::temp_dir().join("flux-live-audio.json")
+    match std::env::var_os(ENV_STATUS_PATH) {
+        Some(raw) if !raw.is_empty() => PathBuf::from(raw),
+        _ => std::env::temp_dir().join("flux-live-audio.json"),
+    }
 }
 
-/// Mark the sidecar as owned by this process, and as not wanting a stop, before
-/// any thread of this run reads it. `flux capture stop` leaves `stopRequested`
-/// set; a new run that did not clear it first would be killed by the last
-/// frame of the previous one. The wire facts are not known yet, so the claimed
-/// record says `running: true, valid: false`: a capture that is starting, not a
-/// capture that has measured.
-fn claim_status_file(config: &LiveAudioConfig) {
-    // `false`, not whatever the last run left: see the doc comment above.
-    write_status_file_with(
-        &LiveAudioSnapshot {
-            running: true,
-            compiled: LIVE_AUDIO_COMPILED,
-            tap: config.mode.as_str().to_string(),
-            ring_ms: config.ring_ms,
-            input_db: config.input_db,
-            feature_source: FeatureSource::Live,
-            ..Default::default()
-        },
-        false,
-    );
+/// One sidecar path, held as a value.
+///
+/// This type exists because the suite used to have every test in this file write
+/// and delete the *same* machine-global file, mid-assertion: `cargo test -p
+/// flux-app --features live-audio` failed 4 of 58 with the default parallel
+/// runner and passed only with `--test-threads=1` (measured at `9e113b4`, and the
+/// failure set was not reproducible — one sibling's `remove_file` landed inside
+/// another's `read`). Requiring a runner flag would have hidden the same defect
+/// in production, where two `flux capture` runs collide exactly the same way; the
+/// fix is that a run carries its own path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Sidecar {
+    path: PathBuf,
 }
 
-/// Record a start that produced no stream, so a status read after a failed
-/// `start` says what failed instead of keeping the `running: true` written by
-/// the claim that preceded it.
-fn write_failed_start(config: &LiveAudioConfig, detail: &str) {
-    write_status_file_with(
-        &LiveAudioSnapshot {
-            running: false,
-            compiled: LIVE_AUDIO_COMPILED,
-            tap: config.mode.as_str().to_string(),
-            ring_ms: config.ring_ms,
-            input_db: config.input_db,
-            valid: false,
-            error: Some(detail.to_string()),
-            feature_source: FeatureSource::Live,
-            ..Default::default()
-        },
-        false,
-    );
+impl Default for Sidecar {
+    fn default() -> Self {
+        Self {
+            path: status_file(),
+        }
+    }
 }
 
-/// Is a stop pending for whichever run owns the sidecar right now?
-fn pending_stop_request() -> bool {
-    read_status_file()
-        .and_then(|v| v.get("stopRequested").and_then(|b| b.as_bool()))
-        .unwrap_or(false)
-}
+impl Sidecar {
+    /// A file no other test can be touching: named after the test thread, which
+    /// under libtest is the test's own path, and removed before and after.
+    /// Production code must not call this — it is `#[cfg(test)]`-only so an
+    /// isolated path can never be mistaken for the rendezvous.
+    #[cfg(test)]
+    fn for_test() -> Self {
+        use std::sync::atomic::AtomicUsize;
+        static ANON: AtomicUsize = AtomicUsize::new(0);
+        let name = std::thread::current()
+            .name()
+            .map(|n| n.replace("::", "-"))
+            .unwrap_or_else(|| format!("anon-{}", ANON.fetch_add(1, Ordering::Relaxed)));
+        let path = std::env::temp_dir().join(format!(
+            "flux-live-audio-test-{}-{}.json",
+            name,
+            std::process::id()
+        ));
+        let sidecar = Self { path };
+        let _ = std::fs::remove_file(&sidecar.path);
+        sidecar
+    }
 
-/// Publish a reading. A stop request that arrived while this run was measuring
-/// is carried forward instead of being rewritten to `false`: the status writer
-/// runs every `STATUS_WRITE_INTERVAL_MS` and the reader every
-/// `STOP_CHECK_INTERVAL_MS`, so a plain reset put the control channel back into
-/// a race — measured here, where the capture thread saw the request and ended
-/// the stream while the CLI's own wait ignored it.
-fn write_status_file(snapshot: &LiveAudioSnapshot) {
-    write_status_file_with(snapshot, pending_stop_request());
-}
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 
-fn write_status_file_with(snapshot: &LiveAudioSnapshot, stop_requested: bool) {
-    let path = status_file();
-    // The rate is written here rather than recomputed by whoever reads the
-    // file, so `flux capture status` reports what the bridge measured over the
-    // span it actually ran.
-    let mut status = snapshot.to_json();
-    if let Some(obj) = status.as_object_mut() {
-        let span = Duration::from_millis(snapshot.elapsed_ms);
-        obj.insert(
-            "measuredFramesPerSecond".into(),
-            serde_json::json!(snapshot.measured_rate(span)),
+    /// Mark the sidecar as owned by this process, and as not wanting a stop,
+    /// before any thread of this run reads it. `flux capture stop` leaves
+    /// `stopRequested` set; a new run that did not clear it first would be killed
+    /// by the last frame of the previous one. The wire facts are not known yet, so
+    /// the claimed record says `running: true, valid: false`: a capture that is
+    /// starting, not a capture that has measured.
+    fn claim(&self, config: &LiveAudioConfig) {
+        // `false`, not whatever the last run left: see the doc comment above.
+        self.write_with(
+            &LiveAudioSnapshot {
+                running: true,
+                compiled: LIVE_AUDIO_COMPILED,
+                tap: config.mode.as_str().to_string(),
+                ring_ms: config.ring_ms,
+                input_db: config.input_db,
+                feature_source: FeatureSource::Live,
+                ..Default::default()
+            },
+            false,
         );
     }
-    if let Ok(text) = serde_json::to_string_pretty(&serde_json::json!({
-        "pid": std::process::id(),
-        "stopRequested": stop_requested,
-        "status": status,
-    })) {
-        // Best effort: a status file that will not write must not take a live
-        // performance down with it. The error is visible on the console path.
-        let _ = std::fs::write(&path, text);
+
+    /// Record a start that produced no stream, so a status read after a failed
+    /// `start` says what failed instead of keeping the `running: true` written by
+    /// the claim that preceded it.
+    fn record_failed_start(&self, config: &LiveAudioConfig, detail: &str) {
+        self.write_with(
+            &LiveAudioSnapshot {
+                running: false,
+                compiled: LIVE_AUDIO_COMPILED,
+                tap: config.mode.as_str().to_string(),
+                ring_ms: config.ring_ms,
+                input_db: config.input_db,
+                valid: false,
+                error: Some(detail.to_string()),
+                feature_source: FeatureSource::Live,
+                ..Default::default()
+            },
+            false,
+        );
     }
-}
 
-/// Read the sidecar, if any. `None` means no live capture has reported itself.
-pub fn read_status_file() -> Option<serde_json::Value> {
-    let text = std::fs::read_to_string(status_file()).ok()?;
-    serde_json::from_str(&text).ok()
-}
-
-/// Has another process asked the running capture to stop? Checked on an
-/// interval, because it is a control channel and not a sample path.
-fn stop_requested(last_check: &mut Instant) -> bool {
-    if last_check.elapsed() < Duration::from_millis(STOP_CHECK_INTERVAL_MS) {
-        return false;
+    /// Is a stop pending for whichever run owns this sidecar right now?
+    fn pending_stop_request(&self) -> bool {
+        self.read()
+            .and_then(|v| v.get("stopRequested").and_then(|b| b.as_bool()))
+            .unwrap_or(false)
     }
-    *last_check = Instant::now();
-    read_status_file()
-        .and_then(|v| v.get("stopRequested")?.as_bool())
-        .unwrap_or(false)
-}
 
-/// `flux capture stop`: mark the sidecar so the running bridge exits. Returns
-/// false when no bridge has ever written one.
-pub fn request_external_stop() -> bool {
-    match read_status_file() {
-        Some(mut v) => {
-            if let Some(obj) = v.as_object_mut() {
-                obj.insert("stopRequested".into(), serde_json::json!(true));
-            }
-            let text = v.to_string();
-            std::fs::write(status_file(), text).is_ok()
+    /// Publish a reading. A stop request that arrived while this run was measuring
+    /// is carried forward instead of being rewritten to `false`: the status writer
+    /// runs every `STATUS_WRITE_INTERVAL_MS` and the reader every
+    /// `STOP_CHECK_INTERVAL_MS`, so a plain reset put the control channel back into
+    /// a race — measured here, where the capture thread saw the request and ended
+    /// the stream while the CLI's own wait ignored it.
+    fn write(&self, snapshot: &LiveAudioSnapshot) {
+        let stop = self.pending_stop_request();
+        self.write_with(snapshot, stop);
+    }
+
+    fn write_with(&self, snapshot: &LiveAudioSnapshot, stop_requested: bool) {
+        // The rate is written here rather than recomputed by whoever reads the
+        // file, so `flux capture status` reports what the bridge measured over the
+        // span it actually ran.
+        let mut status = snapshot.to_json();
+        if let Some(obj) = status.as_object_mut() {
+            let span = Duration::from_millis(snapshot.elapsed_ms);
+            obj.insert(
+                "measuredFramesPerSecond".into(),
+                serde_json::json!(snapshot.measured_rate(span)),
+            );
         }
-        None => false,
+        if let Ok(text) = serde_json::to_string_pretty(&serde_json::json!({
+            "pid": std::process::id(),
+            "stopRequested": stop_requested,
+            "status": status,
+        })) {
+            // Best effort: a status file that will not write must not take a live
+            // performance down with it. The error is visible on the console path.
+            let _ = std::fs::write(&self.path, text);
+        }
     }
+
+    /// Read the sidecar, if any. `None` means no live capture has reported itself.
+    fn read(&self) -> Option<serde_json::Value> {
+        let text = std::fs::read_to_string(&self.path).ok()?;
+        serde_json::from_str(&text).ok()
+    }
+
+    /// Has another process asked the running capture to stop? Checked on an
+    /// interval, because it is a control channel and not a sample path.
+    fn stop_requested(&self, last_check: &mut Instant) -> bool {
+        if last_check.elapsed() < Duration::from_millis(STOP_CHECK_INTERVAL_MS) {
+            return false;
+        }
+        *last_check = Instant::now();
+        self.read()
+            .and_then(|v| v.get("stopRequested")?.as_bool())
+            .unwrap_or(false)
+    }
+
+    /// `flux capture stop`: mark the sidecar so the running bridge exits. Returns
+    /// false when no bridge has ever written one.
+    fn request_external_stop(&self) -> bool {
+        match self.read() {
+            Some(mut v) => {
+                if let Some(obj) = v.as_object_mut() {
+                    obj.insert("stopRequested".into(), serde_json::json!(true));
+                }
+                let text = v.to_string();
+                std::fs::write(&self.path, text).is_ok()
+            }
+            None => false,
+        }
+    }
+
+    /// Sleep `budget`, but come back early when another process has asked for a
+    /// stop. `--secs` is a ceiling, not a promise to keep a stopped capture alive:
+    /// measured here, `flux capture stop` ended the stream at 4.9 s of a
+    /// `capture start --secs 20` run and the CLI still slept to 20.1 s, publishing
+    /// `stalledMs=15212` for a take that had already been stopped.
+    ///
+    /// Returns the span actually waited, so the rate in the report is computed over
+    /// the run that happened rather than the run that was asked for.
+    fn wait_or_stop(&self, budget: Duration) -> Duration {
+        let started = Instant::now();
+        let mut last_check = started;
+        let step = Duration::from_millis(STOP_CHECK_INTERVAL_MS.max(1));
+        while started.elapsed() < budget {
+            if self.stop_requested(&mut last_check) {
+                break;
+            }
+            let left = budget.saturating_sub(started.elapsed());
+            std::thread::sleep(left.min(step));
+        }
+        started.elapsed()
+    }
+}
+
+/// Free-function view of [`Sidecar::read`], for callers that mean the machine's
+/// rendezvous file and have no run of their own to carry a path.
+pub fn read_status_file() -> Option<serde_json::Value> {
+    Sidecar::default().read()
+}
+
+/// Free-function view of [`Sidecar::request_external_stop`].
+pub fn request_external_stop() -> bool {
+    Sidecar::default().request_external_stop()
 }
 
 /// A short measurement run, for the CLI: start, wait at most `secs`, stop, and
 /// hand back the final reading plus the span it covers.
 pub fn measure(config: &LiveAudioConfig, secs: u32) -> FluxResult<(LiveAudioSnapshot, Duration)> {
-    let bridge = LiveAudioBridge::start(config)?;
-    let span = wait_or_stop(Duration::from_secs(u64::from(secs.max(1))));
+    // Resolved once, so the run publishes into and the CLI waits on the same
+    // record — a second `status_file()` call could not disagree today, but it
+    // should not be able to.
+    let sidecar = Sidecar::default();
+    let bridge = LiveAudioBridge::start_at(config, sidecar.clone())?;
+    let span = sidecar.wait_or_stop(Duration::from_secs(u64::from(secs.max(1))));
     let snapshot = bridge.stop();
     Ok((snapshot, span))
-}
-
-/// Sleep `budget`, but come back early when another process has asked for a
-/// stop. `--secs` is a ceiling, not a promise to keep a stopped capture alive:
-/// measured here, `flux capture stop` ended the stream at 4.9 s of a
-/// `capture start --secs 20` run and the CLI still slept to 20.1 s, publishing
-/// `stalledMs=15212` for a take that had already been stopped.
-///
-/// Returns the span actually waited, so the rate in the report is computed over
-/// the run that happened rather than the run that was asked for.
-fn wait_or_stop(budget: Duration) -> Duration {
-    let started = Instant::now();
-    let mut last_check = started;
-    let step = Duration::from_millis(STOP_CHECK_INTERVAL_MS.max(1));
-    while started.elapsed() < budget {
-        if stop_requested(&mut last_check) {
-            break;
-        }
-        let left = budget.saturating_sub(started.elapsed());
-        std::thread::sleep(left.min(step));
-    }
-    started.elapsed()
 }
 
 #[cfg(test)]
@@ -1056,7 +1150,10 @@ mod tests {
         assert!(!is_stalled(STALL_LIMIT_MS));
         assert!(is_stalled(STALL_LIMIT_MS + 1));
 
-        let shared = Arc::new(Shared::new(100 * SAMPLES_PER_MS_CEILING));
+        let shared = Arc::new(Shared::with_sidecar(
+            100 * SAMPLES_PER_MS_CEILING,
+            Sidecar::for_test(),
+        ));
         shared.publish(LiveAudioSnapshot {
             running: true,
             valid: true,
@@ -1092,7 +1189,7 @@ mod tests {
         assert_eq!(ring.dropped(), 1, "one overflow event for one overrun");
         ring.write_mono(&[0.2; 40]);
         assert_eq!(ring.dropped(), 2);
-        let shared = Arc::new(Shared::new(16));
+        let shared = Arc::new(Shared::with_sidecar(16, Sidecar::for_test()));
         // The overflow has to happen in the ring `fold` actually reads, or the
         // test proves nothing about the status slot.
         shared.ring.write_mono(&[0.1; 40]);
@@ -1198,15 +1295,23 @@ mod tests {
     #[cfg(feature = "live-audio")]
     #[test]
     fn an_unknown_endpoint_fails_from_start_rather_than_running_deaf() {
+        let sidecar = Sidecar::for_test();
         let cfg = LiveAudioConfig {
             mode: LiveMode::Mic,
             device_id: Some("no-such-endpoint".into()),
             ..Default::default()
         };
-        let Err(e) = LiveAudioBridge::start(&cfg) else {
+        let Err(e) = LiveAudioBridge::start_at(&cfg, sidecar.clone()) else {
             panic!("a made-up endpoint must not start a bridge");
         };
         assert_eq!(e.code, flux_domain::ErrorCode::AudioDeviceLost);
+        // The record of that start must not claim a capture is running. Asserted
+        // here, against a file only this test can see, in the build that has the
+        // real device layer — not only in the stub build below.
+        let v = sidecar.read().expect("the failed start recorded itself");
+        assert_eq!(v["status"]["running"].as_bool(), Some(false));
+        assert_eq!(v["status"]["valid"].as_bool(), Some(false));
+        let _ = std::fs::remove_file(sidecar.path());
     }
 
     /// The same request against a build that has no capture apparatus answers
@@ -1217,11 +1322,12 @@ mod tests {
     #[test]
     fn a_start_without_the_apparatus_names_the_feature_instead_of_running_deaf() {
         assert!(!LIVE_AUDIO_COMPILED);
+        let sidecar = Sidecar::for_test();
         let cfg = LiveAudioConfig {
             mode: LiveMode::Loopback,
             ..Default::default()
         };
-        let Err(e) = LiveAudioBridge::start(&cfg) else {
+        let Err(e) = LiveAudioBridge::start_at(&cfg, sidecar.clone()) else {
             panic!("a build with no capture must not report a running bridge");
         };
         assert_eq!(e.code, flux_domain::ErrorCode::SdkMissing);
@@ -1231,22 +1337,23 @@ mod tests {
         );
         // And the sidecar must say the same thing, not keep the `running: true`
         // the claim wrote a moment earlier.
-        let v = read_status_file().expect("the failed start recorded itself");
+        let v = sidecar.read().expect("the failed start recorded itself");
         assert_eq!(v["status"]["running"].as_bool(), Some(false));
         assert_eq!(v["status"]["valid"].as_bool(), Some(false));
         assert!(v["status"]["error"]
             .as_str()
             .unwrap_or_default()
             .contains("live-audio"));
+        let _ = std::fs::remove_file(sidecar.path());
     }
 
     #[test]
     fn a_stop_request_lands_in_the_sidecar_a_running_bridge_reads() {
-        let path = status_file();
-        // Start from no record at all: the sidecar is one per machine, so a
-        // file left behind by an earlier test in this file would say
-        // `stopRequested` from a run that has already finished.
-        let _ = std::fs::remove_file(&path);
+        // One file per test, named after this test. It used to be `status_file()`
+        // — the machine-global rendezvous — which every test in this file wrote
+        // and deleted underneath the others: the default parallel invocation
+        // failed here and in three siblings, and only `--test-threads=1` hid it.
+        let sidecar = Sidecar::for_test();
         // Write a status as if a bridge were alive, then ask it to stop. This
         // is the whole cross-process control channel: `start` publishes the
         // same shape from a real device, and `stop` only flips one field.
@@ -1258,8 +1365,8 @@ mod tests {
             feature_source: FeatureSource::Live,
             ..Default::default()
         };
-        write_status_file(&snapshot);
-        let before = read_status_file().expect("the sidecar the bridge would write");
+        sidecar.write(&snapshot);
+        let before = sidecar.read().expect("the sidecar the bridge would write");
         assert_eq!(before["pid"].as_u64(), Some(u64::from(std::process::id())));
         assert_eq!(
             before["stopRequested"].as_bool(),
@@ -1268,24 +1375,23 @@ mod tests {
         );
         assert_eq!(before["status"]["sampleRate"].as_u64(), Some(48_000));
         assert!(
-            request_external_stop(),
+            sidecar.request_external_stop(),
             "the sidecar exists, so the stop request must have landed"
         );
-        let after = read_status_file().expect("still there after stop");
+        let after = sidecar.read().expect("still there after stop");
         assert_eq!(after["stopRequested"].as_bool(), Some(true));
         assert_eq!(
             after["status"]["sampleRate"].as_u64(),
             Some(48_000),
             "stopping must not discard the last measurement"
         );
-        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(sidecar.path());
     }
 
-    // Every test below reaches the sidecar through these helpers. That path is
-    // process-global by design — it is how a second process reaches the capture
-    // — so the workspace suite runs `--test-threads=1`; running this file's
-    // tests in parallel is not supported and is noted as a residual risk rather
-    // than papered over.
+    // Every test below reaches a sidecar through a `Sidecar` value it created
+    // itself. The production path stays machine-global (`status_file()`), because
+    // that is how `flux capture status` and `flux capture stop` reach a run from a
+    // different process; what is no longer shared is the test suite.
 
     /// A pending stop is an instruction to this process, not a field of the
     /// reading. Republishing it as `false` is how `flux capture stop` is lost:
@@ -1293,7 +1399,7 @@ mod tests {
     /// the request sat in a race against its own process.
     #[test]
     fn a_status_write_carries_a_pending_stop_request_forward() {
-        let _ = std::fs::remove_file(status_file());
+        let sidecar = Sidecar::for_test();
         let snapshot = LiveAudioSnapshot {
             running: true,
             compiled: flux_platform::capture::LIVE_AUDIO_COMPILED,
@@ -1302,39 +1408,42 @@ mod tests {
             feature_source: FeatureSource::Live,
             ..Default::default()
         };
-        write_status_file(&snapshot);
+        sidecar.write(&snapshot);
         assert_eq!(
-            read_status_file().expect("sidecar")["stopRequested"].as_bool(),
+            sidecar.read().expect("sidecar")["stopRequested"].as_bool(),
             Some(false),
             "a reading published before any stop must not mean stop"
         );
-        assert!(request_external_stop(), "the stop request must land");
+        assert!(
+            sidecar.request_external_stop(),
+            "the stop request must land"
+        );
         // The same run publishes the next frame 250 ms later.
-        write_status_file(&LiveAudioSnapshot {
+        sidecar.write(&LiveAudioSnapshot {
             elapsed_ms: 250,
             ..snapshot
         });
         assert_eq!(
-            read_status_file().expect("sidecar after a publish")["stopRequested"].as_bool(),
+            sidecar.read().expect("sidecar after a publish")["stopRequested"].as_bool(),
             Some(true),
             "a status write erased a stop request that had already landed"
         );
         assert_eq!(
-            read_status_file().expect("sidecar")["status"]["elapsedMs"].as_u64(),
+            sidecar.read().expect("sidecar")["status"]["elapsedMs"].as_u64(),
             Some(250),
             "carrying the stop forward must not discard the new reading"
         );
         // Only a new run's claim resets it.
-        claim_status_file(&LiveAudioConfig {
+        sidecar.claim(&LiveAudioConfig {
             mode: LiveMode::Loopback,
             ..Default::default()
         });
         assert_eq!(
-            read_status_file().expect("claimed sidecar")["stopRequested"].as_bool(),
+            sidecar.read().expect("claimed sidecar")["stopRequested"].as_bool(),
             Some(false),
             "the previous run's stop must not be inherited"
         );
-        let _ = std::fs::remove_file(status_file());
+        let _ = std::fs::remove_file(sidecar.path());
     }
 
     /// `--secs` is a ceiling. Measured against a device, an unconditional sleep
@@ -1342,8 +1451,8 @@ mod tests {
     /// `capture stop` had already ended its stream at 4.9 s.
     #[test]
     fn an_external_stop_ends_the_cli_wait_before_its_deadline() {
-        let _ = std::fs::remove_file(status_file());
-        write_status_file(&LiveAudioSnapshot {
+        let sidecar = Sidecar::for_test();
+        sidecar.write(&LiveAudioSnapshot {
             running: true,
             tap: "mic".into(),
             sample_rate: 48_000,
@@ -1354,20 +1463,23 @@ mod tests {
         // Nobody asks, so the whole budget is spent: the ceiling is not an
         // estimate the CLI is free to shorten.
         let budget = Duration::from_millis(200);
-        let waited = wait_or_stop(budget);
+        let waited = sidecar.wait_or_stop(budget);
         assert!(
             waited >= budget,
             "a stop-free wait came back early after {waited:?}"
         );
 
-        // Somebody asks 60 ms in, so 10 s must not become the runtime.
-        let stopper = std::thread::spawn(|| {
+        // Somebody asks 60 ms in, so 10 s must not become the runtime. The
+        // stopper is a second *thread*, which is exactly why the sidecar has to
+        // be reachable by path: it takes the same value the wait is polling.
+        let stopper_sidecar = sidecar.clone();
+        let stopper = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(60));
-            request_external_stop()
+            stopper_sidecar.request_external_stop()
         });
-        let waited = wait_or_stop(Duration::from_secs(10));
+        let waited = sidecar.wait_or_stop(Duration::from_secs(10));
         let landed = stopper.join().unwrap_or(false);
-        let _ = std::fs::remove_file(status_file());
+        let _ = std::fs::remove_file(sidecar.path());
         assert!(
             landed,
             "there was a sidecar, so the request must have landed"
@@ -1383,6 +1495,7 @@ mod tests {
     /// new take dies on the first poll and the fault looks like the device.
     #[test]
     fn a_new_run_claims_the_sidecar_before_any_thread_reads_it() {
+        let sidecar = Sidecar::for_test();
         let cfg = LiveAudioConfig {
             mode: LiveMode::Loopback,
             ..Default::default()
@@ -1393,15 +1506,18 @@ mod tests {
             sample_rate: 48_000,
             ..Default::default()
         };
-        write_status_file(&first);
-        assert!(request_external_stop(), "the previous run asked to stop");
+        sidecar.write(&first);
+        assert!(
+            sidecar.request_external_stop(),
+            "the previous run asked to stop"
+        );
         assert_eq!(
-            read_status_file().expect("sidecar")["stopRequested"].as_bool(),
+            sidecar.read().expect("sidecar")["stopRequested"].as_bool(),
             Some(true)
         );
 
-        claim_status_file(&cfg);
-        let claimed = read_status_file().expect("the claimed sidecar");
+        sidecar.claim(&cfg);
+        let claimed = sidecar.read().expect("the claimed sidecar");
         assert_eq!(
             claimed["stopRequested"].as_bool(),
             Some(false),
@@ -1418,7 +1534,7 @@ mod tests {
             "but it has not measured anything yet"
         );
         assert_eq!(claimed["status"]["tap"].as_str(), Some("loopback"));
-        let _ = std::fs::remove_file(status_file());
+        let _ = std::fs::remove_file(sidecar.path());
     }
 
     /// A start that never got a stream must not leave the claimed
@@ -1426,14 +1542,15 @@ mod tests {
     /// capture that does not exist.
     #[test]
     fn a_failed_start_replaces_the_claim_with_the_failure() {
+        let sidecar = Sidecar::for_test();
         let cfg = LiveAudioConfig {
             mode: LiveMode::Mic,
             device_id: Some("no-such-endpoint".into()),
             input_db: -3.0,
             ..Default::default()
         };
-        write_failed_start(&cfg, "AudioDeviceLost: the endpoint id was not found");
-        let v = read_status_file().expect("the failure was recorded");
+        sidecar.record_failed_start(&cfg, "AudioDeviceLost: the endpoint id was not found");
+        let v = sidecar.read().expect("the failure was recorded");
         assert_eq!(v["status"]["running"].as_bool(), Some(false));
         assert_eq!(v["status"]["valid"].as_bool(), Some(false));
         assert_eq!(
@@ -1446,6 +1563,39 @@ mod tests {
             Some(-3.0),
             "the trim the run asked for is part of the record"
         );
-        let _ = std::fs::remove_file(status_file());
+        let _ = std::fs::remove_file(sidecar.path());
+    }
+
+    /// Every test that reaches the sidecar must reach *its own* copy of it. This
+    /// is the guard against the defect the fixture fix was for: if a test goes
+    /// back to `status_file()`, or `Sidecar::for_test` ever returns the default
+    /// path again, this reddens — including under a parallel runner, where the
+    /// two files would otherwise be the same file.
+    #[test]
+    fn a_test_sidecar_is_never_the_machines_rendezvous() {
+        let mine = Sidecar::for_test();
+        let default = Sidecar::default();
+        assert_ne!(
+            mine.path(),
+            default.path(),
+            "a test published into the machine's live-capture record"
+        );
+        assert!(
+            mine.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("flux-live-audio-test-")),
+            "a test sidecar must be identifiable on disk: {:?}",
+            mine.path()
+        );
+        // And two different tests must not land on the same path. Called from
+        // this thread, `for_test` is keyed on the test name, so a second call
+        // from here is the same test — what it must still never be is the
+        // rendezvous, which the assertion above already covers. What is checked
+        // here is that the path survives a clone, because a bridge thread is
+        // handed the same value and a clone that lost the path would silently
+        // fall back to the default file.
+        assert_eq!(mine.clone().path(), mine.path());
+        let _ = std::fs::remove_file(mine.path());
     }
 }

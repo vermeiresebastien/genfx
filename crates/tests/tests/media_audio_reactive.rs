@@ -212,4 +212,42 @@ fn audio_features_follow_the_projects_own_sample_rate() {
         changed_pixels(&a, &b) > 100,
         "44.1 kHz audio moved fewer than 100 pixels"
     );
+
+    // Rate-specific discrimination: the 300 Hz tone at 44.1 kHz must produce a
+    // spectral centroid near 300 Hz, not the 48 kHz default's interpretation.
+    // The analyser's band boundaries are fixed in Hz, so a 300 Hz tone at 44.1 kHz
+    // lands in `bass` (20-250 Hz) or `low_mid` (250-500 Hz); at 48 kHz the same
+    // tone would be misanalysed because the FFT bin spacing differs. We assert
+    // the feature value is nonzero (audio reached the analyser) and that the
+    // sample rate the timeline reports matches the project's rate, not the
+    // hard-coded default.
+    let mix = flux_app::export::mix_audio(
+        &loud,
+        RationalTime::new(0, 1).unwrap(),
+        RationalTime::new(2, 1).unwrap(),
+    )
+    .expect("mix");
+    let timeline =
+        flux_app::audio_features::timeline_for_range(&loud, RationalTime::new(0, 1).unwrap(), &mix)
+            .expect("timeline");
+    assert_eq!(
+        timeline.sample_rate(),
+        44_100,
+        "timeline must adopt the project's sample rate, not AnalysisConfig::default()"
+    );
+    let evidence = timeline
+        .evidence_at(RationalTime::new(1, 1).unwrap())
+        .expect("features at t=1s");
+    assert!(
+        evidence.features.valid,
+        "a loud tone must produce valid features"
+    );
+    // The spectral centroid of a 300 Hz sine should be in the bass/low_mid range.
+    // We assert it is nonzero and below the mid-band centre (1 kHz), which
+    // discriminates 300 Hz from broadband noise or a misconfigured analyser.
+    assert!(
+        evidence.features.centroid > 0.0 && evidence.features.centroid < 1000.0,
+        "centroid {} Hz is outside the expected range for a 300 Hz tone",
+        evidence.features.centroid
+    );
 }

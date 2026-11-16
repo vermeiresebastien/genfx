@@ -40,6 +40,8 @@ Match `.github/workflows/ci.yml`; anything else is not CI parity.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -A warnings
 cargo test --workspace -- --test-threads=1        # the flag is required, not optional
+cargo test -p flux-platform --features live-audio -- --test-threads=1
+cargo test -p flux-app --features live-audio
 cargo run -q -p xtask -- catalog
 cargo run -q -p xtask -- doctor
 cargo run -q -p xtask -- test-gpu --profile baseline

@@ -125,6 +125,19 @@ Step 'maxpat' { node apps/max-for-live/check-maxpat.cjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
+# Live WASAPI capture. `live-audio` is a non-default feature on flux-platform and
+# flux-app, so nothing above compiles it: measured at 9e113b4 the entire
+# live-audio stack (~2,400 lines plus 12 tests) was built by no gate. windows is
+# a cfg(windows) target dependency, so on a non-Windows host the feature cannot
+# be built at all — that is blocked_external, not passed.
+$onWindows = ($env:OS -eq 'Windows_NT') -or ([bool](Get-Variable -Name IsWindows -ValueOnly -ErrorAction SilentlyContinue))
+if ($onWindows) {
+    Step 'live-audio-platform' { cargo test -p flux-platform --features live-audio -- --test-threads=1 }
+    Step 'live-audio-app' { cargo test -p flux-app --features live-audio }
+} else {
+    Blocked 'live-audio-platform' 'live-audio is cfg(windows); this host cannot build it'
+    Blocked 'live-audio-app' 'live-audio is cfg(windows); this host cannot build it'
+}
 # Optional Ableton Link check — runs when a prebuilt abl_link.lib is reachable, and exports the
 # directory that answered because build.rs:16 needs FLUX_ABLETON_LINK_LIB to be set, not just true.
 $linkLib = Resolve-LinkLib

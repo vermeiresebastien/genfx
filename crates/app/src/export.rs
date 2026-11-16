@@ -998,7 +998,7 @@ pub fn generator_graph(generator_id: &str) -> flux_domain::Graph {
 
 /// Deterministic stereo mix of a project range. Audio clips are decoded from
 /// their asset and placed at their timeline positions with gain/pan/fades.
-fn mix_audio(
+pub fn mix_audio(
     project: &Project,
     start: RationalTime,
     duration: RationalTime,
@@ -1230,5 +1230,41 @@ mod tests {
         assert_eq!(codec_from_name("gif"), EncodeCodec::Gif);
         assert_eq!(codec_from_name("png"), EncodeCodec::None);
         assert_eq!(codec_from_name("unknown"), EncodeCodec::H264);
+    }
+
+    #[test]
+    fn document_only_run_reports_document_only() {
+        // A deterministic export (no live audio, no media audio timeline) must
+        // report `FeatureSource::DocumentOnly` and zero audio windows. This is
+        // the audit trail for the determinism firewall: if an export ever
+        // reports `Live`, the path is broken.
+        let project = flux_domain::Project::new("audit", 1);
+        let dir = std::env::temp_dir().join(format!("flux-audit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let result = export_project(
+            &project,
+            &ExportOptions {
+                out_dir: dir.clone(),
+                project_name: "audit".into(),
+                codec: flux_media::EncodeCodec::None,
+                width: 32,
+                height: 32,
+                range: None,
+                cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            result.feature_source,
+            flux_domain::params::FeatureSource::DocumentOnly,
+            "a project with no audio timeline must report DocumentOnly"
+        );
+        assert_eq!(
+            result.audio_windows, 0,
+            "a project with no audio timeline must report zero windows"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -239,10 +239,12 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
         })),
     )?;
     println!(
-        "rendered {} frames, {} samples; frames in {}",
+        "rendered {} frames, {} samples; frames in {}; audio: {:?} ({} windows)",
         result.frames,
         result.samples,
-        result.frames_dir.display()
+        result.frames_dir.display(),
+        result.feature_source,
+        result.audio_windows
     );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
@@ -280,8 +282,8 @@ fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<
         })),
     )?;
     println!(
-        "rendered {} frames, {} samples",
-        result.frames, result.samples
+        "rendered {} frames, {} samples; audio: {:?} ({} windows)",
+        result.frames, result.samples, result.feature_source, result.audio_windows
     );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
@@ -339,8 +341,8 @@ fn cmd_render(
         })),
     )?;
     println!(
-        "rendered {} frames, {} samples",
-        result.frames, result.samples
+        "rendered {} frames, {} samples; audio: {:?} ({} windows)",
+        result.frames, result.samples, result.feature_source, result.audio_windows
     );
     if let Some(v) = &result.video {
         println!("video: {}", v.display());
@@ -1121,6 +1123,12 @@ fn capture_devices(args: &[String]) -> FluxResult<()> {
 
 fn capture_start(args: &[String]) -> FluxResult<()> {
     let (cfg, problems) = capture_config(args)?;
+    if !problems.is_empty() {
+        return Err(capture_bad(format!(
+            "configuration errors:\n  {}",
+            problems.join("\n  ")
+        )));
+    }
     if cfg.mode == live_audio::LiveMode::Off {
         return Err(capture_bad(
             "`capture start` needs --tap loopback|mic (or FLUX_LIVE_AUDIO=loopback|mic): \
@@ -1563,6 +1571,63 @@ mod tests {
             blocks, 9,
             "expected the four ndi, three spout, one link and one vision refusal \
              branches; found {blocks}"
+        );
+    }
+
+    #[test]
+    fn capture_start_rejects_non_numeric_input_db() {
+        // `flux capture start --input-db banana` must exit 1, not 0 with a note.
+        // The parser adds a problem to the list; capture_start must fail on any
+        // problem before attempting to run the capture.
+        let args = vec![
+            "--tap".into(),
+            "loopback".into(),
+            "--input-db".into(),
+            "banana".into(),
+            "--secs".into(),
+            "1".into(),
+        ];
+        let result = super::capture_start(&args);
+        assert!(
+            result.is_err(),
+            "non-numeric --input-db must fail, not succeed with a note"
+        );
+        let e = result.unwrap_err();
+        assert_eq!(e.code, flux_domain::ErrorCode::InvalidCommand);
+        assert!(
+            e.message.contains("configuration errors"),
+            "error must name the problem: {}",
+            e.message
+        );
+        assert!(
+            e.message.contains("--input-db"),
+            "error must mention the flag: {}",
+            e.message
+        );
+    }
+
+    #[test]
+    fn capture_start_rejects_out_of_range_input_db() {
+        // `flux capture start --input-db 99` must exit 1 (range is -24..=24).
+        let args = vec![
+            "--tap".into(),
+            "loopback".into(),
+            "--input-db".into(),
+            "99".into(),
+            "--secs".into(),
+            "1".into(),
+        ];
+        let result = super::capture_start(&args);
+        assert!(
+            result.is_err(),
+            "out-of-range --input-db must fail, not succeed with a note"
+        );
+        let e = result.unwrap_err();
+        assert_eq!(e.code, flux_domain::ErrorCode::InvalidCommand);
+        assert!(
+            e.message.contains("configuration errors"),
+            "error must name the problem: {}",
+            e.message
         );
     }
 }

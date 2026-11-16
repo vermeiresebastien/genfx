@@ -746,10 +746,13 @@ mod imp {
             // its own id means we are back to printing GUID tails.
             if !list.is_empty() {
                 let named = list.iter().filter(|e| e.name != e.id).count();
-                assert!(
-                    named > 0,
-                    "{} endpoints enumerated and none carried a friendly name",
-                    list.len()
+                assert_eq!(
+                    named,
+                    list.len(),
+                    "{} endpoints enumerated but only {} carried a friendly name; \
+                     the rest are still printing GUID tails",
+                    list.len(),
+                    named
                 );
             }
         }

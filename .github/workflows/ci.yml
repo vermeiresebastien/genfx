@@ -52,6 +52,18 @@ jobs:
         run: cargo build -p flux-desktop
       - name: Release build
         run: cargo build --release -p flux-app
+      # Live WASAPI capture is a non-default feature on both crates, so nothing
+      # above compiles it: measured at 9e113b4 the entire live-audio stack
+      # (~2,400 lines plus 12 tests) was built by no gate. windows is a
+      # cfg(windows) target dependency, so on a non-Windows runner these
+      # commands fail to resolve the feature — the steps are gated on the
+      # runner OS, not run blindly.
+      - name: Live-audio platform tests (WASAPI capture)
+        if: runner.os == 'Windows'
+        run: cargo test -p flux-platform --features live-audio -- --test-threads=1
+      - name: Live-audio app tests
+        if: runner.os == 'Windows'
+        run: cargo test -p flux-app --features live-audio
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
