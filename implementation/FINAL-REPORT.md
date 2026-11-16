@@ -22,7 +22,7 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   at `FINAL-REPORT.md:151-152` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
 >   ("**No SDK headers are shipped**"). Both are true of this tree: the headers the shim
 >   compiles against sit in this machine's cargo registry, not in the repository.
-> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-15 (D035): 227 passed,
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-16 (D035): 227 passed,
 >   0 failed across 40 result lines (29 test binaries + 11 doctests) — and 14 of those passes are
 >   GPU tests that early-return with no device. `golden.rs` asserts file sizes, not pixels, and D034 records one run that died mid-suite with a native access violation before the remaining binaries ran.
 > - **"live control bridge -> engine commands" was the optimistic line, and it is now
@@ -53,7 +53,7 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   machine state — the spout shim resolves itself, and Link needed its directory exported until
 >   D029 taught that gate to search — at `cf95a2f`, dirty tree, the run is **17 passed / 0 failed /
 >   0 blocked_external**, the first with nothing blocked. D032 added `requirements-freshness`:
->   18-0-0 at `a91ebda` (D032) and again at `7adb5e6` (D033), both `gitDirty false`. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
+>   that step has measured **18-0-0** five times — `3e4e825` and `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034) and `2361785` (D035) — three of them `gitDirty false`; the two that were not were dirty with their own decision records. The two D019 defects, plus a `$LASTEXITCODE` leak, were repaired at D020.
 > - **§1 is a dated inventory: its numbers are the 2026-11-09 capture, and several have moved.**
 >   The catalog is **217 entries**, not 216 — re-measured at `90d9e59` today: `flux doctor` prints
 >   `catalog entries: 217`, `xtask test-gpu --profile baseline` reported "compiled 217 shaders, 0

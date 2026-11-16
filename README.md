@@ -72,7 +72,7 @@ until the commit that reformats the tree, HEAD did **not** pass its own first CI
 `ci.yml` therefore never ran in GitHub Actions, even though all of it passed locally.
 It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is still
 green behind the reformat — 227 passed, 0 failed across 40 result lines (29 test binaries
-+ 11 doctests), re-measured 2026-11-15 on the D035 tree; it was 196 before the OSC receive
++ 11 doctests), re-measured 2026-11-16 on the D035 tree; it was 196 before the OSC receive
 bridge (D022) added 8, then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034 and +5 D035's guards.
 The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
@@ -88,9 +88,9 @@ Link gate looked for the library *inside the directory that variable names*. It 
 vendored candidates and exports the directory it finds, and the run at `7235afd` — clean tree,
 variable removed from the environment — is `17 passed / 0 failed / 0 blocked_external` again. D032's
 18th step, `requirements-freshness`, compares the generated ledger against what its generator
-produces; `a91ebda` (D032), `7adb5e6` (D033) and `51bc077` (D034) are each `18 passed / 0 failed / 0
-`blocked_external`, the first two with `gitDirty false` and the third true, because D034's own
-decision record was still being written while its gates ran. The two SDK files are gitignored, so a
+produces; `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034) and `2361785` (D035) are each
+`18 passed / 0 failed / 0 blocked_external`, with `gitDirty false` except at D034, whose own decision
+record was still being written while its gates ran. The two SDK files are gitignored, so a
 fresh clone — and CI — still record 2 blocked steps. See
 `AGENTS.md` § "Traps inside this repo's own verification harness".
 

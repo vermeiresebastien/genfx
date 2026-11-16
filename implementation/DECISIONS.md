@@ -2131,7 +2131,8 @@ is a `known_gaps` element, which cannot be folded into a prose field without los
 the +1 at `:166` re-points nothing — each of those five numbers was read back off the file, not
 assumed from the edit. The harness rows (`at_head`, `counts`, `passing_steps`, `re_run_lanes`) and the
 lane-20 handover are single JSON strings, so writing the `51bc077` run into them costs no lines;
-`test_run_2026_11_14.verify_ps1_full.counts` now says four 18-0-0 runs, and one number in that block
+`test_run_2026_11_14.verify_ps1_full.counts` now says four 18-0-0 runs — true of the commit that
+wrote it, and D035's fifth is recorded in the same block below — and one number in that block
 corrected itself on measurement — `ndi-runtime-loads` filtered 29 tests out at this run, where the row
 had carried 28.
 
@@ -2173,7 +2174,7 @@ turns into is recorded there rather than here.
 
 ---
 
-## D035 — 2026-11-15 the freshness gate is read as a branch table, and six shapes turn out to have no invocation
+## D035 — 2026-11-16 the freshness gate is read as a branch table, and six shapes turn out to have no invocation
 
 D034's "What this does not close" named two residues and both were real. The method was the problem:
 that list was written from D033's handover sentence and from the two tests the lane had just added, so
@@ -2281,7 +2282,9 @@ tested limit rather than a surprise; P5's `left` value also re-measured the ledg
 - All six probes ran against the `requirements` bin alone, which D034 already called the weakest
   possible control for the `flux-render` crash. This lane re-ran the workspace suite once and reported
   what it printed; it did not attempt a rate for a fault that has now appeared once in four long
-  invocations across two lanes.
+  invocations across two lanes. The addendum below records a fifth, also clean, which moves the count
+  and not the understanding: still no mechanism, and still no reason to blame a change before
+  re-running.
 
 ### Measured
 
@@ -2334,3 +2337,60 @@ and `docs/PERFORMANCE-READINESS.md` at 1 076 — all three forced by the citatio
 recorded at D034, so their edits are in-place reflows. This file is 2 336 lines at the commit that
 carries this record, with the D035 heading at `:2176`; the only citation into it from outside is still `DECISIONS.md:116`, twice, from
 `docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869`, both above every line this lane touched.
+
+### After the evidence
+
+Everything above was written before the harness ran, which is the order D033's record of its own run
+demands: a run is only writable from its own numbers. What the run then produced:
+
+- `infrastructure/verify.ps1`, full and without `-Quick`, at `2361785` from a shell with
+  `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` removed via `env -u`: **VERIFY: PASS**, exit 0,
+  `steps: passed=18 failed=0 blocked_external=0`, `verify.json` at `gitHash 2361785` with
+  `gitDirty false` and `external` all true, `requirements-freshness` recording `{ exit: 0, ok: true }`
+  while printing `is fresh`, `unit-tests` again at 158 (app 34, integrations 28, domain 30, engine
+  22, catalog 16, audio 14, render 8, media 6), the integration groups 6/6/4/3, link 7, ndi 2 with 29
+  filtered out, spout 1 — and zero occurrences of `FAILED` or `error[` in a 1 929-line log, each
+  counted with `grep -c` rather than by eye. It is the fifth 18-0-0 run and the third of those five
+  to measure a clean tree; the two that did not were dirty with their own records.
+- `cargo run -q -p xtask -- evidence` — exit 0, restamping `manifest.json` at `headAtRun 2361785`,
+  `generatedAtUtc 2026-11-16T00:27:47Z`, `provenance.gitDirty false`: 32 files, 9 stamped by their
+  writer (5 `stamped_current` — catalog, doctor, fixtures, test-gpu, verify — and 4
+  `stamped_other_commit`), 4 `header_other_commit`, 19 `unattributed`, 0 `missing_provenance`. The
+  same 32 / 9 / 4 / 19 / 0 the D033 and D034 restamps reported, written by the same `xtask.exe`
+  (`mtimeUnix 1794774257` = `2026-11-15T20:24:17Z`, read off this manifest and off `51bc077`'s in
+  `git show`; D034 recorded the same value for `7adb5e6`) — and the shared binary is evidenced, not
+  inferred from a shared timestamp: `git diff --stat 53a66fc..2361785 -- crates/xtask/src/main.rs`
+  is empty, because this lane edited the `requirements` bin and not the evidence writer.
+- **P7, which came after the table above was closed.** The forward arm (`:658-660`) had its loop body
+  replaced with `let _ = id;` — the mutation the new test's doc comment predicts, and the one that
+  does not silence the gate. 14 passed / 1 failed, exit 101, with
+  `a_record_only_this_tree_generated_is_named` panicking at `:884` on
+  `left: ["first differing line is 3773"]`. The number is unhelpful rather than wrong: line 3 773 of
+  this ledger is `"id": "AT062"`, so it points at the record the report stopped naming, and only a
+  reader holding both sides can tell. Reverted by copying `git show 2361785:…` back over the source,
+  `sha256sum -c` reporting `OK`, `git status --short` then naming only the five evidence files a gate
+  rewrites, and the module re-run at 15 passed / 0 failed.
+- **The workspace suite was invoked a second time**, at this addendum's tree — docs and gate-written
+  evidence only, no source between the two runs — and printed the same totals: exit 0, **227 passed /
+  0 failed / 0 ignored across the same 40 result lines**, 713 lines of log with zero `FAILED`, zero
+  `error[` and zero native-fault lines. That moves one number and no understanding: the crash rate in
+  `known_gaps[15]` and in `AGENTS.md` is now 1 long invocation in 5, STATE's `test_totals.measured`
+  says two invocations where it said one, and there is still no mechanism for the one fault D034 met.
+- **The self-stamp limit is unchanged.** `git show 2361785:implementation/DECISIONS.md` contains no
+  occurrence of `2361785`: the commit that carries a record cannot name its own SHA inside it. This
+  section closes that gap the only way available — from the next commit, in the past tense — so the
+  limit stands one level up, and this addendum cannot name the commit that carries it either.
+- **The lane crossed midnight, and the dates moved rather than got footnoted.** `2361785` was made at
+  `2026-11-16 01:24:40 +0100` and every measurement quoted above is later than it, so D035's heading,
+  STATE's `test_totals.measured` and lane-21 date, README's `re-measured` clause, FINAL-REPORT's and
+  `docs/PERFORMANCE-READINESS.md`'s row header were re-dated to 2026-11-16. D034's were not: its run
+  stamps are UTC (`2026-11-15T23:24:21Z`), and 23:24Z *is* the 15th, so that record stays as written
+  even though `51bc077` and `4d911c8` were both made after local midnight. The workable convention is
+  that a decision carries the date its evidence was measured, and across a rollover the timestamps
+  this file quotes with their `Z` outrank the heading.
+
+`README.md` stays at 119 lines, `FINAL-REPORT.md` at 290, `docs/PERFORMANCE-READINESS.md` at 1 076,
+`AGENTS.md` at 214 and `STATE.json` at 188: those edits sit inside lines already written, so no
+inbound citation moved and no `requirements.rs` line number changed. This file grew by exactly the
+section above — it is 2 396 lines at the commit that carries this addendum, which is why the 2 336
+quoted two pages back names the commit carrying the record instead of this one.

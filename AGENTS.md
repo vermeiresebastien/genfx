@@ -24,7 +24,7 @@ wgpu Vulkan, driver 560.94, rustc 1.99.0 stable, Node 24.19.0, FFmpeg 9.0.
   measured 2026-11-15 (D034), `cargo test --workspace -- --test-threads=1` exited 139 after 11
   result lines on `0xc0000005, STATUS_ACCESS_VIOLATION` inside `flux-render`'s
   `tests::row_stride_matches_preview_copy`, while that binary alone exited 0 ten times and the
-  re-run finished at 222 passed; D035's one invocation printed 227 and no fault, so the rate is 1 in 4.
+  re-run finished at 222 passed; D035's two invocations printed 227 and no fault, so the rate is 1 in 5.
   No mechanism is known — re-run before blaming your own change, and never quote a truncated run.
 - **Missing prerequisite is `blocked_external`, never `passed`.** Detector-only is not
   integration. A `.maxpat` is not a `.amxd`. A codec test is not a control path.
