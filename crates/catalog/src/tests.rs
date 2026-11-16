@@ -229,3 +229,34 @@ fn uniform_layout_matches_expected_size() {
         assert_eq!(layout.slots.len(), numeric);
     }
 }
+
+/// Pin the named catalog constants to their exact literal values, so renaming
+/// or re-tuning one without updating the record is a build failure rather than
+/// a silent drift. These are NOT std::f64::consts::PI or TAU — see the doc
+/// comment at builders.rs:10-30 for why the literals are intentional.
+#[test]
+fn named_constants_are_pinned_to_their_exact_literals() {
+    use crate::builders::{FULL_TURN_2DP, FULL_TURN_7DP, HALF_TURN_2DP, HALF_TURN_7DP};
+
+    // Assert the literal expected numbers, not `>= 1` and not `> 0`.
+    assert_eq!(
+        HALF_TURN_7DP, 3.1415926,
+        "HALF_TURN_7DP must equal 3.1415926 exactly; if this fails, the constant \
+         was re-tuned without updating the record"
+    );
+    assert_eq!(
+        FULL_TURN_7DP, 6.2831853,
+        "FULL_TURN_7DP must equal 6.2831853 exactly; if this fails, the constant \
+         was re-tuned without updating the record"
+    );
+    assert_eq!(
+        HALF_TURN_2DP, 3.14,
+        "HALF_TURN_2DP must equal 3.14 exactly; if this fails, the constant \
+         was re-tuned without updating the record"
+    );
+    assert_eq!(
+        FULL_TURN_2DP, 6.28,
+        "FULL_TURN_2DP must equal 6.28 exactly; if this fails, the constant \
+         was re-tuned without updating the record"
+    );
+}
