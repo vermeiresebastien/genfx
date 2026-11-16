@@ -32,6 +32,14 @@ pub struct ExportOptions {
     pub height: u32,
     pub range: Option<(RationalTime, RationalTime)>,
     pub cancel: Arc<AtomicBool>,
+    /// The evidence class this run's frames are stamped with, and the class the
+    /// run reports as `ExportResult::feature_source`. Stated by the caller and
+    /// threaded into `timeline_for_range` rather than hard-coded at the seam, so
+    /// the decision point is visible to the compiler and to the reader
+    /// (CR3 defect 3). Every caller today passes `DocumentOnly`: `Live` stays
+    /// unreachable unless a caller asks for it, and no default of any kind flips
+    /// on this path.
+    pub feature_source: flux_domain::params::FeatureSource,
 }
 
 #[derive(Debug, Clone)]
@@ -172,7 +180,8 @@ fn export_project_impl(
     // timestamp*, so the picture cannot depend on how fast the renderer happened
     // to be going.
     let samples = mix_audio(project, start, duration)?;
-    let timeline = crate::audio_features::timeline_for_range(project, start, &samples)?;
+    let timeline =
+        crate::audio_features::timeline_for_range(project, start, &samples, opts.feature_source)?;
 
     for i in 0..total {
         if opts.cancel.load(Ordering::Relaxed) {
@@ -305,7 +314,15 @@ impl PreviewRenderer {
             return timeline;
         }
         let timeline = match mix_audio(project, start, duration) {
-            Ok(mix) => match crate::audio_features::timeline_for_range(project, start, &mix) {
+            // The live preview loop is not an export run, so it has no
+            // `ExportOptions` to read a class from and states the document-only
+            // class the same way its `empty` fallbacks below do.
+            Ok(mix) => match crate::audio_features::timeline_for_range(
+                project,
+                start,
+                &mix,
+                flux_domain::params::FeatureSource::DocumentOnly,
+            ) {
                 Ok(t) => Arc::new(t),
                 Err(_) => Arc::new(MediaAudioTimeline::empty(
                     start,
@@ -1262,6 +1279,7 @@ pub fn export_default(project: &Project, out_dir: &Path) -> FluxResult<ExportRes
             height: project.settings.size.height,
             range: None,
             cancel: Arc::new(AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
@@ -1302,6 +1320,7 @@ mod tests {
                 height: 32,
                 range: None,
                 cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                feature_source: flux_domain::params::FeatureSource::DocumentOnly,
             },
             None,
         )
@@ -1400,5 +1419,66 @@ mod tests {
         let snap = stamp_audio_evidence(&mut ctx, None);
         assert_eq!(snap, flux_domain::params::FeatureSnapshot::default());
         assert_eq!(ctx.feature_source, FeatureSource::DocumentOnly);
+    }
+
+    #[test]
+    fn an_export_reports_the_class_its_options_asked_for_and_nothing_else() {
+        // CR3 defect 3, the caller link. `audio_features::tests::
+        // timeline_for_range_carries_the_class_the_caller_asks_for` proves the
+        // seam forwards its parameter; nothing but a run proves that
+        // `export_project_impl` actually hands it `opts.feature_source` instead
+        // of the literal it used to carry. Like the document-only twin above it,
+        // this needs the GPU. The pair keeps two claims separate: the option
+        // works, AND no default flips (the twin still says DocumentOnly).
+        let project = flux_domain::Project::new("cls", 1);
+        let run = |name: &str, source| {
+            let dir = std::env::temp_dir().join(format!(
+                "flux-{}-{}-{}",
+                name,
+                std::process::id(),
+                matches!(source, flux_domain::params::FeatureSource::Live)
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            let result = export_project(
+                &project,
+                &ExportOptions {
+                    out_dir: dir.clone(),
+                    project_name: name.into(),
+                    codec: flux_media::EncodeCodec::None,
+                    width: 32,
+                    height: 32,
+                    range: None,
+                    cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                    feature_source: source,
+                },
+                None,
+            )
+            .unwrap();
+            std::fs::remove_dir_all(&dir).ok();
+            result
+        };
+        let live = run("cls-live", flux_domain::params::FeatureSource::Live);
+        assert_eq!(
+            live.feature_source,
+            flux_domain::params::FeatureSource::Live,
+            "the run must report the class its options asked for; a literal at \
+             the seam call site reddens here"
+        );
+        // The class is a label on the evidence, not a second mixer, encoder or
+        // frame budget: the same project under the other class must produce the
+        // same counts, and still zero analysed windows (no audio in the project).
+        let doc = run("cls-doc", flux_domain::params::FeatureSource::DocumentOnly);
+        assert_eq!(
+            doc.feature_source,
+            flux_domain::params::FeatureSource::DocumentOnly
+        );
+        assert_eq!(
+            (live.frames, live.samples, live.png_frames_written),
+            (doc.frames, doc.samples, doc.png_frames_written),
+            "choosing a class must not change what the export produces"
+        );
+        assert_eq!(live.audio_windows, 0);
+        assert_eq!(doc.audio_windows, 0);
     }
 }

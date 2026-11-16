@@ -259,6 +259,7 @@ fn cmd_demo_render(gen: &str, dir: &std::path::Path) -> FluxResult<()> {
             height: 720,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         Some(Box::new(|i, n| {
             if i == n || i % 30 == 0 {
@@ -295,6 +296,7 @@ fn cmd_demo_media(video: &std::path::Path, dir: &std::path::Path) -> FluxResult<
             height: 360,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         Some(Box::new(|i, n| {
             if i == n {
@@ -351,6 +353,7 @@ fn cmd_render(
             height: project.settings.size.height,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         Some(Box::new(|i, n| {
             if i == n || i % 60 == 0 {

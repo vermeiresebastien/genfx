@@ -61,6 +61,7 @@ fn run(codec: flux_media::EncodeCodec, ext: &str, want_codec: &str) {
             height: 90,
             range: None,
             cancel: Arc::new(AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
@@ -131,6 +132,7 @@ fn png_sequence_format_writes_frames_and_no_video() {
             height: 90,
             range: None,
             cancel: Arc::new(AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )

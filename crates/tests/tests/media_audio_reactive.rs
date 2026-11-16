@@ -236,9 +236,13 @@ fn audio_features_follow_the_projects_own_sample_rate() {
         RationalTime::new(2, 1).unwrap(),
     )
     .expect("mix");
-    let timeline =
-        flux_app::audio_features::timeline_for_range(&loud, RationalTime::new(0, 1).unwrap(), &mix)
-            .expect("timeline");
+    let timeline = flux_app::audio_features::timeline_for_range(
+        &loud,
+        RationalTime::new(0, 1).unwrap(),
+        &mix,
+        flux_domain::params::FeatureSource::DocumentOnly,
+    )
+    .expect("timeline");
     assert_eq!(
         timeline.sample_rate(),
         44_100,
@@ -295,6 +299,7 @@ fn offline_export_audio_path_carries_the_timeline() {
             height: 36,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
@@ -309,6 +314,7 @@ fn offline_export_audio_path_carries_the_timeline() {
             height: 36,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )

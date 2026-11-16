@@ -97,6 +97,7 @@ fn gui_backend_create_edit_export() {
             height: 180,
             range: None,
             cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )

@@ -196,17 +196,25 @@ impl MediaAudioTimeline {
 ///
 /// Takes the mixed buffer that is *also* written to the WAV, so audio is never
 /// decoded twice and the picture provably reacts to the sound you hear.
+///
+/// `source` is stated by the caller (lane F1: it used to be the literal
+/// `FeatureSource::DocumentOnly` written here, which made the one decision point
+/// lane F has to widen invisible to the compiler and to the reader — CR3 defect
+/// 3). The value flows straight into `from_stereo_mix`, so the class the run
+/// reports and the class every frame carries are the caller's, not this
+/// function's. No caller may pass `Live` without meaning it.
 pub fn timeline_for_range(
     project: &Project,
     start: RationalTime,
     mix: &crate::export::MixedAudio,
+    source: FeatureSource,
 ) -> FluxResult<MediaAudioTimeline> {
     Ok(MediaAudioTimeline::from_stereo_mix(
         start,
         project.settings.audio.sample_rate,
         &mix.samples,
         mix.decoded_clips > 0,
-        FeatureSource::DocumentOnly,
+        source,
     ))
 }
 
@@ -574,6 +582,48 @@ mod tests {
                 src,
                 "the has_audio=false early return must forward `source` ({src:?}) \
                  into empty, not drop it"
+            );
+        }
+    }
+
+    #[test]
+    fn timeline_for_range_carries_the_class_the_caller_asks_for() {
+        // CR3 defect 3, the seam itself. `timeline_for_range` used to write the
+        // literal `FeatureSource::DocumentOnly` over a `&MixedAudio`, so the one
+        // decision point lane F has to widen was invisible to the compiler and
+        // to the reader. The class is a parameter now, and this gate reddens if
+        // the plumbing is dropped (parameter ignored, literal kept). No GPU and
+        // no ffmpeg: `MixedAudio` is two public fields, and the project's own
+        // rate is what the seam reads.
+        let project = Project::new("seam", 1);
+        let sr = project.settings.audio.sample_rate;
+        let mix = crate::export::MixedAudio {
+            samples: tone_mix(sr, sr as usize, 0.5),
+            decoded_clips: 1,
+        };
+        for src in [FeatureSource::DocumentOnly, FeatureSource::Live] {
+            let t = timeline_for_range(&project, RationalTime::ZERO, &mix, src).expect("timeline");
+            assert!(
+                t.has_audio(),
+                "fixture bug: decoded_clips > 0 must mean audio"
+            );
+            assert_eq!(t.sample_rate(), sr, "the seam reads the project's rate");
+            assert!(
+                t.windows() > 1,
+                "fixture bug: closed only {} hops",
+                t.windows()
+            );
+            assert_eq!(
+                t.feature_source(),
+                src,
+                "timeline_for_range must forward the caller's class, not assert its own"
+            );
+            assert_eq!(
+                t.evidence_at(RationalTime::from_secs(1))
+                    .expect("closed hop")
+                    .source,
+                src,
+                "the per-frame class must be the caller's class too"
             );
         }
     }

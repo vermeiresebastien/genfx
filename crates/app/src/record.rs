@@ -65,6 +65,7 @@ pub fn record_project(project: &Project, opts: &RecordOptions) -> FluxResult<Rec
             height: opts.height,
             range: None,
             cancel: opts.cancel.clone(),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )?;

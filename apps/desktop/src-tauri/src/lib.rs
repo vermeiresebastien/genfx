@@ -234,6 +234,7 @@ fn export_project_cmd(
             height,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         };
         // Stream the actual export frames to the monitor while rendering. The UI
         // pauses its own preview loop during export, so only one GPU device is

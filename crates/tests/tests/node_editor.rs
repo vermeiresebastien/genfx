@@ -403,6 +403,7 @@ fn master_graph_export_writes_video() {
             height: 90,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )

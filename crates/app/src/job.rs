@@ -133,6 +133,7 @@ pub fn run_job(
             height: desc.height,
             range: None,
             cancel: handle.cancel.clone(),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         Some(Box::new(move |i, n| {
             done.store(i, Ordering::Relaxed);

@@ -55,6 +55,7 @@ fn golden_generator_project_exports_expected_media() {
             height: 180,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
@@ -102,6 +103,7 @@ fn golden_media_project_presents_decoded_frame() {
             height: 180,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
@@ -129,6 +131,7 @@ fn text_producer_survives_export() {
             height: 180,
             range: None,
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            feature_source: flux_domain::params::FeatureSource::DocumentOnly,
         },
         None,
     )
