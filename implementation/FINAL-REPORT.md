@@ -22,7 +22,7 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   at `FINAL-REPORT.md:151-152` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
 >   ("**No SDK headers are shipped**"). Both are true of this tree: the headers the shim
 >   compiles against sit in this machine's cargo registry, not in the repository.
-> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-16 (D035): 227 passed,
+> - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-16 (D036): 233 passed,
 >   0 failed across 40 result lines (29 test binaries + 11 doctests) — and 14 of those passes are
 >   GPU tests that early-return with no device. `golden.rs` asserts file sizes, not pixels, and D034 records one run that died mid-suite with a native access violation before the remaining binaries ran.
 > - **"live control bridge -> engine commands" was the optimistic line, and it is now
@@ -45,8 +45,8 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 >   before the suite even started, which is why the green local result and the red CI result
 >   were both true. `cargo fmt --all` has since been applied, `--check` exits 0, and the
 >   workspace suite behind the reformat reported 196 passed / 0 failed at that commit; it is
->   **227 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59` was already 204 —
->   196 +8 D022's — then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034, +5 D035). **The full `verify.ps1`
+>   **233 passed / 0 failed / 0 ignored across 40 result lines** (`90d9e59` was already 204 —
+>   196 +8 D022's — then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034, +5 D035, +6 D036). **The full `verify.ps1`
 >   run has now been repeated, and it passes:** measured at HEAD `75da874` it exited 0 with
 >   `VERIFY: PASS`, 15 steps passed, 0 failed, 2 blocked_external (`link-integration`,
 >   `spout-enumeration`), re-measured identically at `90d9e59`. D027 re-keyed both gates on
@@ -223,7 +223,20 @@ compiled. **Limitation:** Spout2's
 expects the app's real rendering context). The correct fix — sending from Flux's existing
 wgpu device via a DX11 shared texture (SpoutDX) — is a larger interop task, so Spout live
 send is reported as a limitation, and the enumeration half is a 2026-11-09 measurement that
-nothing on this host has repeated. **Syphon**: macOS-only.
+nothing on this host has repeated.
+**Measured 2026-11-16 (D036): the SpoutDX helper is worse off than unconfirmed.**
+`flux spout-send-dx` in a `spout` build launches `apps/spout-bridge/spout_sender.exe`, which now
+dies at process start with `0xc0000138` — an ordinal no loaded DLL exports — and `dx_test.exe`,
+the other 2026-11-09 C++ binary in that directory, fails identically under three independent
+launchers. The seven vendored CRT DLLs beside them match the system's `14.51.36247.0` exactly, so
+the redist-mismatch theory in `docs/PERFORMANCE-READINESS.md` §C2 is not the mechanism. That makes
+`implementation/evidence/spout-send-dx.txt` — 83 frames through a real D3D11 sender, the capture
+AT058 rests on — a record that no longer reproduces here. Until D036 the command printed the
+helper's nonzero exit and returned `Ok`, so every run of it looked like success, and
+`verify.ps1`'s `spout-enumeration` step only ever exercised the registry shim, which still loads
+and answers 0 senders. Rebuilding `apps/spout-bridge` is the open item; AT058's ledger blocker,
+"Flux's enumerator does not see its own DX sender", now understates a sender that cannot start.
+**Syphon**: macOS-only.
 
 ### 6a. Ableton Link — supported; 7 tests ran here 2026-11-15, 52 clean after D030
 Following the upstream audit (`implementation/UPSTREAM.md`, DECISIONS D010/D011), Ableton

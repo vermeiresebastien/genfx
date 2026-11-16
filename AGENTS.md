@@ -24,7 +24,8 @@ wgpu Vulkan, driver 560.94, rustc 1.99.0 stable, Node 24.19.0, FFmpeg 9.0.
   measured 2026-11-15 (D034), `cargo test --workspace -- --test-threads=1` exited 139 after 11
   result lines on `0xc0000005, STATUS_ACCESS_VIOLATION` inside `flux-render`'s
   `tests::row_stride_matches_preview_copy`, while that binary alone exited 0 ten times and the
-  re-run finished at 222 passed; D035's two invocations printed 227 and no fault, so the rate is 1 in 5.
+  re-run finished at 222 passed; D035's two invocations printed 227 and D036's two printed 233, all
+  without a fault, so the rate is 1 in 7.
   No mechanism is known — re-run before blaming your own change, and never quote a truncated run.
 - **Missing prerequisite is `blocked_external`, never `passed`.** Detector-only is not
   integration. A `.maxpat` is not a `.amxd`. A codec test is not a control path.
@@ -107,9 +108,10 @@ them first.
   (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
   **read the `limitation` string, not the boolean.**
 - **A green `verify.ps1` does not mean the workspace suite ran.** Its `unit-tests` step is eight
-  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 227 across 40
+  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 233 across 40
   result lines. Every test inside a `[[bin]]` target (the `requirements` and `xtask` guards D028
-  through D035 add) is therefore executed by CI's workspace run and by **no** step in this script.
+  through D034 add, and D036's six in the `flux` binary) is therefore executed by CI's workspace run
+  and by **no** step in this script.
   So after adding one, the honest claim is "`cargo test -p xtask --bin requirements` passes" plus a
   workspace run; `VERIFY: PASS` alone cannot see it.
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting
@@ -118,6 +120,22 @@ them first.
   receive loop timed out, and the exit status said success. `ndi-send`/`ndi-recv`/`ndi`
   behaved the same on a missing runtime. Nonzero now means "this did not happen"; an empty
   discovery list is still exit 0 because finding nothing is an answer.
+  Closed across the whole class 2026-11-16 (D036): **seventeen** sites in `crates/app/src/main.rs`,
+  not the seven that every lane from D029 copied without opening the file. Nine compiled-out branches
+  return one `feature_off()` error naming the `--features` build, eight feature-on arms answer
+  `SdkMissing` or `BlockedExternal`, and `cmd_caps` propagates the worker error instead of printing a
+  JSON error object at exit 0. The boundary is at the **apparatus, not the outcome**: compiled-out
+  code, a missing DLL/helper/model, a child that exited nonzero, zero frames accepted, or a registry
+  query that gave up are nonzero; an empty source list, an empty sender registry, a directory with no
+  autosave, and the two `cmd_doctor` rows for an absent GPU or FFmpeg stay zero. Run the subcommand
+  before quoting its status, and treat a `0` as proof only of the thing the code can observe —
+  `flux spout-send-dx` printed its failure and exited 0 for four lanes, which is the only reason a
+  sender that has been dead since November stayed unreported.
+- **`cmd /c` expands `%ERRORLEVEL%` when the command line is *parsed*.** `prog.exe & echo
+  %ERRORLEVEL%` reports the *previous* command's status, so a process that crashed at startup reads
+  as exit 0. Use `cmd /d /v:on /c "prog.exe & echo !ERRORLEVEL!"`, or read the status from an
+  un-piped PowerShell `Start-Process -PassThru`. Two probes in D036 said a dying helper exited 0 for
+  exactly this reason.
 - **`implementation/requirements.json` is generated, so its statuses are code.** For acceptance
   rows the strings come from `at_status()` and `at_blocker()`; `blocker_for()` serves the
   requirement and generator rows. Since D032 both harnesses run

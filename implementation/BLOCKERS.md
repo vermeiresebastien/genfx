@@ -15,11 +15,11 @@
   own receiver). `apps/ndi-bridge/ndi_shim.cpp` is compiled against the official NDI SDK
   headers (vendored via `ndi-sdk`), so structs are correct; `ndi_shim.dll` itself dates from
   2026-11-09 and was not rebuilt for these runs.
-- **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 (BSD-2) works **send-side**:
-  `flux spout-send-dx` broadcasts real frames via a SpoutDX D3D11 sender — 83 frames sent
-  (`evidence/spout-send-dx.txt`). Because the SpoutDX DLL form fails to load on this host
-  (ERROR_INVALID_DLL/182), the sender runs as the `spout_sender.exe` helper (same code;
-  verified `device OK` + `SendImage=1`). Enumeration via `spout_shim.dll` ran 2026-11-15: 0 senders.
+- **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 (BSD-2) worked **send-side** — 83 frames
+  through a SpoutDX D3D11 sender on 2026-11-09 (`evidence/spout-send-dx.txt`). D036 re-ran it
+  2026-11-16: it no longer reproduces, `spout_sender.exe` dies at process start (`0xc0000138`).
+  Because the SpoutDX DLL form fails to load on this host (ERROR_INVALID_DLL/182), the sender
+  runs as that helper EXE (same code). Enumeration via `spout_shim.dll` ran 2026-11-15: 0 senders.
   Not interoperating here: Flux's enumerator doesn't see the DX sender (different Spout2
   registration path); a production fix is to compile SpoutDX into the Flux binary directly.
   Syphon is macOS-only.

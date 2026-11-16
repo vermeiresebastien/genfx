@@ -142,6 +142,20 @@ fn run(args: &[String]) -> FluxResult<()> {
     }
 }
 
+/// A subcommand whose adapter is compiled out did not run, so it is not a result.
+/// `crates/app` sets `default = []`, so in the binary CI builds every one of these
+/// branches is the only path; exiting 0 there made "this binary cannot" indistinguishable
+/// from "this worked", which is the defect D023 closed for `flux ndi` and D027 deferred
+/// here because it covered all seven of them at once.
+fn feature_off(subcommand: &str, feature: &str) -> FluxError {
+    FluxError::new(
+        flux_domain::ErrorCode::BlockedExternal,
+        feature,
+        format!("flux {subcommand}: not built into this binary (feature `{feature}` off)"),
+    )
+    .with_recovery(format!("cargo build -p flux-app --features {feature}"))
+}
+
 fn cmd_list() -> FluxResult<()> {
     let c = build_catalog();
     let mut effects = 0;
@@ -528,8 +542,7 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
     }
     #[cfg(not(feature = "ndi"))]
     {
-        println!("NDI is not built into this binary (feature `ndi` off).");
-        Ok(())
+        Err(feature_off("ndi-loopback", "ndi"))
     }
 }
 
@@ -589,8 +602,7 @@ fn cmd_ndi_send(args: &[String]) -> FluxResult<()> {
     #[cfg(not(feature = "ndi"))]
     {
         let _ = args;
-        println!("NDI is not built into this binary (feature `ndi` off).");
-        Ok(())
+        Err(feature_off("ndi-send", "ndi"))
     }
 }
 
@@ -686,8 +698,7 @@ fn cmd_ndi_recv(args: &[String]) -> FluxResult<()> {
     #[cfg(not(feature = "ndi"))]
     {
         let _ = args;
-        println!("NDI is not built into this binary (feature `ndi` off).");
-        Ok(())
+        Err(feature_off("ndi-recv", "ndi"))
     }
 }
 
@@ -731,20 +742,40 @@ fn cmd_spout_send_dx(args: &[String]) -> FluxResult<()> {
                 .arg(secs.to_string())
                 .status();
             match status {
-                Ok(s) if s.success() => println!("spout_sender.exe finished ({s})"),
-                Ok(s) => println!("spout_sender.exe exited with {s}"),
-                Err(e) => println!("failed to launch spout_sender.exe: {e}"),
+                Ok(s) if s.success() => println!(
+                    "spout_sender.exe finished ({s}); the helper's own exit code is not \
+                     proof that a receiver was connected"
+                ),
+                Ok(s) => {
+                    return Err(FluxError::new(
+                        flux_domain::ErrorCode::SdkMissing,
+                        "spout",
+                        format!("spout-send-dx: spout_sender.exe exited with {s}"),
+                    )
+                    .with_recovery("rebuild apps/spout-bridge"))
+                }
+                Err(e) => {
+                    return Err(FluxError::new(
+                        flux_domain::ErrorCode::SdkMissing,
+                        "spout",
+                        format!("spout-send-dx: failed to launch spout_sender.exe: {e}"),
+                    )
+                    .with_recovery("rebuild apps/spout-bridge"))
+                }
             }
             return Ok(());
         }
-        println!("SpoutDX unavailable (no loadable DLL and no spout_sender.exe helper).");
-        Ok(())
+        return Err(FluxError::new(
+            flux_domain::ErrorCode::SdkMissing,
+            "spout",
+            "spout-send-dx: no loadable spout_shim.dll and no spout_sender.exe helper",
+        )
+        .with_recovery("build apps/spout-bridge, or set FLUX_SPOUT_SHIM"));
     }
     #[cfg(not(feature = "spout"))]
     {
         let _ = args;
-        println!("Spout is not built into this binary (feature `spout` off).");
-        Ok(())
+        Err(feature_off("spout-send-dx", "spout"))
     }
 }
 
@@ -771,8 +802,11 @@ fn cmd_spout_send(args: &[String]) -> FluxResult<()> {
             .unwrap_or_else(|| "Flux Spout Sender".into());
         let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
         let Some(rt) = SpoutRuntime::load() else {
-            println!("spout_shim.dll not found.");
-            return Ok(());
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::SdkMissing,
+                "spout",
+                "spout-send: spout_shim.dll not found (set FLUX_SPOUT_SHIM, or build apps/spout-bridge)",
+            ));
         };
         println!("offscreen GL ready: {}", rt.gl_ready());
         let (w, h) = (640u32, 360u32);
@@ -796,10 +830,13 @@ fn cmd_spout_send(args: &[String]) -> FluxResult<()> {
             std::thread::sleep(std::time::Duration::from_millis(33));
         }
         if sent == 0 {
-            println!(
-                "Spout send produced no frames (offscreen GL path does not satisfy \
-                 SpoutLibrary SendImage on this host; sender enumeration still works)."
-            );
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::BlockedExternal,
+                "spout",
+                "spout-send: SpoutLibrary accepted 0 of the frames offered (the offscreen GL \
+                 path does not satisfy SendImage on this host; sender enumeration still works)",
+            )
+            .with_recovery("use `flux spout-send-dx`, which sends through the D3D11 sender"));
         }
         println!("Spout send: {sent} frames sent to '{}'", name);
         Ok(())
@@ -807,8 +844,7 @@ fn cmd_spout_send(args: &[String]) -> FluxResult<()> {
     #[cfg(not(feature = "spout"))]
     {
         let _ = args;
-        println!("Spout is not built into this binary (feature `spout` off).");
-        Ok(())
+        Err(feature_off("spout-send", "spout"))
     }
 }
 
@@ -826,9 +862,6 @@ fn cmd_spout() -> FluxResult<()> {
             ));
         };
         let (senders, timed_out) = rt.senders_timeout(std::time::Duration::from_secs(3));
-        if timed_out {
-            println!("Spout sender query timed out (no sender / registry busy); 0 shown.");
-        }
         println!("Spout sender registry: {} sender(s)", senders.len());
         for s in &senders {
             match (s.width, s.height) {
@@ -836,12 +869,22 @@ fn cmd_spout() -> FluxResult<()> {
                 _ => println!("  {}", s.name),
             }
         }
+        // An empty registry is an answer and still exits 0 (D023); a query that gave up
+        // before answering is not one, and the count printed above says nothing.
+        if timed_out {
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::BlockedExternal,
+                "spout",
+                "spout: the sender query timed out after 3s, so the count above is not an \
+                 answer about the registry",
+            )
+            .with_recovery("retry once no sender is mid-registration"));
+        }
         Ok(())
     }
     #[cfg(not(feature = "spout"))]
     {
-        println!("Spout is not built into this binary (feature `spout` off).");
-        Ok(())
+        Err(feature_off("spout", "spout"))
     }
 }
 
@@ -877,8 +920,7 @@ fn cmd_ndi() -> FluxResult<()> {
     }
     #[cfg(not(feature = "ndi"))]
     {
-        println!("NDI is not built into this binary (feature `ndi` off).");
-        Ok(())
+        Err(feature_off("ndi", "ndi"))
     }
 }
 
@@ -916,11 +958,9 @@ fn cmd_link() -> FluxResult<()> {
     }
     #[cfg(not(feature = "link"))]
     {
-        println!("Ableton Link is not built into this binary (feature `link` off).");
-        println!(
-            "Build with `--features link` and FLUX_ABLETON_LINK_LIB set to abl_link.lib's dir."
-        );
-        Ok(())
+        Err(feature_off("link", "link").with_recovery(
+            "cargo build -p flux-app --features link, with FLUX_ABLETON_LINK_LIB set to abl_link.lib's directory",
+        ))
     }
 }
 
@@ -994,8 +1034,14 @@ fn cmd_depth(args: &[String]) -> FluxResult<()> {
         let mut model = match DepthModel::load_default() {
             Ok(m) => m,
             Err(e) => {
-                println!("depth model unavailable: {e}");
-                return Ok(());
+                return Err(FluxError::new(
+                    flux_domain::ErrorCode::SdkMissing,
+                    "vision",
+                    format!("depth: model unavailable: {e}"),
+                )
+                .with_recovery(
+                    "drop model.onnx + model.json into FLUX_MODELS_DIR, or set FLUX_MODEL_<ID>",
+                ));
             }
         };
         let t = std::time::Instant::now();
@@ -1023,8 +1069,7 @@ fn cmd_depth(args: &[String]) -> FluxResult<()> {
     #[cfg(not(feature = "vision"))]
     {
         let _ = args;
-        println!("vision is not built into this binary (feature `vision` off).");
-        Ok(())
+        Err(feature_off("depth", "vision"))
     }
 }
 
@@ -1047,16 +1092,15 @@ fn cmd_diagnostics() -> FluxResult<()> {
 
 fn cmd_caps() -> FluxResult<()> {
     use flux_media::MediaWorker;
-    match MediaWorker::new() {
-        Ok(w) => {
-            let c = w.capabilities();
-            println!(
-                "{{\"h264\":{},\"hevc\":{},\"prores\":{},\"aac\":{},\"gif\":{},\"png\":{},\"wav\":{}}}",
-                c.h264, c.hevc, c.prores, c.aac, c.gif, c.png, c.wav
-            );
-        }
-        Err(e) => println!("{{\"error\":{e:?}}}"),
-    }
+    // A worker that could not be created is a missing prerequisite, not a report:
+    // printing `{"error":…}` and exiting 0 made "no FFmpeg here" readable as
+    // "here are the codecs" (the same defect D023 closed for `flux ndi`).
+    let w = MediaWorker::new()?;
+    let c = w.capabilities();
+    println!(
+        "{{\"h264\":{},\"hevc\":{},\"prores\":{},\"aac\":{},\"gif\":{},\"png\":{},\"wav\":{}}}",
+        c.h264, c.hevc, c.prores, c.aac, c.gif, c.png, c.wav
+    );
     Ok(())
 }
 
@@ -1083,4 +1127,122 @@ fn sanitize(name: &str) -> String {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every guard here asserts the two things `main()` turns into an exit status:
+    /// that the command refused, and that the refusal names how to make it work.
+    #[allow(dead_code)]
+    fn refused(result: FluxResult<()>) -> FluxError {
+        let e = result.expect_err("a subcommand that cannot run must not report success");
+        assert_eq!(e.code, flux_domain::ErrorCode::BlockedExternal, "{e:?}");
+        assert!(
+            !e.recovery.is_empty(),
+            "the refusal must name the build that would make it run: {e:?}"
+        );
+        e
+    }
+
+    #[cfg(not(feature = "ndi"))]
+    #[test]
+    fn the_four_ndi_subcommands_refuse_with_a_build_recovery() {
+        refused(super::cmd_ndi());
+        refused(super::cmd_ndi_loopback());
+        refused(super::cmd_ndi_send(&[]));
+        refused(super::cmd_ndi_recv(&[]));
+    }
+
+    #[cfg(not(feature = "spout"))]
+    #[test]
+    fn the_three_spout_subcommands_refuse_with_a_build_recovery() {
+        refused(super::cmd_spout());
+        refused(super::cmd_spout_send(&[]));
+        refused(super::cmd_spout_send_dx(&[]));
+    }
+
+    #[cfg(not(feature = "link"))]
+    #[test]
+    fn link_names_the_library_it_needs_to_be_built() {
+        let e = refused(super::cmd_link());
+        assert!(
+            e.recovery.contains("FLUX_ABLETON_LINK_LIB"),
+            "the Link refusal is the one place the old branch printed the \
+             prerequisite; it has to survive into the error: {e:?}"
+        );
+    }
+
+    #[cfg(not(feature = "vision"))]
+    #[test]
+    fn depth_refuses_with_a_build_recovery() {
+        refused(super::cmd_depth(&[]));
+    }
+
+    /// `flux caps` may answer on a host with FFmpeg and refuse on one without; what it
+    /// must never do is print an error payload and exit 0. Inverted here rather than
+    /// forced, because this host has the binaries.
+    #[test]
+    fn caps_refuses_only_when_the_media_worker_does() {
+        let worker = flux_media::MediaWorker::new().is_err();
+        let caps = super::cmd_caps().is_err();
+        assert_eq!(
+            worker,
+            caps,
+            "MediaWorker::new() {} while `flux caps` {}",
+            if worker { "failed" } else { "succeeded" },
+            if caps { "failed" } else { "succeeded" },
+        );
+    }
+
+    /// The nine compiled-out blocks are absent from the binary CI runs, so the guards
+    /// above cover them one feature at a time. This scan covers all nine in every
+    /// build, and counts them so a tenth branch cannot join the class quietly.
+    #[test]
+    fn no_compiled_out_block_hands_back_a_success() {
+        let lines: Vec<&str> = include_str!("main.rs").lines().collect();
+        // The guards below are the only other `#[cfg(not(feature))]` uses in the file;
+        // the scan covers the command bodies, which are all above them.
+        let stop = lines
+            .iter()
+            .position(|l| l.trim() == "#[cfg(test)]")
+            .expect("the test module marker");
+        let mut blocks = 0;
+        let mut i = 0;
+        while i < stop {
+            if !lines[i].trim().starts_with("#[cfg(not(feature") {
+                i += 1;
+                continue;
+            }
+            assert_eq!(
+                lines[i + 1].trim(),
+                "{",
+                "main.rs:{}: expected the cfg block to open on its own line",
+                i + 2
+            );
+            let mut j = i + 2;
+            let mut depth = 1;
+            while j < lines.len() && depth > 0 {
+                depth +=
+                    lines[j].matches('{').count() as i32 - lines[j].matches('}').count() as i32;
+                if depth > 0 {
+                    let body = lines[j].trim();
+                    assert!(
+                        !body.contains("Ok(("),
+                        "main.rs:{} returns success from a compiled-out subcommand: {body}",
+                        j + 1
+                    );
+                }
+                j += 1;
+            }
+            blocks += 1;
+            i = j;
+        }
+        assert_eq!(
+            blocks, 9,
+            "expected the four ndi, three spout, one link and one vision refusal \
+             branches; found {blocks}"
+        );
+    }
 }

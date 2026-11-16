@@ -874,7 +874,7 @@ invalidates every citation below it, and nothing in CI notices.
 
 - `docs/PERFORMANCE-READINESS.md` **C1** argued that BLOCKERS.md:4 "says NDI Fully working". D023 had
   already retired that sentence, so the row was attacking a document that no longer said it. Rewritten
-  against current lines (`main.rs:703`/`:558`/`:439`, `live.rs:37-41`, `STATE.json:85-86`,
+  against current lines (`main.rs:714`/`:571`/`:453`, `live.rs:37-41`, `STATE.json:85-86`,
   `requirements.json:3745`) and it now says what changed since: the docs, not the code.
 - **A6 "Doc conflict"** used to be a conflict *between* files (BLOCKERS vs requirements vs STATE). The
   ledger is no longer in the disagreement, so the remaining conflict is inside one object:
@@ -1129,7 +1129,7 @@ trusting the gate.
 
 `flux spout` itself was the other half of the same class: when no candidate resolved it printed
 "spout_shim.dll not found" and returned `Ok` — exit 0. It now returns
-`ErrorCode::SdkMissing` (`crates/app/src/main.rs:821-827`), measured exit 1 from
+`ErrorCode::SdkMissing` (`crates/app/src/main.rs:857-863`, was `:821-827` until D036), measured exit 1 from
 `target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
 
 `verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
@@ -1193,6 +1193,11 @@ measured: no CI run has been observed since these gates changed. The asymmetry i
   build (`crates/app/src/main.rs:531`, `:592`, `:689`, `:746`, `:810`, `:843`, `:880`). Same
   family as the `cmd_spout` repair, left because whether "this binary cannot" is a failure or a
   usage answer is one decision for all seven, and `flux ndi`'s exit codes are what D023 measured.
+  [done: D036 made it that one decision and closed the family, drawing the line at the apparatus rather
+  than the outcome. The count here was a copy-forward miscount that every later lane repeated: the
+  compiled-out branches are nine, and with eight feature-on arms plus `cmd_caps` the class is seventeen
+  sites. Those seven `main.rs` numbers are the pre-D036 lines; D036's table maps each to where it is
+  now.]
 - `live::protocol_status()` keeps `available: cfg!(all(windows, feature = "spout"))` and reason
   strings like "Spout2 SDK linked" (`crates/integrations/src/live.rs:70-95`). Under the contract
   above that is correct: the field describes the binary. It is also the field whose output
@@ -1401,6 +1406,8 @@ checked, not assumed.
   the run, with the source change committed after. No claim in that record needed editing.
 - The seven feature-off CLI branches that print and return `Ok` are untouched, and the ledger had no
   freshness gate. [D032 closed that: `verify.ps1:123` plus a matching `ci.yml` step, both harnesses.]
+  [D036 closed the other half, and corrected the count: nine compiled-out branches, seventeen sites in
+  the class. Both sentences above — this one and D027's — repeated D027's miscount for four lanes.]
 
 ## D030 — 2026-11-15 the Link flake had a mechanism, and the test was asserting a property Link does not deliver
 
@@ -1776,8 +1783,8 @@ The refactor was laid out to keep inbound line numbers valid: `generate()` occup
 span `main()` did (18-177), and `record`, `product_paths`, `blocker_for`, `task_status`,
 `at_status` (290-465), `at_blocker` (472-526) and `mod evidence_routing` (528-571) were not touched,
 so `requirements.rs:22-32`/`:26-32` (`IMPLEMENTATION-ARCHITECTURE.md:100`, `:330`), `:374`/`:393`/
-`:396`/`:424`/`:445`/`:453`/`:472`/`:494`/`:512` (`DECISIONS.md:825`, `:1284`,
-`PERFORMANCE-READINESS.md:245`, `:426`) and `:528-571` (`DECISIONS.md:1267`, `STATE.json:134`) are
+`:396`/`:424`/`:445`/`:453`/`:472`/`:494`/`:512` (`DECISIONS.md:825`, `:1289`,
+`PERFORMANCE-READINESS.md:245`, `:426`) and `:528-571` (`DECISIONS.md:1272`, `STATE.json:134`) are
 all still exact. Three citations did move and all three are re-pointed rather than left:
 `DECISIONS.md:805` (cites `requirements.rs:174`, the writer, now `:584`), `DECISIONS.md:1136` (cites
 `verify.ps1:200-202`, shifted by one inserted step to `:201-203`) and D028's `ci.yml:35-45`, which
@@ -1787,8 +1794,10 @@ the inserted step split — those five commands are `:35`–`:41` and `:50` now.
 Two files grew, both deliberately and both below every citation into them: `README.md` 115 → 117,
 adding at 91-93 where the largest inbound reference is `README.md:60`, and `AGENTS.md` 197 → 198,
 which nothing cites by line. `DECISIONS.md` grows only at 1302 and later, while every internal and
-inbound reference into it sits at `:116`, `:805`, `:825`, `:1103`, `:1125`, `:1136`, `:1267` or
-`:1284`.
+inbound reference into it sits at `:116`, `:805`, `:825`, `:1103`, `:1125`, `:1136`, `:1272` or
+`:1289`. Two of those eight numbers are D036's, not this record's: its annotations at `:1196` and
+`:1409` grew the file by seven lines above `:1196`, so `:1267` → `:1272` and `:1284` → `:1289`, and
+the two pointers above were moved rather than left to rot the way `PERFORMANCE-READINESS.md:461` did.
 
 ## D033 — 2026-11-15 the two report shapes D032 reasoned are now measured, each with its own control
 
@@ -2394,3 +2403,208 @@ demands: a run is only writable from its own numbers. What the run then produced
 inbound citation moved and no `requirements.rs` line number changed. This file grew by exactly the
 section above — it is 2 396 lines at the commit that carries this addendum, which is why the 2 336
 quoted two pages back names the commit carrying the record instead of this one.
+
+---
+
+## D036 — 2026-11-16 seventeen CLI sites exit nonzero now, and the first honest run of the Spout DX sender says it has been failing since November
+
+`STATE.json` has carried the same sentence since D029: "the seven feature-off CLI branches that still
+exit 0 (`crates/app/src/main.rs:531`, `:592`, `:689`, `:746`, `:810`, `:843`, `:880`)". D027 wrote it as
+a judgement about a family it had just repaired once, and every lane after copied the seven numbers
+without opening the file again. Opening it and enumerating every branch in `crates/app/src/main.rs` that
+reports a non-execution and then hands back `Ok` gives **seventeen sites**, and the two the list was
+missing were not subtle: the `link` branch prints *two* lines of prerequisite before exiting 0, and
+`flux caps` prints a JSON error object and exits 0 — a shape change plus a status lie, which no residue
+list mentioned because it never prints a sentence to notice.
+
+| # | site | was | now | code | how it is known |
+|---|---|---|---|---|---|
+| 1 | `cmd_ndi_loopback` compiled out | `:531` | `:545` | `BlockedExternal` | measured exit 1 + `the_four_ndi_subcommands…` |
+| 2 | `cmd_ndi_send` compiled out | `:592` | `:605` | `BlockedExternal` | same |
+| 3 | `cmd_ndi_recv` compiled out | `:689` | `:701` | `BlockedExternal` | same |
+| 4 | `cmd_ndi` compiled out | `:880` | `:923` | `BlockedExternal` | same |
+| 5 | `cmd_spout_send_dx` compiled out | `:746` | `:778` | `BlockedExternal` | measured exit 1 + `the_three_spout…` |
+| 6 | `cmd_spout_send` compiled out | `:810` | `:847` | `BlockedExternal` | same |
+| 7 | `cmd_spout` compiled out | `:843` | `:887` | `BlockedExternal` | same |
+| 8 | `cmd_link` compiled out | `:919` | `:961` | `BlockedExternal` | measured, and `link_names_the_library…` pins the env var |
+| 9 | `cmd_depth` compiled out | `:1026` | `:1072` | `BlockedExternal` | measured exit 1 + `depth_refuses…` |
+| 10 | DX helper exited nonzero | `:735` | `:753` | `SdkMissing` | measured: `0xc0000138`, exit 1 |
+| 11 | DX helper failed to launch | `:736` | `:761` | `SdkMissing` | no invocation this lane; both files exist here |
+| 12 | no DLL and no helper | `:740-741` | `:771` | `SdkMissing` | measured by running the CLI with `apps/spout-bridge` as cwd |
+| 13 | `spout-send` shim not found | `:773-776` | `:808` | `SdkMissing` | measured from a directory with no `apps/spout-bridge` |
+| 14 | `spout-send` accepted 0 frames | `:798-803` | `:836` | `BlockedExternal` | measured in the `--features ndi,spout` build |
+| 15 | `spout` sender query timed out | `:829-831` | `:878` | `BlockedExternal` | not reached: the query answered (0 senders, exit 0) |
+| 16 | `depth` model unavailable | `:997-999` | `:1040` | `SdkMissing` | not reached: `vision` was never built this lane |
+| 17 | `caps` swallowed the worker error | `:1058` | `:1098` | propagates `MediaWorker::new()?` | measured exit 0 here + `caps_refuses_only_when_the_media_worker_does` |
+
+Sites 1-9 share one constructor, `feature_off()` (`:150`), which puts the build command in `recovery`
+instead of in a second `println!` the way `link` used to; 10-17 keep the D023 vocabulary — `SdkMissing`
+for an apparatus that is not there, `BlockedExternal` for a run that was offered and took nothing.
+
+### The boundary, stated once
+
+D027 left the class open because "whether *this binary cannot* is a failure or a usage answer is one
+decision for all seven". It is now one decision, and it is drawn at the apparatus, not at the outcome:
+
+- **Nonzero** — the code is compiled out, the DLL or helper or model is not there, a child the command
+  spawned exited nonzero, the library accepted none of the frames offered, or the registry query gave up
+  before answering. None of these is an observation about the world; each is the command not having run.
+- **Zero, still** — `flux ndi` with 0 sources (measured this lane), `flux spout` with 0 senders
+  (measured), `flux recover` on a directory with no autosave (measured, exit 0), `flux caps` and
+  `flux list` on a host that has FFmpeg. Finding nothing is an answer.
+- **Two rows in `cmd_doctor` stay as they were** (`:196` GPU, `:207` FFmpeg): doctor exists to describe
+  the machine, `unavailable` is a value in the same line shape as every other probe, and a report that
+  exits 1 wherever it reports a limitation would make `doctor` unusable on exactly the hosts it is for.
+  `caps` was different because its payload *changes shape* — a codec object versus `{"error":…}` — and
+  an exit code of 0 invited a caller to parse the second as the first.
+
+### Controls
+
+Six tests now live in the `flux` bin target, which before this lane had none: the whole class was
+unpinned by construction, not by an oversight in a particular assertion. Each was checked against a
+mutation of `crates/app/src/main.rs`, one edit at a time, reverted, the source re-verified against
+`target/app.d036.base.rs`
+(`b5ab95892ad2512b09bf5ac13568bfc65612a6b4c2cf3b41b4c594b0ff57ec9f`) after every revert, and the clean
+tree re-run at the end.
+
+| probe | mutation | outcome |
+|---|---|---|
+| M1 | site 4 put back to `println!` + `Ok(())` | 4 passed / 2 failed: the ndi guard **and** `no_compiled_out_block_hands_back_a_success` |
+| M2 | `feature_off` reports `SdkMissing` | 2 / 4: every refusal guard, because the code is asserted, not just the fact of an `Err` |
+| M3 | `feature_off`'s default `recovery` dropped | 3 / 3: ndi, spout, depth — and `link` **survives**, because its call site re-states `FLUX_ABLETON_LINK_LIB` |
+| M4 | a tenth compiled-out block added | 5 / 1: the scan's `assert_eq!(blocks, 9)`, which is what stops a new branch joining the class quietly |
+| M5 | `caps` errors while the media worker succeeds | 5 / 1: the comparison in `caps_refuses_only_when_the_media_worker_does` is live, not vacuous |
+
+M3 is the one worth reading twice: a guard that passes under a mutation is not a guard, and here the
+reason it passes is that the same fact is carried in two places. M1 also earns the scan test its place —
+the four runtime guards compile out feature by feature, so in a `--features ndi` build site 4 has no
+test at all, while the scan still counts nine blocks and still rejects an `Ok` inside any of them.
+
+### What an honest exit code revealed
+
+Site 10 had never been *run* honestly before. `flux spout-send-dx` in a `spout` build prints
+`DLL path unavailable; launching spout_sender.exe helper` and then, today, this:
+
+```
+flux: FluxError { code: SdkMissing, subsystem: "spout", severity: Error,
+  message: "spout-send-dx: spout_sender.exe exited with exit code: 0xc0000138",
+  recovery: "rebuild apps/spout-bridge", … }
+```
+
+Before this lane that sentence was printed and the process exited 0. Three independent launchers agree
+the helper itself fails at process start — Rust's `Command` (the line above), `cmd /d /v:on`
+(`-1073741512`) and PowerShell `Start-Process -PassThru` (same) — and `dx_test.exe`, the other 2026-11-09
+C++ binary in that directory, fails identically. Two details narrow the mechanism, and both are measured:
+the seven hand-shipped CRT DLLs beside them are version-identical to the system's (`14.51.36247.0`), so
+this is not the redist mismatch `docs/PERFORMANCE-READINESS.md:458-465` predicted; and
+`crates/integrations/src/spout.rs:63-74` prepends the shim's own directory to `PATH` before the child is
+spawned, so a *find*-time failure is excluded and the remaining reading is bind-time — an ordinal that no
+loaded DLL exports, in a binary that imports `SpoutLibrary.dll`. `spout_shim.dll`, the registry-only shim
+that does not import it, loads and answers (`flux spout` → 0 senders, exit 0). So `implementation/evidence/spout-send-dx.txt`
+(83 frames through a real D3D11 sender, 2026-11-09) — the evidence AT058 rests on — no longer reproduces
+on this host, and the only reason anyone knows is that the exit code stopped lying. No gate in this repo
+ever ran `flux spout-send-dx`: `verify.ps1` runs `spout-enumeration`, which is the registry path.
+
+A trap surfaced by that sub-investigation, worth the same column as the pipe rule: in `cmd /c`,
+`%ERRORLEVEL%` is expanded when the command line is *parsed*, so `prog.exe & echo %ERRORLEVEL%` reports
+the previous status. Two first probes read `0` that way and were wrong; `/d /v:on` with `!ERRORLEVEL!`
+gave the real `-1073741512`.
+
+### What this does not close
+
+- Sites 11, 15 and 16 have no invocation. 11 needs a helper that exists and cannot be launched, 15 needs
+  a registry query that times out, 16 needs a `vision` build, which needs the `ort`
+  `download-binaries` fetch this lane did not attempt. They are `Err` by construction and reasoned from
+  reading, exactly the status D035 gave to `records_by_id`'s `unwrap_or_default()`.
+- `main()` maps every `Err` to exit 1. `BlockedExternal` and `SdkMissing` are distinguishable in the
+  printed code but not in the status, so a script cannot tell "rebuild with the feature" from "install
+  the SDK" without parsing stderr. `verify.ps1` has a third counter for exactly this; the CLI does not.
+- All three `missing()` closures (`cmd_ndi_loopback`: `:429`, `cmd_ndi_send`: `:553`, `cmd_ndi_recv`:
+  `:614`) still build errors with an empty `recovery` — measured: `ndi-recv` prints `recovery: ""`.
+  None calls `with_recovery`; the eight sites that do are elsewhere, and they exit nonzero (D023).
+- The shim search is cwd-dependent (`crates/integrations/src/spout.rs:46-50`: env var, then
+  `spout_shim.dll`, then `apps/spout-bridge/spout_shim.dll`). Sites 12 and 13 were only reachable *by
+  moving directory*, which is the same shape as the AGENTS.md trap about cargo setting a test binary's
+  cwd to the package directory, now measured from the CLI side. Not widened.
+- These six tests land in a `[[bin]]` target: executed by CI's workspace run, by no step of
+  `infrastructure/verify.ps1`. `VERIFY: PASS` cannot see this lane's work.
+- The freshness gate cannot see any of it either. `at_status()`'s AT058/AT060/AT063 arms name no exit
+  codes, so `requirements.json` stayed fresh through seventeen status changes and would have stayed
+  fresh through the DX regression too. What caught it was running the binary.
+- AT058's blocker string in the generated ledger now understates what this lane measured. It says
+  "Flux's enumerator does not see its own DX sender"; the DX sender cannot start at all, so nothing
+  should have been expected to see it. Correcting that means editing the `at_blocker()` arm and
+  regenerating, which rotates a record that carries inbound `requirements.json:NNNN` citations, and it
+  belongs with the lane that rebuilds `apps/spout-bridge` — not smuggled in beside an exit-code change.
+  The status itself (`implemented_unverified`) is not over-claiming, which is why leaving it is not the
+  D025 defect again.
+
+### Measured
+
+- `cargo test -q -p flux-app --bin flux -- --test-threads=1` — **6 passed / 0 failed**, exit 0, both
+  before and after `cargo fmt --all`.
+- `cargo test --workspace -- --test-threads=1` — exit 0, **233 passed / 0 failed / 0 ignored across 40
+  result lines**, twice on this tree, zero `FAILED`, `error[` and `STATUS_ACCESS_VIOLATION` lines in
+  logs of 719 and 718 lines. The +6 over D035's 227 are this lane's six guards, all in the `flux` bin
+  target, whose result line already existed (it reported 0 tests). The native-fault rate is now 1 in 7.
+- `cargo fmt --all -- --check` — exit 0 after one pass that reflowed only this lane's own code.
+- `cargo run -q -p xtask --bin requirements -- --check` — exit 0, `is fresh`: the comparator and the
+  generator were not touched.
+- Nine subcommands against the default build (`target/d036/flux-default.exe`): `ndi`, `ndi-send`,
+  `ndi-recv`, `ndi-loopback`, `spout`, `spout-send`, `spout-send-dx`, `link`, `depth` → **exit 1 each**,
+  each printing `code: BlockedExternal` and a `recovery` naming `cargo build -p flux-app --features …`;
+  `caps` and `list` → exit 0.
+- The same binary family rebuilt `--features ndi,spout`: `ndi` exit 0 (runtime loaded, 0 sources),
+  `ndi-loopback` exit 0 (921600 bytes back), `ndi-recv` exit 1 (`SdkMissing`, 0 sources), `spout` exit 0
+  (0 senders), `spout-send` exit 1 (`BlockedExternal`, 0 frames accepted), `spout-send-dx` exit 1 (site
+  10 above), `depth` exit 1 (`vision` still off), `caps` exit 0.
+- Sites 12 and 13 driven by directory: from `apps/spout-bridge`, `spout-send-dx` → exit 1 naming both
+  missing artifacts; from an empty directory with `FLUX_SPOUT_SHIM` removed, `spout-send` → exit 1
+  `spout_shim.dll not found` and `spout` → exit 1. Boundary kept: `flux recover` on an empty directory →
+  exit 0, printing that there was nothing to recover.
+- The five controls above, each followed by a restore and a sha256 check against the snapshot; the final
+  tree hashes identical to it before the test module was formatted.
+
+### Files changed
+
+| File | What moved |
+|---|---|
+| `crates/app/src/main.rs` | `feature_off()` added at `:150`; nine compiled-out branches, eight feature-on arms and `cmd_caps` now return errors; `#[cfg(test)] mod tests` (`:1133`) with six guards. 1 086 → 1 248 lines, `209 insertions(+), 47 deletions(-)`. |
+| `implementation/DECISIONS.md` | this record, D027's "Not changed here" bullet annotated as discharged with the count corrected, D029's copy of the same sentence closed, D026's `:877` and D027's `:1132` citations re-pointed to the moved lines, and D032's two intra-file pointers at `:1786`-`:1787` re-pointed for the growth this record itself caused. |
+| `implementation/STATE.json` | `test_totals` 227 → 233 with what the +6 are; the seven-branch item in `current_task` discharged; `known_gaps[15]` rate, `commands_to_resume` and the DX evidence claim corrected to what the binary now says. |
+| `AGENTS.md` | the CLI-exit bullet extended with the seventeen and the boundary; the `%ERRORLEVEL%` parse-time trap added; the D028-D035 range and the workspace total relabelled. |
+| `README.md`, `implementation/FINAL-REPORT.md`, `docs/PERFORMANCE-READINESS.md` | the suite total, the run range, the re-pointed `main.rs` citations, and the Spout rows corrected where this lane measured them. |
+| `implementation/BLOCKERS.md` | the Spout2 bullet, which still said `flux spout-send-dx` "broadcasts real frames"; it is now past tense, names the `0xc0000138` re-measurement, and keeps its `:20-22`/`:23-24` claim lines on the lines that cite them. |
+| `implementation/evidence/` | only what a gate rewrites when it runs; `manifest.json` stays outside the freshness gate for the reason recorded at D032. |
+
+### Citation churn
+
+`main.rs` grew at `:150` and then inside bodies, so every inbound citation into it below `:144` moved.
+Re-resolved mechanically against `git show HEAD:crates/app/src/main.rs` with a line-mapping walk rather
+than by eye: `cmd_ndi_loopback` `:403` → `:417`, its `(w, h)` `:439` → `:453`, `:440` → `:454`, its end
+`:528` → `:542`; `cmd_ndi_send` `:536` → `:549`, `:558` → `:571`, the gradient loop `:568`-`:578` →
+`:581`-`:591`; `cmd_spout_send_dx` `:694` → `:705`, `:703` → `:714`, `:710` → `:721`, `:716` → `:727`;
+`cmd_ndi_recv`'s `match frame` `:666` → `:678`, `None =>` `:680` → `:692`; `cmd_osc_listen` `:937`-`:955`
+→ `:977`-`:995`, its `recv_timeout` `:946` → `:986`; `cmd_spout`'s SdkMissing block `:821-827` →
+`:857-863`. Nothing in `docs/IMPLEMENTATION-ARCHITECTURE.md` moved: every citation there points at
+`:2-9`, `:30`, `:31-133`, `:58-74`, `:101`, `:116-132`, `:133-136` or `:140`, all at or above the
+insertion point, so its 888 lines are unchanged.
+
+Two citations *inside this file* moved, because this record's own annotations grew it: D032's
+pointers at `:1786` and `:1787` named `DECISIONS.md:1267` and `:1284`, and the seven lines inserted
+at `:1196` and `:1409` put that content at `:1272` and `:1289`. They are re-pointed, with the old
+numbers kept in D032's own paragraph — a lane that grows a file above a pointer it also cites has
+no business leaving the pointer for the next reader to find dead.
+
+One citation was found **wrong** rather than stale. `docs/PERFORMANCE-READINESS.md:458-465` attributed
+a DLL "fallback search order" to `main.rs:219-221`; at every revision this lane checked (`58887cd`,
+`6f68295`, `93484db`, `e110381`, HEAD) those lines are `cmd_render`'s cancel field and progress
+closure, and the order has always lived in `crates/integrations/src/spout.rs:46-50`. The same row's
+other citation was the opposite case: `main.rs:666-680` for the helper shell-out was **correct** at
+`58887cd`, moved to `:667` at `6f68295`, `:668` at `93484db`, `:726` at `e110381` and is `:737-766`
+now — three renumbers survived by nobody opening the file at the number it names. That is what the
+re-resolve rule is for.
+
+This file is 2 610 lines at the commit that carries this record, with the D036 heading at `:2409`; the
+only citation into it from outside is still `DECISIONS.md:116`, twice, from
+`docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869`, both far above every line this lane touched.
