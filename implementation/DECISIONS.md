@@ -2901,14 +2901,15 @@ looked for `abl_link.lib` before the clone. So it ran on every push and failed o
 
 | job | result | where it stopped |
 |---|---|---|
-| `ndi (optional)` | **success** | step 4, "Build with ndi feature" — the only job that ended `success` among the 26 in this repository's whole history that reached a conclusion |
+| `ndi (optional)` | **success** | step 4, "Build with ndi feature" — the only job of the 26 concluded so far, over this repository's whole history, that ended `success` |
 | `ableton-link (optional)` | failure | step 3 "Fetch Ableton Link and build abl_link"; step 4 reported `skipped` |
 | `spout (optional)` | failure | step 3 "Fetch Spout2 and build the C++ shim"; step 4 reported `skipped` |
 | `verify (windows-latest)` | in progress | steps 1–7 success — `Format check` and `Clippy (no deny)` among them — and step 8 "Workspace tests" still running when this row was written |
 
-This is a job-level census, taken because D038's table counted runs: Actions created 27 jobs in all 50
+This is a job-level census, taken because D038's table counted runs: Actions had created 27 jobs in 50
 runs — 25 `failure`, this one `success`, and `verify` still without a conclusion when the row above was
-written.
+written. That is the state at `738641c`; the third push of this lane added four more concluded jobs and
+all four are `success`, which the last section of this one reports.
 
 Neither SDK failure is about an SDK. The link log, after the clone and `git submodule update` have
 succeeded, ends `CMake Error at CMakeLists.txt:2 (project): Generator "Visual Studio 17 2022" could
@@ -2987,11 +2988,9 @@ because the spout leg picked up eight comment lines of its own.
 ### Five things this does not close
 
 (1) There is still **no green hosted run**. `verify` had not finished when this was written, and one
-leg's success is not the parity target. (2) `sdk_probe` has never executed on a runner — two pushes
-tried and neither workflow was readable, so it has printed no output anywhere. Its verdict for
-`windows-2025-vs2026` is reasoned from the image name plus cmake's own error; if that image's cmake
-does not list `Visual Studio 18 2026`, the link leg goes *skipped* instead of running, and only the
-next push's `PROBE:` line will say which. (3) A skip is not coverage: even when both legs run they
+leg's success is not the parity target. (2) When this list was first written the probe had never run
+on a runner — two pushes tried and neither workflow was readable; the third push got it to execute,
+and the next section reads what it said. (3) A skip is not coverage: even when both legs run they
 build from a fresh `_upstream/` clone, while the vendored `abl_link.lib` and `spout_shim.dll` stay
 gitignored — so hosted CI still never compiles the bytes `verify.ps1` gates here, and closing that
 needs an artifact hand-off or a runner that holds the SDKs, which is an owner call. (4) No gate checks
@@ -2999,8 +2998,32 @@ that the workflow parses (D038's residue, un-asked) — and it is no longer hypo
 section's own gate failed to parse twice and each fault was invisible to the check that reported it
 fine. Nor does any gate check that a leg's `if:` names an
 output key the probe actually writes; a typo there skips a leg quietly forever, the same silence class
-as a gate that exits 0 on the broken artifact. (5) The spout step's `cmd /c` quoting is unchanged — the
-measured failure was the path, not the quoting — so that command line has still never been observed to
-succeed anywhere.
+as a gate that exits 0 on the broken artifact. (5) The spout step's `cmd /c` quoting survived its own
+suspicion: given the probed path it compiled and linked the shim and the whole leg ended success, so
+the fault was the path and nothing about the quoting.
 
-The file is 3 006 lines at the commit carrying this section.
+### What the probe said on a runner, measured on the third push
+
+`8c7ed59` is run 44197396087 and it created **five jobs**, which is the first thing in this lane that
+proves the workflow parses. Job 134442296156 (`sdk-probe (decides the optional legs)`) ended success
+having printed
+
+    PROBE: link=true spout=true generator='Visual Studio 18 2026'
+    PROBE: vcvars='C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvars64.bat'
+
+and both legs then entered `in_progress`, not `skipped` — the gate decides from the machine, and this
+machine can do both. Look at what the second line says: the runner's install is the **Enterprise**
+edition at the same `18` major as this host's Community one. The path that had failed for four lanes
+was right about the edition and the drive letter and wrong about the version, which is precisely why
+nothing in the gate repeats a path. Both legs then finished: `spout (optional)` and
+`ableton-link (optional)` each ended **success** with every step green — the first hosted feature-leg
+successes this repository has had, because before this push every one of those two jobs that ever got
+to run had failed. The steps that had never passed now pass for both: the shim compiles against the
+probed `18\Enterprise` vcvars, and cmake configures Ableton Link with the probed generator. What the
+gate's other branch does — a runner with no MSVC, the job skipped — is still unexercised, because this
+image has the toolchain. Still open: whether the vendored `abl_link.lib` and `spout_shim.dll` ever
+reach CI at all (both legs build fresh clones, not these bytes), and the nine-line duplicate-key
+detector that would have saved the two dead runs, which lives in a scratch directory instead of in
+the repository.
+
+The file is 3 029 lines at the commit carrying this section.
