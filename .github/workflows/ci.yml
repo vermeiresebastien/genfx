@@ -132,7 +132,10 @@ jobs:
   # AGENTS.md's rule makes the honest outcome for a missing prerequisite — blocked, never
   # a pass — and replaces the claim in the old comment above `link-integration`, which
   # said the job skips when the SDK is absent while no code anywhere implemented that.
-  sdk-probe:
+  # The job id is spelled with an underscore on purpose: an Actions expression cannot say
+  # needs-dot-sdk-probe, because a hyphen is not a valid dotted property access, and the
+  # whole workflow then fails to parse before any job exists. Measured the hard way.
+  sdk_probe:
     name: sdk-probe (decides the optional legs)
     runs-on: windows-latest
     timeout-minutes: 10
@@ -179,8 +182,8 @@ jobs:
 
   link-integration:
     name: ableton-link (optional)
-    needs: sdk-probe
-    if: needs.sdk-probe.outputs.link == 'true'
+    needs: sdk_probe
+    if: needs.sdk_probe.outputs.link == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -189,7 +192,7 @@ jobs:
       - name: Fetch Ableton Link and build abl_link
         shell: pwsh
         env:
-          GENERATOR: ${{ needs.sdk-probe.outputs.generator }}
+          GENERATOR: ${{ needs.sdk_probe.outputs.generator }}
         run: |
           git clone --depth 1 https://github.com/Ableton/link _upstream/link
           cd _upstream/link
@@ -221,8 +224,8 @@ jobs:
   # needs.* outputs straight into a shell line is the Actions script-injection pattern.
   spout-feature:
     name: spout (optional)
-    needs: sdk-probe
-    if: needs.sdk-probe.outputs.spout == 'true'
+    needs: sdk_probe
+    if: needs.sdk_probe.outputs.spout == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -230,7 +233,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch Spout2 and build the C++ shim
         env:
-          VCVARS: ${{ needs.sdk-probe.outputs.vcvars }}
+          VCVARS: ${{ needs.sdk_probe.outputs.vcvars }}
         run: |
           git clone --depth 1 https://github.com/leadedge/Spout2 _upstream/spout2
           cmd /c "call `"$env:VCVARS`" && cd apps\spout-bridge && build_shim.bat && link_shim.bat"

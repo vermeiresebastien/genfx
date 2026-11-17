@@ -2920,15 +2920,15 @@ and 1.4 s later prints `The system cannot find the path specified.` at exit 1. B
 `C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat` on their line
 2. The repo's own build scripts moved to the new toolchain; the workflow did not.
 
-### The gate: `sdk-probe` decides per leg, and a leg it cannot do is skipped
+### The gate: `sdk_probe` decides per leg, and a leg it cannot do is skipped
 
 The new job runs `vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64
 -property installationPath`, then gates each leg on what that machine actually has. `spout` is true if
 `<install>\VC\Auxiliary\Build\vcvars64.bat` is a file; `link` is true only if that file exists *and*
 cmake is on PATH *and* the version token two directories above the install maps to a cmake generator
 name (`2019`→`Visual Studio 16 2019`, `2022`→`Visual Studio 17 2022`, `16` and `17` likewise, and
-`18`→`Visual Studio 18 2026`). The legs gain `needs: sdk-probe` plus
-`if: needs.sdk-probe.outputs.<leg> == 'true'`, and take the found values through step-level `env:`
+`18`→`Visual Studio 18 2026`). The legs gain `needs: sdk_probe` plus
+`if: needs.sdk_probe.outputs.<leg> == 'true'`, and take the found values through step-level `env:`
 (`GENERATOR`, `VCVARS`) instead of interpolating a `needs.*` output straight into a shell line, which
 is the Actions script-injection pattern. Choosing *skip* over *fail* is AGENTS.md's rule, not taste: a
 missing prerequisite is `blocked_external`, never a pass — and D027 had already settled that the
@@ -2945,7 +2945,8 @@ machine, not an environment variable, decides. The probe prints that itself, in 
   against a real VS 18 install rather than reasoned from its layout.
 - `cmake -G "Visual Studio 18 2026" -A x64` configures a scratch project at exit 0, and that string is
   in `cmake --help` on cmake 4.4.3, so the generator name was read out of cmake rather than guessed.
-- Parse after the edit: jobs `[verify, sdk-probe, link-integration, ndi-feature, spout-feature]`, both
+- Parse after the edit: jobs `[verify, sdk_probe, link-integration, ndi-feature, spout-feature]`, both
+  legs (a PyYAML check only: it cannot read the `if:` expressions — see the next section)
   legs at 4 steps with their `if:` present, verify still at 22 steps, and the ndi run value still
   reprs as exactly `'cargo test -p flux-integrations --features ndi ndi::'`.
 - Every `cargo test` command text in the file is byte-identical to before (`shell: pwsh` was the only
@@ -2954,6 +2955,20 @@ machine, not an environment variable, decides. The probe prints that itself, in 
 - The only tracked file that still names a 2022 toolchain directory is `ci.yml:122`, inside the comment
   describing this defect; the other grep hits are under `_upstream/`, matched by `.gitignore:4`.
 
+### The first push of this gate produced zero jobs, because a hyphen is not a property access
+
+`801683e` was pushed, and its run 44196592517 failed in the same second it was created with an empty
+`/jobs` array — exactly the D038 shape, for a different reason. The probe was introduced as job id
+`sdk-probe` and both legs referenced `needs.sdk-probe.outputs.link`: the Actions expression grammar
+accepts only an identifier after a `.`, and a hyphen is not one, so the whole file is rejected before
+any job exists. PyYAML has no expression grammar, so the parse in the list above is a *YAML* check and
+says nothing about the `if:` strings, which are a second language inside the file — the error was
+writing it up as if it covered the workflow. The id is now `sdk_probe`, an underscore is a legal
+identifier character, the display name stays `sdk-probe`, and the four `needs.*` references moved with
+it. Reasoned, not measured: that this was the last remaining parse fault; the next run's job count is
+the observation that will say so, and no check-run for that run is reachable through the API to quote
+the message.
+
 D038's line numbers moved with this edit and were re-resolved, not recomputed: `ci.yml:151` is now
 `:215`, and the sibling legs `:139`→`:203` (link) and `:169`→`:241` (spout). The +64 and +72 differ
 because the spout leg picked up eight comment lines of its own.
@@ -2961,7 +2976,7 @@ because the spout leg picked up eight comment lines of its own.
 ### Five things this does not close
 
 (1) There is still **no green hosted run**. `verify` had not finished when this was written, and one
-leg's success is not the parity target. (2) `sdk-probe` has never executed on a runner. Its verdict for
+leg's success is not the parity target. (2) `sdk_probe` has never executed on a runner. Its verdict for
 `windows-2025-vs2026` is reasoned from the image name plus cmake's own error; if that image's cmake
 does not list `Visual Studio 18 2026`, the link leg goes *skipped* instead of running, and only the
 next push's `PROBE:` line will say which. (3) A skip is not coverage: even when both legs run they
@@ -2974,4 +2989,4 @@ as a gate that exits 0 on the broken artifact. (5) The spout step's `cmd /c` quo
 measured failure was the path, not the quoting — so that command line has still never been observed to
 succeed anywhere.
 
-The file is 2 977 lines at the commit carrying this section.
+The file is 2 992 lines at the commit carrying this section.
