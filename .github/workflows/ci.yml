@@ -148,7 +148,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Build with ndi feature (compiles; discovery tests skip without runtime)
-        run: cargo test -p flux-integrations --features ndi ndi::
+        run: "cargo test -p flux-integrations --features ndi ndi::"
 
   # Spout2 (optional). Builds the C++ shim from the Spout2 SDK, then the Rust adapter.
   spout-feature:

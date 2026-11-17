@@ -2816,3 +2816,74 @@ Everything above was written before the harness ran. These are the run's own num
   passed — no fault, no compile error, no panic.
 
 The file is 2 818 lines at the commit carrying this section.
+
+## D038 — 2026-11-17 the workflow file has not parsed since `d4e9a29`, so 29 of 49 CI runs died before creating a job
+
+`ci.yml:151` read `run: cargo test -p flux-integrations --features ndi ndi::`. A plain YAML scalar
+may not end with a colon that is followed by a line break: the last `:` of `ndi::` is read as a
+mapping indicator, so `yaml.safe_load` raises `ScannerError: mapping values are not allowed here …
+line 151, column 65`, the file yields no jobs at all, and Actions fails the run in 0 s — measured on
+run 44189589142, whose `/jobs` array is empty. The sibling legs at `:139` (link) and `:169` (spout)
+carry the same trailing `::` inside literal block scalars, where it is harmless; `:151` is the only
+line of the breaking shape.
+
+### The census, because the claim I nearly wrote was wrong
+
+The lane notes that first found this said CI "has never executed in this repository's history".
+That is false and this section is where it gets corrected. Joined run-by-run — for all 49 runs,
+`head_sha` from `gh` against a local `yaml.safe_load` of `ci.yml` at that blob, and `.jobs | length`
+per run — the correlation is exact, with no exceptions in either direction:
+
+| class | runs | jobs created |
+|---|---|---|
+| `ci.yml` at that head parses | 20 | 17 created 1 job, 3 created 2 |
+| `ci.yml` at that head does not parse | 29 | 0 jobs, every one |
+
+**49 runs, 49 failures**, and every run in history is still a failure — but the pipeline *did*
+execute 20 times, all of them before the break: `git merge-base --is-ancestor <head> d4e9a29` is
+true for all 20 heads, tested individually rather than sampled. Parsing by commit touched the file
+12 times; it parses at `5eb655a`, `7a7baeb` and `d5d03d3` and at no commit after `d4e9a29`
+(2026-11-09 15:01:58 +0100). The remote was created `2026-11-13T10:05:30Z`, so the 20 executing runs
+are the pre-break commits being pushed for the first time, and every commit any lane has pushed
+since has hit the parser wall. So the honest sentence is not "CI never ran" but: CI ran 20 times,
+never once green, and has produced no job at all for 29 consecutive runs.
+
+What the last executed job actually died on is worth keeping, because it is already repaired here.
+Run 43514492265, job `verify (windows-latest)`, 15 steps: Set up job, checkout, `dtolnay/rust-toolchain`,
+`choco install ffmpeg` and **Format check** all success; step 6 `Clippy (no deny)` failure; steps
+7-13 skipped, so nothing after clippy ever reported. Its log ends
+`error: could not compile 'flux-catalog' (lib) due to 22 previous errors`, the individual messages
+all `approximate value of 'f{32, 64}::consts::PI' found` / `…TAU…` in `crates/catalog/src/generators_*.rs`
+under clippy 1.100. Those 22 literals now live as named consts with per-const `allow`s at
+`crates/catalog/src/builders.rs:31-38`, chosen precisely so a lint does not move a shipped parameter
+range by 3.2e-3 — which is why this host's `cargo clippy --workspace --all-targets -- -A warnings`
+exits 0 (measured today, clippy 0.1.99).
+
+### The repair
+
+One line, and the form is the point. A double-quoted scalar keeps the step's value byte-identical —
+the parsed run value reprs as exactly `'cargo test -p flux-integrations --features ndi ndi::'` —
+whereas the `run: |` block form the other two legs use would hand the runner the same text *plus a
+trailing newline*. Repairing a parse failure by changing what a step receives is the wrong trade, so
+the value is quoted and the command is untouched. The diff is 1 insertion / 1 deletion, so no
+`ci.yml:NNN` citation in the docs moves; with it the file parses into `[verify, link-integration,
+ndi-feature, spout-feature]` with 22 verify steps. Re-run after the change: `cargo run -q -p xtask
+--bin requirements -- --check` exit 0 still reading 20 `cargo test` lines from 3 carriers
+`[3, 6, 11]` — the carrier takes any non-comment line, so quoting the value does not delete the leg —
+and `cargo fmt --all -- --check` exit 0. A one-line YAML change touches nothing else in the
+canonical list.
+
+### Two things this does not close
+
+(1) The parity target still has **no successful run in 49 tries**. This push is the first since
+`d4e9a29` that can create jobs, and until its log is read the honest sentence remains "verify.ps1
+executes these gates on this host", not "CI is green". Two known ways it can still fail that this
+host cannot measure: the hosted toolchain is newer than clippy 0.1.99, so a lint that does not exist
+here can redden step 6 there, and the runners have never had the vendored `abl_link.lib` or
+`spout_shim.dll` (both gitignored), so those legs stay blocked by design. (2) No gate checks that the
+workflow parses. The cheapest deterministic form is another `requirements`-bin test that scans
+`run:`-keyed plain scalars for a value ending in `:` — deliberately not a YAML-parser dependency,
+which would be a build-time crate for one assertion. Left undone because the ask was the repair, not
+a new gate.
+
+The file is 2 889 lines at the commit carrying this section.
