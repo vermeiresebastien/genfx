@@ -117,23 +117,87 @@ jobs:
           path: target/release/bundle/nsis/*.exe
           if-no-files-found: error
 
-  # Optional Ableton Link build. Runs only when a prebuilt abl_link.lib is present
-  # (e.g. uploaded as an artifact); otherwise skipped — never fails for a missing SDK.
+  # The two SDK legs below both hardcoded a toolchain the runner image does not have:
+  # the cmake generator `Visual Studio 17 2022`, and a vcvars64.bat under the
+  # `Microsoft Visual Studio\2022\Enterprise` edition directory. Measured on job
+  # 132196889158 (image `windows-2025-vs2026`): the clone succeeds and cmake then dies
+  # with "could not find any instance of Visual Studio." — before compiling any Flux
+  # code. cmake 4.4.3 names the generator `Visual Studio 18 2026`, and this host's
+  # install is `Microsoft Visual Studio\18\Community`, which is also what the repo's own
+  # apps/spout-bridge/*.bat already call. So every push since the workflow could be read
+  # at all reported failure for an environment fact.
+  #
+  # This job decides per leg, from the machine, and hands the legs the generator and
+  # vcvars path it found instead of a second guess. A leg it cannot do is SKIPPED, which
+  # AGENTS.md's rule makes the honest outcome for a missing prerequisite — blocked, never
+  # a pass — and replaces the claim in the old comment above `link-integration`, which
+  # said the job skips when the SDK is absent while no code anywhere implemented that.
+  sdk-probe:
+    name: sdk-probe (decides the optional legs)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    outputs:
+      link: ${{ steps.probe.outputs.link }}
+      spout: ${{ steps.probe.outputs.spout }}
+      generator: ${{ steps.probe.outputs.generator }}
+      vcvars: ${{ steps.probe.outputs.vcvars }}
+    steps:
+      - name: Locate an MSVC toolchain
+        id: probe
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $link = 'false'; $spout = 'false'; $generator = ''; $vcvars = ''
+          if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+            $install = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+            if ($install) {
+              $candidate = Join-Path $install 'VC\Auxiliary\Build\vcvars64.bat'
+              if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $vcvars = $candidate
+                $spout = 'true'
+                # The directory above the edition is the product version: year-named for
+                # 2019/2022, major-named from VS 2026 on. The strings are cmake's own
+                # generator names, read out of `cmake --help` on cmake 4.4.3.
+                $token = Split-Path -Leaf (Split-Path -Parent $install)
+                $map = @{ '2019' = 'Visual Studio 16 2019'; '2022' = 'Visual Studio 17 2022';
+                          '16' = 'Visual Studio 16 2019'; '17' = 'Visual Studio 17 2022';
+                          '18' = 'Visual Studio 18 2026' }
+                if ($map.ContainsKey($token) -and (Get-Command cmake -ErrorAction SilentlyContinue)) {
+                  $generator = $map[$token]
+                  $link = 'true'
+                }
+              }
+            }
+          }
+          foreach ($kv in @(@{ k = 'link'; v = $link }, @{ k = 'spout'; v = $spout },
+                            @{ k = 'generator'; v = $generator }, @{ k = 'vcvars'; v = $vcvars })) {
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "$($kv.k)=$($kv.v)"
+          }
+          "PROBE: link=$link spout=$spout generator='$generator'"
+          "PROBE: vcvars='$vcvars'"
+          'PROBE: false means this runner cannot build that leg, so its job is SKIPPED. A skipped job is not a pass.'
+
   link-integration:
     name: ableton-link (optional)
+    needs: sdk-probe
+    if: needs.sdk-probe.outputs.link == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch Ableton Link and build abl_link
+        shell: pwsh
+        env:
+          GENERATOR: ${{ needs.sdk-probe.outputs.generator }}
         run: |
           git clone --depth 1 https://github.com/Ableton/link _upstream/link
           cd _upstream/link
           git submodule update --init --depth 1
-          cmake -G "Visual Studio 17 2022" -A x64 -S . -B build
+          cmake -G "$env:GENERATOR" -A x64 -S . -B build
           cmake --build build --config Release --target abl_link
       - name: Build and test flux with link feature (GPLv2+ — local verify only)
+        shell: pwsh
         run: |
           $env:FLUX_ABLETON_LINK_LIB = "$PWD\_upstream\link\build\Release"
           cargo test -p flux-integrations --features link link::
@@ -151,17 +215,25 @@ jobs:
         run: "cargo test -p flux-integrations --features ndi ndi::"
 
   # Spout2 (optional). Builds the C++ shim from the Spout2 SDK, then the Rust adapter.
+  # The vcvars path used to be hardcoded to the 2022 Enterprise edition; it now comes
+  # from sdk-probe, so the leg runs on whatever edition the image ships and skips (not
+  # fails) when the image has none. The env: indirection is deliberate — interpolating
+  # needs.* outputs straight into a shell line is the Actions script-injection pattern.
   spout-feature:
     name: spout (optional)
+    needs: sdk-probe
+    if: needs.sdk-probe.outputs.spout == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch Spout2 and build the C++ shim
+        env:
+          VCVARS: ${{ needs.sdk-probe.outputs.vcvars }}
         run: |
           git clone --depth 1 https://github.com/leadedge/Spout2 _upstream/spout2
-          cmd /c "call `"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat`" && cd apps\spout-bridge && build_shim.bat && link_shim.bat"
+          cmd /c "call `"$env:VCVARS`" && cd apps\spout-bridge && build_shim.bat && link_shim.bat"
         shell: pwsh
       - name: Build + test flux with spout feature
         run: |

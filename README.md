@@ -91,7 +91,8 @@ variable removed from the environment — is `17 passed / 0 failed / 0 blocked_e
 produces; `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034), `2361785` (D035) and `1a418a1` (D036)
 are each `18 passed / 0 failed / 0 blocked_external`, with `gitDirty false` except at D034, whose own
 decision record was still being written while its gates ran. The two SDK files are gitignored, so a
-fresh clone — and CI — still record 2 blocked steps. See
+fresh clone still records 2 blocked steps here. CI records no such thing — its SDK legs are separate
+jobs that clone their own sources, and `DECISIONS.md` D039 reads what they really did. See
 `AGENTS.md` § "Traps inside this repo's own verification harness".
 
 ## Live control

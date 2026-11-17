@@ -117,7 +117,9 @@ them first.
   vendored candidates and exports the directory it finds, because `crates/integrations/build.rs:16`
   needs the variable *set*, not merely true; the run at `7235afd`, with that variable removed from
   the environment, is 17-0-0 again, and D032's `requirements-freshness` step made the ceiling 18.
-  CI still records 2 blocked, because both artifacts are gitignored.
+  CI has no blocked steps to record. Its `link` and `spout` legs are separate jobs that clone their
+  own SDK sources, and the first hosted run whose workflow could be read measured both *failing* on
+  a toolchain path the image does not contain — D039 gates them on a machine probe instead.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since

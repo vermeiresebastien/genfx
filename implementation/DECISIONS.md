@@ -1363,9 +1363,9 @@ than re-running the search. `Test-LinkLib` is deleted: nothing calls a boolean t
 variable already answers.
 
 A fresh clone is unaffected: none of those candidates exist there, so `link-integration` and
-`spout-enumeration` stay `blocked_external` and CI still exits 0 with 2 blocked steps. The change
-moves the decision from the operator's shell to the filesystem, which is the only place a
-prerequisite can be true.
+`spout-enumeration` stay `blocked_external`. D039 corrects the CI half of this sentence: CI has no
+blocked steps — its SDK legs are jobs that clone their own sources, measured failing on a stale
+toolchain path, not blocked. The change moves the decision to the filesystem, where it can be true.
 
 ### The guard is behavioural, because a .ps1 has no test surface
 
@@ -2819,13 +2819,13 @@ The file is 2 818 lines at the commit carrying this section.
 
 ## D038 — 2026-11-17 the workflow file has not parsed since `d4e9a29`, so 29 of 49 CI runs died before creating a job
 
-`ci.yml:151` read `run: cargo test -p flux-integrations --features ndi ndi::`. A plain YAML scalar
-may not end with a colon that is followed by a line break: the last `:` of `ndi::` is read as a
-mapping indicator, so `yaml.safe_load` raises `ScannerError: mapping values are not allowed here …
-line 151, column 65`, the file yields no jobs at all, and Actions fails the run in 0 s — measured on
-run 44189589142, whose `/jobs` array is empty. The sibling legs at `:139` (link) and `:169` (spout)
-carry the same trailing `::` inside literal block scalars, where it is harmless; `:151` is the only
-line of the breaking shape.
+`ci.yml:151` (that blob; `:215` at HEAD) read `run: cargo test -p flux-integrations --features`
+`ndi ndi::`. A plain YAML scalar may not end with a colon that is followed by a line break: the
+last `:` of `ndi::` is read as a mapping indicator, so `yaml.safe_load` raises `ScannerError:
+mapping values are not allowed here … line 151, column 65`, the file yields no jobs at all, and
+Actions fails the run in 0 s — measured on run 44189589142, whose `/jobs` array is empty. The
+sibling legs at `:139`→`:203` (link) and `:169`→`:241` (spout) carry the same trailing `::` inside
+literal block scalars, where it is harmless; `:151`→`:215` is the only line of the breaking shape.
 
 ### The census, because the claim I nearly wrote was wrong
 
@@ -2875,15 +2875,103 @@ canonical list.
 
 ### Two things this does not close
 
-(1) The parity target still has **no successful run in 49 tries**. This push is the first since
-`d4e9a29` that can create jobs, and until its log is read the honest sentence remains "verify.ps1
-executes these gates on this host", not "CI is green". Two known ways it can still fail that this
-host cannot measure: the hosted toolchain is newer than clippy 0.1.99, so a lint that does not exist
-here can redden step 6 there, and the runners have never had the vendored `abl_link.lib` or
-`spout_shim.dll` (both gitignored), so those legs stay blocked by design. (2) No gate checks that the
+(1) The parity target still has **no successful run**. The 49-run census all failed; this push is
+the first since `d4e9a29` that can create jobs, its outcome is D039's to report, and until a run is
+read *green* the honest sentence remains "verify.ps1 executes these gates on this host", not "CI is
+green". A hosted clippy newer than 0.1.99 can still redden step 6 with a lint that does not exist
+here. The SDK legs, which this section left saying "blocked by design", did not stay blocked: D039
+reads their logs. (2) No gate checks that
 workflow parses. The cheapest deterministic form is another `requirements`-bin test that scans
 `run:`-keyed plain scalars for a value ending in `:` — deliberately not a YAML-parser dependency,
 which would be a build-time crate for one assertion. Left undone because the ask was the repair, not
 a new gate.
 
 The file is 2 889 lines at the commit carrying this section.
+
+## D039 — 2026-11-17 the two "optional" legs were not optional and never skipped: they ran on every
+push and died on a toolchain path the image does not have, so a machine probe now decides them
+
+D038 repaired the parser, and the payoff is that there were logs to read. What they show is a
+comment that no code implemented: `link-integration` carried "Runs only when a prebuilt
+`abl_link.lib` is present (e.g. uploaded as an artifact); otherwise skipped — never fails for a
+missing SDK." The job had no `if:`, no `needs:`, and no skip path of any kind, and nothing in it
+looked for `abl_link.lib` before the clone. So it ran on every push and failed on every push.
+
+### Run 44192530149, job by job (read from the Actions API and the two job logs, not from a lane note)
+
+| job | result | where it stopped |
+|---|---|---|
+| `ndi (optional)` | **success** | step 4, "Build with ndi feature" — the only job that ended `success` among the 26 in this repository's whole history that reached a conclusion |
+| `ableton-link (optional)` | failure | step 3 "Fetch Ableton Link and build abl_link"; step 4 reported `skipped` |
+| `spout (optional)` | failure | step 3 "Fetch Spout2 and build the C++ shim"; step 4 reported `skipped` |
+| `verify (windows-latest)` | in progress | steps 1–7 success — `Format check` and `Clippy (no deny)` among them — and step 8 "Workspace tests" still running when this row was written |
+
+This is a job-level census, taken because D038's table counted runs: Actions created 27 jobs in all 50
+runs — 25 `failure`, this one `success`, and `verify` still without a conclusion when the row above was
+written.
+
+Neither SDK failure is about an SDK. The link log, after the clone and `git submodule update` have
+succeeded, ends `CMake Error at CMakeLists.txt:2 (project): Generator "Visual Studio 17 2022" could
+not find any instance of Visual Studio.` — the generator name, not the source. The spout log echoes
+its own command, whose second argument is
+`call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"`,
+and 1.4 s later prints `The system cannot find the path specified.` at exit 1. Both jobs run on image
+`windows-2025-vs2026` (the first group of each log), and all five `apps/spout-bridge/*.bat` files call
+`C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat` on their line
+2. The repo's own build scripts moved to the new toolchain; the workflow did not.
+
+### The gate: `sdk-probe` decides per leg, and a leg it cannot do is skipped
+
+The new job runs `vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+-property installationPath`, then gates each leg on what that machine actually has. `spout` is true if
+`<install>\VC\Auxiliary\Build\vcvars64.bat` is a file; `link` is true only if that file exists *and*
+cmake is on PATH *and* the version token two directories above the install maps to a cmake generator
+name (`2019`→`Visual Studio 16 2019`, `2022`→`Visual Studio 17 2022`, `16` and `17` likewise, and
+`18`→`Visual Studio 18 2026`). The legs gain `needs: sdk-probe` plus
+`if: needs.sdk-probe.outputs.<leg> == 'true'`, and take the found values through step-level `env:`
+(`GENERATOR`, `VCVARS`) instead of interpolating a `needs.*` output straight into a shell line, which
+is the Actions script-injection pattern. Choosing *skip* over *fail* is AGENTS.md's rule, not taste: a
+missing prerequisite is `blocked_external`, never a pass — and D027 had already settled that the
+machine, not an environment variable, decides. The probe prints that itself, in the runner log:
+"false means this runner cannot build that leg, so its job is SKIPPED. A skipped job is not a pass."
+
+### Measured on this host before pushing
+
+- The step body was re-extracted from the file by `yaml.safe_load` and executed verbatim, with
+  `GITHUB_OUTPUT` pointed at a scratch file: exit 0, four `key=value` lines written, and
+  `PROBE: link=true spout=true generator='Visual Studio 18 2026'` with
+  `vcvars='C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat'` —
+  the same directory the `.bat` files name, so the mapping and both `Test-Path` gates are proven
+  against a real VS 18 install rather than reasoned from its layout.
+- `cmake -G "Visual Studio 18 2026" -A x64` configures a scratch project at exit 0, and that string is
+  in `cmake --help` on cmake 4.4.3, so the generator name was read out of cmake rather than guessed.
+- Parse after the edit: jobs `[verify, sdk-probe, link-integration, ndi-feature, spout-feature]`, both
+  legs at 4 steps with their `if:` present, verify still at 22 steps, and the ndi run value still
+  reprs as exactly `'cargo test -p flux-integrations --features ndi ndi::'`.
+- Every `cargo test` command text in the file is byte-identical to before (`shell: pwsh` was the only
+  addition), so the freshness carriers are untouched: `cargo run -q -p xtask --bin requirements --
+  --check` exit 0 reading 20 lines from `[3, 6, 11]`, and `cargo fmt --all -- --check` exit 0.
+- The only tracked file that still names a 2022 toolchain directory is `ci.yml:122`, inside the comment
+  describing this defect; the other grep hits are under `_upstream/`, matched by `.gitignore:4`.
+
+D038's line numbers moved with this edit and were re-resolved, not recomputed: `ci.yml:151` is now
+`:215`, and the sibling legs `:139`→`:203` (link) and `:169`→`:241` (spout). The +64 and +72 differ
+because the spout leg picked up eight comment lines of its own.
+
+### Five things this does not close
+
+(1) There is still **no green hosted run**. `verify` had not finished when this was written, and one
+leg's success is not the parity target. (2) `sdk-probe` has never executed on a runner. Its verdict for
+`windows-2025-vs2026` is reasoned from the image name plus cmake's own error; if that image's cmake
+does not list `Visual Studio 18 2026`, the link leg goes *skipped* instead of running, and only the
+next push's `PROBE:` line will say which. (3) A skip is not coverage: even when both legs run they
+build from a fresh `_upstream/` clone, while the vendored `abl_link.lib` and `spout_shim.dll` stay
+gitignored — so hosted CI still never compiles the bytes `verify.ps1` gates here, and closing that
+needs an artifact hand-off or a runner that holds the SDKs, which is an owner call. (4) No gate checks
+that the workflow parses (D038's residue, un-asked), and no gate checks that a leg's `if:` names an
+output key the probe actually writes; a typo there skips a leg quietly forever, the same silence class
+as a gate that exits 0 on the broken artifact. (5) The spout step's `cmd /c` quoting is unchanged — the
+measured failure was the path, not the quoting — so that command line has still never been observed to
+succeed anywhere.
+
+The file is 2 977 lines at the commit carrying this section.
