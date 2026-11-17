@@ -200,7 +200,6 @@ jobs:
           cmake -G "$env:GENERATOR" -A x64 -S . -B build
           cmake --build build --config Release --target abl_link
       - name: Build and test flux with link feature (GPLv2+ — local verify only)
-        shell: pwsh
         run: |
           $env:FLUX_ABLETON_LINK_LIB = "$PWD\_upstream\link\build\Release"
           cargo test -p flux-integrations --features link link::

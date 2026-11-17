@@ -2969,6 +2969,17 @@ it. Reasoned, not measured: that this was the last remaining parse fault; the ne
 the observation that will say so, and no check-run for that run is reachable through the API to quote
 the message.
 
+That reasoning did not survive the next push. `0fdae0b` is run 44196954753: completed in the same
+second it was created, `/jobs` empty again, for a second and unrelated fault. The link test step
+already ended with `shell: pwsh`, and this change had added `shell: pwsh` above its `run:` block, so
+the step carried the key twice. Actions' parser treats a duplicate mapping key as an error; `safe_load`
+treats it as a reassignment and keeps the last one — which is why the identical local check passed a
+second time while the hosted file could not be read at all. The added line is gone and the step keeps
+its original, and the pre-push battery is now a loader whose mapping constructor raises on a repeated
+key (nine lines, subclassing `yaml.SafeLoader`) plus a scan that every `needs.<id>` dotted reference is
+a legal identifier and every `needs:` names a job that exists. Both faults were invisible to the
+instrument that reported success, and each one cost a CI run to find.
+
 D038's line numbers moved with this edit and were re-resolved, not recomputed: `ci.yml:151` is now
 `:215`, and the sibling legs `:139`→`:203` (link) and `:169`→`:241` (spout). The +64 and +72 differ
 because the spout leg picked up eight comment lines of its own.
@@ -2976,17 +2987,20 @@ because the spout leg picked up eight comment lines of its own.
 ### Five things this does not close
 
 (1) There is still **no green hosted run**. `verify` had not finished when this was written, and one
-leg's success is not the parity target. (2) `sdk_probe` has never executed on a runner. Its verdict for
+leg's success is not the parity target. (2) `sdk_probe` has never executed on a runner — two pushes
+tried and neither workflow was readable, so it has printed no output anywhere. Its verdict for
 `windows-2025-vs2026` is reasoned from the image name plus cmake's own error; if that image's cmake
 does not list `Visual Studio 18 2026`, the link leg goes *skipped* instead of running, and only the
 next push's `PROBE:` line will say which. (3) A skip is not coverage: even when both legs run they
 build from a fresh `_upstream/` clone, while the vendored `abl_link.lib` and `spout_shim.dll` stay
 gitignored — so hosted CI still never compiles the bytes `verify.ps1` gates here, and closing that
 needs an artifact hand-off or a runner that holds the SDKs, which is an owner call. (4) No gate checks
-that the workflow parses (D038's residue, un-asked), and no gate checks that a leg's `if:` names an
+that the workflow parses (D038's residue, un-asked) — and it is no longer hypothetical, because this
+section's own gate failed to parse twice and each fault was invisible to the check that reported it
+fine. Nor does any gate check that a leg's `if:` names an
 output key the probe actually writes; a typo there skips a leg quietly forever, the same silence class
 as a gate that exits 0 on the broken artifact. (5) The spout step's `cmd /c` quoting is unchanged — the
 measured failure was the path, not the quoting — so that command line has still never been observed to
 succeed anywhere.
 
-The file is 2 992 lines at the commit carrying this section.
+The file is 3 006 lines at the commit carrying this section.
