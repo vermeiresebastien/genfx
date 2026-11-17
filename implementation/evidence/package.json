@@ -1,16 +1,38 @@
 {
   "ok": true,
+  "status": "ok",
   "exe": "D:\\Projects\\visual\\genfx\\target/release/flux.exe",
   "exists": true,
+  "cliBuildOk": true,
+  "tauriCli": "D:\\Projects\\visual\\genfx\\apps/desktop/node_modules/@tauri-apps/cli/tauri.js",
+  "bundles": [
+    "nsis"
+  ],
+  "features": [
+    "custom-protocol"
+  ],
+  "bundleExit": 0,
+  "resources": [],
+  "artifacts": [
+    {
+      "bundle": "nsis",
+      "path": "D:\\Projects\\visual\\genfx\\target/release/bundle/nsis\\Flux_0.1.0_x64-setup.exe",
+      "sha256": "c697887a407183a729b598d13b427bc735fc029803b29d2f172ff31173c3ebf4",
+      "sizeBytes": 6372686,
+      "mtimeUnix": 1794950540,
+      "mtimeUtc": "2026-11-17T21:22:20Z"
+    }
+  ],
   "provenance": {
-    "gitHash": "90d9e59",
-    "gitHashFull": "90d9e597982da4a97159c41a6ba653d0a0c66245",
+    "gitHash": "6320d3e",
+    "gitHashFull": "6320d3ee4e92e94ff8692f3915d35563614db131",
     "gitDirty": true,
-    "generatedAtUtc": "2026-11-15T14:29:55Z",
+    "gitDirtyScope": "working tree, excluding implementation/evidence/",
+    "generatedAtUtc": "2026-11-17T21:22:21Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
-      "mtimeUnix": 1794752869,
-      "mtimeUtc": "2026-11-15T14:27:49Z"
+      "mtimeUnix": 1794930422,
+      "mtimeUtc": "2026-11-17T15:47:02Z"
     },
     "host": {
       "os": "windows",

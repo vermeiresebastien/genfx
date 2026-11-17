@@ -989,6 +989,7 @@ dependencies = [
  "crossbeam-channel",
  "flux-domain",
  "flux-engine",
+ "flux-platform",
  "midir",
  "ort",
  "rosc",
@@ -1002,6 +1003,7 @@ version = "0.1.0"
 dependencies = [
  "flux-domain",
  "flux-engine",
+ "flux-platform",
  "png 0.17.16",
  "serde",
  "serde_json",

@@ -1007,6 +1007,17 @@ mod tests {
              not re-run the bundler, so `cargo build -p flux-desktop` embeds the previously \
              built app.bundle.js and reports success."
         );
+        // The directory scan above cannot see the toolchain pin: the npm root is
+        // `apps/desktop`, outside `frontendDist`, because the NSIS bundler refuses
+        // a dist that contains `node_modules`. A different esbuild builds a
+        // different bundle, so the lockfile has to stay a reason to re-run.
+        for name in ["package.json", "package-lock.json"] {
+            assert!(
+                script.contains(&format!("cargo:rerun-if-changed=../{name}")),
+                "build.rs does not watch apps/desktop/{name}, so the pinned esbuild can change \
+                 without the bundler re-running."
+            );
+        }
     }
 
     // --- item 3: one poisoned mutex must not end the app --------------------

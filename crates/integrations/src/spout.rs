@@ -41,14 +41,17 @@ pub struct SpoutRuntime {
 }
 
 impl SpoutRuntime {
-    /// Load the shim from `FLUX_SPOUT_SHIM` or next to the executable.
+    /// Load the shim: `FLUX_SPOUT_SHIM`, then beside the executable (the shipped
+    /// layout), then the source-tree bridge directory.
+    ///
+    /// The bridge-dir leg used to be the *only* non-env candidate and it was
+    /// relative to the working directory, so a packaged app — which has no
+    /// `apps/` — could never load the shim its own doc comment claimed.
     pub fn load() -> Option<Self> {
-        let candidates = [
-            std::env::var("FLUX_SPOUT_SHIM").ok(),
-            Some("spout_shim.dll".to_string()),
-            Some("apps/spout-bridge/spout_shim.dll".to_string()),
-        ];
-        for cand in candidates.into_iter().flatten() {
+        for cand in flux_platform::layout::candidates(
+            "FLUX_SPOUT_SHIM",
+            &["spout_shim.dll", "apps/spout-bridge/spout_shim.dll"],
+        ) {
             if let Some(rt) = Self::load_path(&cand) {
                 return Some(rt);
             }
@@ -56,21 +59,9 @@ impl SpoutRuntime {
         None
     }
 
-    fn load_path(path: &str) -> Option<Self> {
-        if !Path::new(path).exists() {
+    fn load_path(path: &Path) -> Option<Self> {
+        if !path.exists() {
             return None;
-        }
-        // Ensure the shim's dependency (SpoutLibrary.dll) resolves from its own dir.
-        if let Some(dir) = Path::new(path).parent() {
-            // Best effort: prepend to the DLL search path for this process.
-            let _ = std::env::set_var(
-                "PATH",
-                format!(
-                    "{};{}",
-                    dir.display(),
-                    std::env::var("PATH").unwrap_or_default()
-                ),
-            );
         }
         unsafe {
             let lib = load_library(path);
@@ -215,12 +206,10 @@ pub struct SpoutDxSender {
 impl SpoutDxSender {
     /// Load `spoutdx_shim.dll` and create a sender. Returns None if unavailable.
     pub fn load(name: &str, width: u32, height: u32) -> Option<Self> {
-        let candidates = [
-            std::env::var("FLUX_SPOUTDX_SHIM").ok(),
-            Some("spoutdx_shim.dll".to_string()),
-            Some("apps/spout-bridge/spoutdx_shim.dll".to_string()),
-        ];
-        for cand in candidates.into_iter().flatten() {
+        for cand in flux_platform::layout::candidates(
+            "FLUX_SPOUTDX_SHIM",
+            &["spoutdx_shim.dll", "apps/spout-bridge/spoutdx_shim.dll"],
+        ) {
             if let Some(s) = Self::load_path(&cand, name, width, height) {
                 return Some(s);
             }
@@ -228,19 +217,9 @@ impl SpoutDxSender {
         None
     }
 
-    fn load_path(path: &str, name: &str, width: u32, height: u32) -> Option<Self> {
-        if !Path::new(path).exists() {
+    fn load_path(path: &Path, name: &str, width: u32, height: u32) -> Option<Self> {
+        if !path.exists() {
             return None;
-        }
-        if let Some(dir) = Path::new(path).parent() {
-            let _ = std::env::set_var(
-                "PATH",
-                format!(
-                    "{};{}",
-                    dir.display(),
-                    std::env::var("PATH").unwrap_or_default()
-                ),
-            );
         }
         unsafe {
             let lib = load_library(path);
@@ -294,18 +273,36 @@ impl Drop for SpoutDxSender {
     }
 }
 
+/// `LOAD_WITH_ALTERED_SEARCH_PATH`: the loader resolves this DLL's *own* imports
+/// (`SpoutLibrary.dll`) from the directory the DLL lives in.
+///
+/// The previous form was `LoadLibraryW` plus `set_var("PATH", …)` on the shim's
+/// directory. That mutation is a data race against any other thread reading the
+/// environment, it happens *after* the process search path may already be cached,
+/// and in an installed app it prepends a directory the user has no reason to put
+/// on PATH. The flag does the same job inside the loader.
 #[cfg(windows)]
-fn load_library(path: &str) -> *mut c_void {
+const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x0000_0008;
+
+#[cfg(windows)]
+fn load_library(path: &Path) -> *mut c_void {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
     }
-    let wide: Vec<u16> = std::ffi::OsStr::new(path)
+    let wide: Vec<u16> = path
+        .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
-    unsafe { LoadLibraryW(wide.as_ptr()) }
+    unsafe {
+        LoadLibraryExW(
+            wide.as_ptr(),
+            std::ptr::null_mut(),
+            LOAD_WITH_ALTERED_SEARCH_PATH,
+        )
+    }
 }
 
 #[cfg(windows)]
@@ -324,7 +321,7 @@ fn get_proc(module: *mut c_void, name: &str) -> Option<*mut c_void> {
 }
 
 #[cfg(not(windows))]
-fn load_library(_path: &str) -> *mut c_void {
+fn load_library(_path: &Path) -> *mut c_void {
     std::ptr::null_mut()
 }
 #[cfg(not(windows))]

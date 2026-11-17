@@ -2667,3 +2667,152 @@ is the defect this lane exists to catch — one level above the CLI sites it clo
 This section sits below the D036 heading, so `:2409` still names it and the only inbound citation into
 this file — `DECISIONS.md:116`, twice, from `docs/IMPLEMENTATION-ARCHITECTURE.md:414` and `:869` — is
 above everything it grew. The file is 2 669 lines at the commit carrying this section.
+
+## D037 — 2026-11-17 there is an installer for the first time, and the first release build of `flux spout` crashes where every debug build passed
+
+AT082 has been `implemented_unverified` since the ledger existed, and the reason was not a missing
+test but a missing *object*: `apps/desktop/src-tauri/tauri.conf.json` carried `"bundle": { "active":
+false }`, and `cmd_package` built `cargo build --release -p flux-app --no-default-features` and wrote
+`{ ok, exe, exists }`. So the word "package" named a CLI binary, `bundle.active = false` meant there
+was nothing to install, and the row's clean-install / no-dev-PATH clauses had no artifact to be run
+against — which is also why E4's `msvcp140*.dll` question stayed a hypothesis. This lane builds the
+thing, gates the building of it, and then reports which halves of AT082 still need a second machine.
+
+Five decisions, taken with the owner's "do all" and his recommended defaults: a plain-feature build
+with opt-in feature forwarding; NSIS `currentUser` as the primary container (MSI opt-in);
+exe-relative FFmpeg resolution with a visible refusal and **opt-in** bundling, because shipping
+~100 MB of FFmpeg is a licensing call, not a build default; unsigned accepted with SmartScreen
+documented rather than worked around; `embedBootstrapper` for WebView2.
+
+| file | what changed | evidence it is real |
+|---|---|---|
+| `crates/platform/src/layout.rs` (new, 7 tests) | `exe_dir()` `:18`, `candidates()` `:64`, `locate()` `:81`, `locate_with_env()` `:88` — every sidecar resolves against `current_exe()`, then `bin/`, `resources/`, `ffmpeg/`, never the working directory | its own unit tests, which fail on a `cwd`-based base |
+| `crates/integrations/src/{spout,ndi,ndi_io}.rs` | `LoadLibraryExW` + `LOAD_WITH_ALTERED_SEARCH_PATH` (`spout.rs:285`, `ndi.rs:198`) replaces `LoadLibraryW` + `set_var("PATH", …)`; candidates go through the layout | `crates/integrations/src/tests.rs:127` `sidecars_resolve_through_the_layout_not_the_working_directory` |
+| `crates/media/src/lib.rs` | FFmpeg found the same way; absent means a refusal, not a silent fallback | the media unit tests in the workspace run |
+| `apps/desktop/{package.json,package-lock.json}` (new) + `ui/package.json`, `ui/package-lock.json` (deleted) | the npm root moved **out of** `frontendDist`, because the NSIS bundler refuses a `frontendDist` that contains `node_modules` | `cargo:rerun-if-changed=../package.json` / `../package-lock.json` (`build.rs:154-155`), pinned by the watch-set gate in `src-tauri/src/lib.rs` |
+| `tauri.conf.json:24-44` | `active: true`, `targets: ["nsis"]`, `installMode: currentUser`, `webviewInstallMode: embedBootstrapper`, `resources: []`, and a non-null
+`csp` | the artifact itself, hashed into `evidence/package.json`; the `csp` is gated by nothing but
+the launch leg below, which renders the editor from a payload built with it |
+| `crates/xtask/src/main.rs:1532` `cmd_package` | parses `--bundles` / `--features` / `--with-ffmpeg`, builds the release CLI **and** the bundle, discovers the artifacts, writes `artifacts[]` with sha256/size/mtime; exit 0 installer, 1 build failed or bundler-exited-0-with-nothing (`status: "no_artifact"`), 2 bad usage, 3 no Tauri CLI (`status: "blocked_external"`) | 4 tests in `mod packaging`, two of them proven red by mutation |
+| `.github/workflows/ci.yml`, `infrastructure/verify.ps1`, `AGENTS.md` | the verb joins the canonical command list, a CI step, and a Windows-gated `Step 'installer-bundle'` that `Blocked`s where NSIS cannot exist | `cargo run -q -p xtask --bin requirements -- --check` reads all three carriers |
+| `crates/xtask/src/bin/requirements.rs:334`, `:556`, `:622` | AT082's evidence list, its blocker arm, and its freshness case (9 → 10 entries: `["package.json","nsis","layout"]`) | 22 tests in the `requirements` bin, incl. `:665` `no_acceptance_row_cites_a_command_as_its_evidence` |
+
+### Why `custom-protocol` is restated rather than trusted
+
+`tauri-2.12.5/build.rs` computes `let dev = !custom_protocol` and prints `cargo:dev={dev}`;
+`tauri-build` turns that into `cfg(dev)` through `DEP_TAURI_DEV`. With the feature off, the shipped
+binary serves `frontendDist` off disk — on a user's machine that is a blank window. `tauri build`
+adds the feature itself (measured in this lane's `smoke/T2-tauri-build-1.log:8`, which is untracked,
+so the line is quoted rather than cited:
+`Running [tauri_cli] Command \`cargo build --bins --features tauri/custom-protocol --release\``), so
+`bundle_features()` re-declares it and refuses to duplicate it, which turns a Tauri implementation
+detail into a build assertion instead of a coincidence.
+
+### What was actually run on this host
+
+The three AT082 legs that need a machine which did not build Flux were **not** run — creating a
+standard-user profile, disabling the network and installing into his account are his calls. What is
+measurable from a checkout without touching OS state:
+
+- the NSIS payload was extracted to a temp dir and launched there with `PATH` reduced to
+  `C:\Windows\system32;C:\Windows`, cwd `C:\Windows`, and every `FLUX_*` variable removed: window
+  created and visible, `:9000` bound, closed via `CloseMainWindow`. That was the 15:50 artifact; the
+  same leg is re-measured against the installer the harness rebuilt at 21:22 in "After the harness"
+  below, which is the run whose numbers a reviewer should use.
+- `flux ndi` in that same extracted layout loaded `Processing.NDI.Lib.x64.dll` exe-relatively and
+  returned a discovery list — the clause "DLLs found without dev PATH" answered for one runtime.
+- the 7-Zip census of the installer: `flux-desktop.exe`,
+  `$TEMP\MicrosoftEdgeWebview2Setup.exe` (1,897,688 B — the bootstrapper, hence the network
+  dependency), five `$PLUGINSDIR` entries, `uninstall.exe`, and **no shim at all**, because
+  `bundle.resources` is empty by default. Resolution is fixed; shipping is an owner decision.
+
+### The release-only crash, and what it is not
+
+`flux spout` faults in a release build. Six of six runs of `target/release/flux.exe spout` exit
+`0xc0000005` with no stdout; WER bucket `e0543064afd06a0745e212203945e5c7` names
+`SpoutLibrary.dll` at offset `0x232e3`. Two hypotheses were on the table and one is dead:
+
+- **Not the loader change.** `git checkout HEAD -- crates/integrations/src/spout.rs` (the
+  `LoadLibraryW` + `set_var("PATH")` form), rebuilt release, probed: 5 AVs, same exception. The
+  mutated file was then restored byte-exactly and the restore proven against the pre-mutation hash
+  `1c2f05ce2f197194c37e0ca67c5e20cffed0f5d54766d2f42cba78fccaa54329`. WER's own `LoadedModule` list
+  closes the other half of the question: `spout_shim.dll`, `SpoutLibrary.dll`, `MSVCP140.dll` and
+  `VCRUNTIME140_1.dll` all resolve from `apps\spout-bridge`, so the altered-search-path change does
+  exactly what its doc comment claims.
+- **It is the enumeration, and it is profile-bound.** `target/debug/flux.exe spout` on the same
+  bytes prints `Spout sender registry: 0 sender(s)` and exits 0, and so does
+  `target/d036/flux-features.exe` — whose control (same exe, cwd `C:\Windows`, shim unreachable)
+  exits 1 `SdkMissing`, which is what makes that 0 an observation rather than a skip. The same
+  release binary calls into the shim on the main thread without faulting: `flux spout-send` prints
+  `offscreen GL ready: true` and only then fails for the unrelated D036 reason. So the fault is in
+  the detached worker that `SpoutRuntime::senders_timeout` spawns (`spout.rs:129`), and it has one
+  caller in the tree — `crates/app/src/main.rs:889`, the CLI, not the GUI.
+
+Reachability: `spout` is compiled out of `default = []` in both `flux-app` and `flux-desktop`, and no
+CI step builds release *with* features, so no artifact this repository has ever produced contained
+the crashing path. `cargo xtask package --features spout` would create one, which is recorded in E4
+and in `STATE.json` `known_gaps[16]` rather than fixed here: a third-party DLL faulting inside a
+worker thread needs its own lane, and a packaging lane should not silently change a spout runtime.
+
+### Controls and residues
+
+Thirteen tests are new (4 `mod packaging`, 7 in `layout.rs`, 1 in the `requirements` bin's case
+table, 1 sidecar-resolution test), and the two that could be reddened cheaply were: the mutation
+logs are in `smoke/` (untracked) and the hashes they restore against are written above. Two residues
+are deliberately not closed by this lane: `embedBootstrapper` needs network on a machine without the
+WebView2 runtime — `offlineInstaller` is the alternative and it is an owner call — and
+`apps/desktop/src-tauri/icons/icon.ico` is a single 32×32 image, so an installed Flux has no real
+icon art. The workspace total moved 233 → 316 (+83) and the attribution is a count, not a proof: the
+31 commits between `1a418a1` and HEAD add 78 `#[test]` attributes and this lane adds 13 (4
+`mod packaging`, 7 in `layout.rs`, 1 in the `requirements` bin's case table, 1 sidecar-resolution
+test), so 91 attributes against +83 executed tests. The two need not agree — a `#[test]` inside a
+`#![cfg(feature = …)]` module does not run in a default-features workspace build, and an attribute
+added to a file whose test count was already being counted moves nothing — and which of the 8
+surplus attributes fall in that category is not enumerated here.
+
+### After the harness
+
+Everything above was written before the harness ran. These are the run's own numbers.
+
+- `infrastructure/verify.ps1`, full and without `-Quick`, from a shell with both SDK variables left
+  as this host has them: **`VERIFY: PASS`**, exit 0, `steps: passed=22 failed=0 blocked_external=0`,
+  all 22 steps `{ exit: 0, ok: true }`, `verify.json` at `gitHash 6320d3e`, `gitDirty true` (the
+  dirty side is this lane's sources, not the evidence), `quick false`, generated
+  `2026-11-17T21:22:37Z`. The ceiling moved 18 → 22 and the step *names* say where: diffing this
+  file's list against `git show 1a418a1:implementation/evidence/verify.json` gives exactly four
+  additions — `installer-bundle` from this lane, and `live-audio-platform`, `live-audio-app`,
+  `ui-bundle-cache-buster` from the 31 commits between `1a418a1` and HEAD. `installer-bundle`
+  recorded exit 0, so the NSIS leg is now executed by the harness and not merely declared.
+- The artifact that step produced: `target/release/bundle/nsis\Flux_0.1.0_x64-setup.exe`,
+  **6,372,686 B**, sha256 `c697887a407183a729b598d13b427bc735fc029803b29d2f172ff31173c3ebf4`,
+  mtime `2026-11-17T21:22:20Z`, with `features: ["custom-protocol"]` and `resources: []` in
+  `evidence/package.json`. It is a different file from the one this lane built at 15:50
+  (`909d6134…`, 6,372,285 B): the bundler is not byte-reproducible, so the hash a reviewer should
+  census is the one in the evidence file, not a remembered constant.
+- 7-Zip census of that installer — 8 entries, and the E4 claim holds exactly:
+  `flux-desktop.exe` 19,397,120, `$TEMP\MicrosoftEdgeWebview2Setup.exe` 1,897,688,
+  `uninstall.exe` 79,431, `$PLUGINSDIR\{nsis_tauri_utils.dll 34,304, modern-wizard.bmp 26,494,
+  System.dll 12,288, nsDialogs.dll 9,728, StartMenu.dll 7,680}` — and no `spout_shim.dll`,
+  `spoutdx_shim.dll`, `ndi_shim.dll`, `Processing.NDI.Lib.x64.dll`, VC++ runtime or `ffmpeg.exe`.
+- The launch leg re-run against **that** payload (extracted to a temp dir, `PATH` reduced to
+  `C:\Windows\system32;C:\Windows`, cwd `C:\Windows`, `FLUX_*` count after removal 0):
+  `flux-desktop.exe` sha256 `1357956a2021b751c180361a6bad24c1a26217192465dcda70becf11c4897a7b`,
+  PID 14408, window handle 1376×899 at `104,104`, `visible=True`, `UDP 127.0.0.1:9000` owned by
+  14408, `CloseMainWindow` → `exited=True exitcode=0`. The capture is a `PrintWindow`
+  (`PW_RENDERFULLCONTENT`) grab, and it shows the editor: five-node graph, a live preview inside the
+  `Plasma` node, and a status bar reading `217 node types · 274 presets` and
+  `build 6320d3e v0.1.0` — the running binary naming the commit it was built from.
+- **One leg is declared superseded, not passed.** The first attempt at the same probe used
+  `CopyFromScreen` over the window rect and the PNG it wrote contains the desktop wallpaper and a
+  Windows Defender Firewall prompt for `target\debug\deps\flux_integrations-828e04100aa51bb4.exe`
+  (spawned by the harness's own test binaries, not by the payload). That image is not evidence of
+  anything about Flux, so it is named here as inconclusive and the `PrintWindow` leg replaced it.
+  The dialog itself was left unanswered: allowing or cancelling an inbound-rule prompt is his call.
+- CI-parity legs re-run on the final tree: `cargo fmt --all -- --check` exit 0 with an empty diff
+  list; `node apps/desktop/ui/check-bundle.mjs` **29/29**; `cargo test --workspace --
+  --test-threads=1` exit 0 at **316 passed / 0 failed / 0 ignored across 41 result lines**
+  (30 binaries + 11 doctest lines). The only hit for the `ACCESS_VIOLATION|error\[|panicked` sweep
+  over that log is the test *name* `freshness::a_broken_ledger_is_located_not_panicked`, which
+  passed — no fault, no compile error, no panic.
+
+The file is 2 818 lines at the commit carrying this section.

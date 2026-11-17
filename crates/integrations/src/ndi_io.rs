@@ -45,14 +45,13 @@ pub struct NdiShim {
 }
 
 impl NdiShim {
-    /// Load `ndi_shim.dll` from `FLUX_NDI_SHIM`, next to the exe, or the bridge dir.
+    /// Load `ndi_shim.dll`: `FLUX_NDI_SHIM`, then beside the executable, then the
+    /// source-tree bridge directory.
     pub fn load() -> Option<Self> {
-        let candidates = [
-            std::env::var("FLUX_NDI_SHIM").ok(),
-            Some("ndi_shim.dll".to_string()),
-            Some("apps/ndi-bridge/ndi_shim.dll".to_string()),
-        ];
-        for cand in candidates.into_iter().flatten() {
+        for cand in flux_platform::layout::candidates(
+            "FLUX_NDI_SHIM",
+            &["ndi_shim.dll", "apps/ndi-bridge/ndi_shim.dll"],
+        ) {
             if let Some(s) = Self::load_path(&cand) {
                 return Some(s);
             }
@@ -60,20 +59,9 @@ impl NdiShim {
         None
     }
 
-    fn load_path(path: &str) -> Option<Self> {
-        if !Path::new(path).exists() {
+    fn load_path(path: &Path) -> Option<Self> {
+        if !path.exists() {
             return None;
-        }
-        // Put the shim dir on PATH so its Processing.NDI.Lib.x64.dll resolves.
-        if let Some(dir) = Path::new(path).parent() {
-            let _ = std::env::set_var(
-                "PATH",
-                format!(
-                    "{};{}",
-                    dir.display(),
-                    std::env::var("PATH").unwrap_or_default()
-                ),
-            );
         }
         unsafe {
             let lib = load_library(path);
@@ -212,18 +200,32 @@ impl Drop for NdiSender {
     }
 }
 
+/// `LOAD_WITH_ALTERED_SEARCH_PATH`, so the shim's own import
+/// `Processing.NDI.Lib.x64.dll` resolves from the directory the shim is in —
+/// replacing a `set_var("PATH", …)` that raced every other reader of the
+/// environment and did nothing for an already-cached search path.
 #[cfg(windows)]
-fn load_library(path: &str) -> *mut c_void {
+const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x0000_0008;
+
+#[cfg(windows)]
+fn load_library(path: &Path) -> *mut c_void {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
     }
-    let wide: Vec<u16> = std::ffi::OsStr::new(path)
+    let wide: Vec<u16> = path
+        .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
-    unsafe { LoadLibraryW(wide.as_ptr()) }
+    unsafe {
+        LoadLibraryExW(
+            wide.as_ptr(),
+            std::ptr::null_mut(),
+            LOAD_WITH_ALTERED_SEARCH_PATH,
+        )
+    }
 }
 #[cfg(windows)]
 fn get_proc(module: *mut c_void, name: &str) -> Option<*mut c_void> {
@@ -240,7 +242,7 @@ fn get_proc(module: *mut c_void, name: &str) -> Option<*mut c_void> {
     }
 }
 #[cfg(not(windows))]
-fn load_library(_path: &str) -> *mut c_void {
+fn load_library(_path: &Path) -> *mut c_void {
     std::ptr::null_mut()
 }
 #[cfg(not(windows))]

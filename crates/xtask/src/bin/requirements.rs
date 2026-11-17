@@ -333,7 +333,12 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         ),
         "AT082" => (
             "implemented_unverified",
-            vec!["cargo xtask package (unsigned dev binary)".into()],
+            vec![
+                "implementation/evidence/package.json (artifacts[]: installer path, sha256, size and mtime written by `cargo xtask package`)".into(),
+                "apps/desktop/src-tauri/tauri.conf.json > bundle (active, nsis, installMode currentUser, webviewInstallMode embedBootstrapper)".into(),
+                "crates/platform/src/layout.rs + its tests (sidecars resolve from the executable's directory, never the working directory)".into(),
+                "crates/integrations/src/tests.rs sidecars_resolve_through_the_layout_not_the_working_directory".into(),
+            ],
         ),
         // Persistence: autosave/recovery/relink/collect (real, tested).
         "AT071" | "AT072" => (
@@ -545,13 +550,29 @@ fn at_blocker(id: &str) -> Option<&'static str> {
              host has ever joined. D030 bounded the read-back rather than fixing it: a capture \
              taken in the same instant as a commit can still return the previous value.",
         ),
+        // The installer now exists, but every clause of this AC is about a machine that
+        // did not build Flux, and that machine has never been booted. Read the row as
+        // "the artifact is producible and inventoried", not "the artifact was accepted".
+        "AT082" => Some(
+            "no clean standard-user profile, scrubbed PATH or offline first launch has been \
+             run on a machine that did not build Flux; the default bundle carries no sidecar \
+             at all (bundle.resources is empty and the bridge DLLs are not bundled), so the \
+             resources-found-without-dev-PATH clause is only exercised once something is \
+             actually shipped — cargo xtask package --with-ffmpeg <dir> is the route, and \
+             third-party DLLs in an installer are an owner decision, not a build default. \
+             embedBootstrapper also downloads the WebView2 runtime at install when the machine \
+             lacks it, so a no-network first install needs webviewInstallMode offlineInstaller. \
+             Smallest resume step: install into a fresh standard-user profile with PATH \
+             stripped to system32, launch offline, then uninstall and confirm the project \
+             directory survives.",
+        ),
         _ => None,
     }
 }
 
 #[cfg(test)]
 mod evidence_routing {
-    use super::at_status;
+    use super::{at_status, generate, Value};
 
     fn evidence(id: &str) -> String {
         at_status(id).1.join(" | ").to_lowercase()
@@ -566,7 +587,7 @@ mod evidence_routing {
     /// of them has.
     #[test]
     fn each_record_cites_its_own_subject() {
-        let cases: [(&str, &[&str], &[&str]); 9] = [
+        let cases: [(&str, &[&str], &[&str]); 10] = [
             (
                 "AT057",
                 &["capture", "export"],
@@ -594,6 +615,13 @@ mod evidence_routing {
                 "AT056",
                 &["microphone", "loopback", "live-capture-2026-11-16"],
                 &["webcam", "cursor", "spout", "ndi"],
+            ),
+            // The installer row. Its evidence used to be a sentence about a command; the
+            // names here are the three artifacts the row actually depends on.
+            (
+                "AT082",
+                &["package.json", "nsis", "layout"],
+                &["benchmark.json", "media-export", "amxd", "maxpat"],
             ),
         ];
         for (id, must, must_not) in cases {
@@ -626,6 +654,38 @@ mod evidence_routing {
         assert_eq!(at_status("AT055").0, "pending");
         assert_eq!(at_status("AT056").0, "implemented_unverified");
         assert_eq!(at_status("AT017").0, "implemented_unverified");
+    }
+
+    /// An evidence entry is a witness, not an instruction. AT082 used to cite
+    /// `cargo xtask package (unsigned dev binary)` — a command that at the time could not
+    /// produce the artifact it named, because `bundle.active` was false and the verb built
+    /// the CLI. A row may name a file or a test; a shell command tells a reader nothing
+    /// about whether it ran, and the ledger has no field for that.
+    #[test]
+    fn no_acceptance_row_cites_a_command_as_its_evidence() {
+        let ledger: Value = serde_json::from_str(&generate()).expect("the ledger parses");
+        let records = ledger["records"].as_array().expect("records array");
+        let mut rows = 0usize;
+        let mut entries = 0usize;
+        for rec in records {
+            let id = rec["id"].as_str().unwrap_or("");
+            if !id.starts_with("AT") {
+                continue;
+            }
+            rows += 1;
+            for ev in rec["evidence_paths"].as_array().expect("evidence array") {
+                let s = ev.as_str().unwrap_or("");
+                entries += 1;
+                assert!(
+                    !s.starts_with("cargo ") && !s.starts_with("node ") && !s.starts_with("npm "),
+                    "{id} cites a command as evidence: {s}"
+                );
+            }
+        }
+        // A scan that silently matched nothing would pass forever, so the population is
+        // asserted beside the rule.
+        assert!(rows > 30, "the scan saw only {rows} acceptance rows");
+        assert!(entries > 30, "the scan saw only {entries} evidence entries");
     }
 }
 

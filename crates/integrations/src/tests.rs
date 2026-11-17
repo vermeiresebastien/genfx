@@ -117,3 +117,73 @@ fn capability_report_never_derives_verified_from_a_build_feature() {
          in that row's `limitation`."
     );
 }
+
+/// Every sidecar — shim DLL, helper EXE, FFmpeg — has to resolve from the
+/// **installed** layout, not the working directory. A bare relative candidate
+/// compiles, passes on a dev checkout, and finds nothing in a packaged app, so
+/// the shape of each call site is gated here rather than left to the next
+/// clean-machine run (which is AT082, and AT082 has never been run).
+#[test]
+fn sidecars_resolve_through_the_layout_not_the_working_directory() {
+    /// Comment lines carry the history of the defect, so gate the code without them.
+    fn code(src: &str) -> String {
+        src.lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    let sites: [(&str, String, usize); 5] = [
+        (
+            "crates/integrations/src/spout.rs",
+            code(include_str!("spout.rs")),
+            2,
+        ),
+        (
+            "crates/integrations/src/ndi_io.rs",
+            code(include_str!("ndi_io.rs")),
+            1,
+        ),
+        (
+            "crates/integrations/src/ndi.rs",
+            code(include_str!("ndi.rs")),
+            1,
+        ),
+        (
+            "crates/media/src/lib.rs",
+            code(include_str!("../../media/src/lib.rs")),
+            2,
+        ),
+        (
+            "crates/app/src/main.rs",
+            code(include_str!("../../app/src/main.rs")),
+            1,
+        ),
+    ];
+
+    for (file, body, required) in sites {
+        let found = body.matches("layout::").count();
+        assert!(
+            found >= required,
+            "{file} makes {found} layout:: calls, expected at least {required}. Sidecars must be \
+             resolved through `flux_platform::layout` so an installed app finds them beside its \
+             own executable."
+        );
+        for banned in ["Some(\"apps/", "Path::new(\"apps/"] {
+            assert!(
+                !body.contains(banned),
+                "{file} resolves a sidecar with the CWD-only form `{banned}`. That is the \
+                 pre-layout shape: it cannot work once `apps/` is not next to the launch directory."
+            );
+        }
+        if file.starts_with("crates/integrations/") {
+            assert!(
+                !body.contains("set_var("),
+                "{file} mutates the process environment to make a DLL resolve. Use \
+                 `LOAD_WITH_ALTERED_SEARCH_PATH`, which the loader honours for the DLL's own \
+                 imports; `set_var` races every other reader and does nothing for a search path \
+                 already cached."
+            );
+        }
+    }
+}

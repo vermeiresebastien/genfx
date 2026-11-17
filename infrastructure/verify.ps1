@@ -134,6 +134,11 @@ Step 'ui-bundle-cache-buster' { node apps/desktop/ui/check-bundle.mjs }
 Step 'fixtures' { cargo run -q -p xtask -- fixtures }
 Step 'cli-build' { cargo build -p flux-app }
 Step 'gui-build' { cargo build -p flux-desktop }
+# AT082's artifact. `bundle.active` was false until this tranche, so no gate in this
+# script or in CI could produce an installer at all -- the ledger cited a command that
+# built the CLI instead. cmd_package refuses (exit 3) when the Tauri CLI is missing, so
+# the Blocked branch below is the host fact, not the tool's verdict.
+$tauriCli = Join-Path $root 'apps/desktop/node_modules/@tauri-apps/cli/tauri.js'
 # Live WASAPI capture. `live-audio` is a non-default feature on flux-platform and
 # flux-app, so nothing above compiles it: measured at 9e113b4 the entire
 # live-audio stack (~2,400 lines plus 12 tests) was built by no gate. windows is
@@ -147,9 +152,15 @@ if ($onWindows) {
     # --check gates the flag on every live-audio cargo test line in this file.
     Step 'live-audio-platform' { cargo test -p flux-platform --features live-audio -- --test-threads=1 }
     Step 'live-audio-app' { cargo test -p flux-app --features live-audio -- --test-threads=1 }
+    if (Test-Path -LiteralPath $tauriCli -PathType Leaf) {
+        Step 'installer-bundle' { cargo run -q -p xtask -- package }
+    } else {
+        Blocked 'installer-bundle' "no Tauri CLI at $tauriCli (apps/desktop/node_modules is gitignored; run npm ci in apps/desktop)"
+    }
 } else {
     Blocked 'live-audio-platform' 'live-audio is cfg(windows); this host cannot build it'
     Blocked 'live-audio-app' 'live-audio is cfg(windows); this host cannot build it'
+    Blocked 'installer-bundle' 'NSIS is a Windows target; this host cannot bundle it'
 }
 # Optional Ableton Link check — runs when a prebuilt abl_link.lib is reachable, and exports the
 # directory that answered because build.rs:16 needs FLUX_ABLETON_LINK_LIB to be set, not just true.

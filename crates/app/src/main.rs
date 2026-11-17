@@ -754,8 +754,13 @@ fn cmd_spout_send_dx(args: &[String]) -> FluxResult<()> {
         }
         // Fall back to the standalone sender EXE (the DLL form fails to load with
         // ERROR_INVALID_DLL/182 on this host; the EXE runs the identical code).
-        let exe = std::path::Path::new("apps/spout-bridge/spout_sender.exe");
-        if exe.exists() {
+        // Resolved through the sidecar layout: an installed app has no `apps/`
+        // tree, so a CWD-relative path could only ever work in a checkout.
+        let helper = flux_platform::layout::locate(&[
+            "spout_sender.exe",
+            "apps/spout-bridge/spout_sender.exe",
+        ]);
+        if let Some(exe) = helper.as_deref() {
             println!("DLL path unavailable; launching spout_sender.exe helper");
             let status = std::process::Command::new(exe)
                 .arg(&name)

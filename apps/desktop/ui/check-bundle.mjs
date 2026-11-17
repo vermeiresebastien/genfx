@@ -267,7 +267,7 @@ function makeProbeTree(indexHtml = PLAIN_INDEX, monitorHtml = PLAIN_MONITOR) {
   rmTree();
   // bundle.mjs resolves everything from its own directory, so a copy bundles
   // into the probe tree. esbuild is found by walking up to
-  // apps/desktop/ui/node_modules — which is why the probe sits inside ui/ and
+  // apps/desktop/node_modules — which is why the probe sits inside ui/ and
   // why it is removed again in the finally block below.
   mkdirSync(probeRoot, { recursive: true });
   copyFileSync(join(here, "bundle.mjs"), join(probeRoot, "bundle.mjs"));

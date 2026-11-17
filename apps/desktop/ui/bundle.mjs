@@ -159,9 +159,9 @@ export async function bundleFromSources(dir = here) {
     ({ build } = await import("esbuild"));
   } catch (e) {
     throw new Error(
-      `esbuild could not be loaded from apps/desktop/ui (${e.message}). Run ` +
-        `"npm ci" in apps/desktop/ui; neither the build nor the freshness gate ` +
-        `falls back to the committed bundle.`,
+      `esbuild could not be loaded (${e.message}). Run "npm ci" in ` +
+        `apps/desktop; neither the build nor the freshness gate falls back to ` +
+        `the committed bundle.`,
     );
   }
   const result = await build({

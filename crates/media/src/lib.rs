@@ -14,13 +14,21 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// Locate the ffmpeg toolchain. Order: FLUX_FFMPEG env, PATH, common winget dir.
+/// Locate the ffmpeg toolchain. Order: FLUX_FFMPEG env, the shipped layout
+/// (beside the executable and the bundler's `bin`/`resources`/`ffmpeg`
+/// subdirectories, then the working directory), PATH, common winget dir.
+///
+/// The layout leg is what makes a *packaged* Flux able to export: an installed
+/// app has no source tree to resolve `which("ffmpeg")` against, and a user
+/// without FFmpeg on PATH is exactly the clean-machine case AT082 names.
 pub fn find_ffmpeg() -> Option<PathBuf> {
-    if let Ok(p) = std::env::var("FLUX_FFMPEG") {
-        let pb = PathBuf::from(p);
-        if pb.exists() {
-            return Some(pb);
-        }
+    let exe_name = if cfg!(windows) {
+        "ffmpeg.exe"
+    } else {
+        "ffmpeg"
+    };
+    if let Some(p) = flux_platform::layout::locate_with_env("FLUX_FFMPEG", &[exe_name]) {
+        return Some(p);
     }
     if let Some(p) = which("ffmpeg") {
         return Some(p);
@@ -41,15 +49,19 @@ pub fn find_ffmpeg() -> Option<PathBuf> {
 }
 
 pub fn find_ffprobe() -> Option<PathBuf> {
+    let exe_name = if cfg!(windows) {
+        "ffprobe.exe"
+    } else {
+        "ffprobe"
+    };
     if let Some(ff) = find_ffmpeg() {
-        let probe = ff.with_file_name(if cfg!(windows) {
-            "ffprobe.exe"
-        } else {
-            "ffprobe"
-        });
+        let probe = ff.with_file_name(exe_name);
         if probe.exists() {
             return Some(probe);
         }
+    }
+    if let Some(p) = flux_platform::layout::locate(&[exe_name]) {
+        return Some(p);
     }
     which("ffprobe")
 }

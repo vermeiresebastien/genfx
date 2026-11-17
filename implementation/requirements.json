@@ -4015,9 +4015,12 @@
       "implementation_paths": [],
       "test_ids": [],
       "evidence_paths": [
-        "cargo xtask package (unsigned dev binary)"
+        "implementation/evidence/package.json (artifacts[]: installer path, sha256, size and mtime written by `cargo xtask package`)",
+        "apps/desktop/src-tauri/tauri.conf.json > bundle (active, nsis, installMode currentUser, webviewInstallMode embedBootstrapper)",
+        "crates/platform/src/layout.rs + its tests (sidecars resolve from the executable's directory, never the working directory)",
+        "crates/integrations/src/tests.rs sidecars_resolve_through_the_layout_not_the_working_directory"
       ],
-      "blocker": null
+      "blocker": "no clean standard-user profile, scrubbed PATH or offline first launch has been run on a machine that did not build Flux; the default bundle carries no sidecar at all (bundle.resources is empty and the bridge DLLs are not bundled), so the resources-found-without-dev-PATH clause is only exercised once something is actually shipped — cargo xtask package --with-ffmpeg <dir> is the route, and third-party DLLs in an installer are an owner decision, not a build default. embedBootstrapper also downloads the WebView2 runtime at install when the machine lacks it, so a no-network first install needs webviewInstallMode offlineInstaller. Smallest resume step: install into a fresh standard-user profile with PATH stripped to system32, launch offline, then uninstall and confirm the project directory survives."
     },
     {
       "id": "AT083",

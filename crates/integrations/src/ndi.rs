@@ -71,26 +71,39 @@ pub struct NdiRuntime {
 impl NdiRuntime {
     /// Load the NDI runtime from an explicit path or by well-known name.
     pub fn load() -> Option<Self> {
-        // Explicit override, then the standard NDI install locations (NDI 6 Tools
-        // runtime first, then Resolume's bundled runtime, then bare name).
-        let candidates = [
-            std::env::var("FLUX_NDI_LIB").ok(),
-            Some(
-                r"C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll".to_string(),
-            ),
-            Some("Processing.NDI.Lib.x64.dll".to_string()),
-            Some(r"C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll".to_string()),
-        ];
-        for cand in candidates.into_iter().flatten() {
-            if let Some(rt) = Self::load_path(&cand) {
+        // Explicit override, then the shipped layout (a runtime bundled beside the
+        // exe is the only form an installed app can reach), then the standard NDI
+        // install locations (NDI 6 Tools runtime first, then a bare name for the
+        // system search, then Resolume's bundled runtime).
+        let mut candidates = flux_platform::layout::candidates(
+            "FLUX_NDI_LIB",
+            &[
+                "Processing.NDI.Lib.x64.dll",
+                "apps/ndi-bridge/Processing.NDI.Lib.x64.dll",
+            ],
+        );
+        for extra in [
+            r"C:\Program Files\NDI\NDI 6 Tools\Runtime\Processing.NDI.Lib.x64.dll",
+            "Processing.NDI.Lib.x64.dll",
+            r"C:\Program Files\Resolume Arena\Processing.NDI.Lib.x64.dll",
+        ] {
+            let path = std::path::PathBuf::from(extra);
+            if !candidates.contains(&path) {
+                candidates.push(path);
+            }
+        }
+        for cand in &candidates {
+            if let Some(rt) = Self::load_path(cand) {
                 return Some(rt);
             }
         }
         None
     }
 
-    fn load_path(path: &str) -> Option<Self> {
-        if !Path::new(path).exists() && !path.ends_with(".dll") {
+    fn load_path(path: &Path) -> Option<Self> {
+        // A bare DLL name is deliberately allowed through unverified: that is the
+        // system-search leg, where `exists()` on the CWD has nothing to say.
+        if !path.exists() && path.extension().map(|e| e != "dll").unwrap_or(true) {
             return None;
         }
         unsafe {
@@ -178,19 +191,31 @@ unsafe fn cstr(p: *const c_char) -> Option<String> {
 mod winload {
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
+    use std::path::Path;
+
+    /// `LOAD_WITH_ALTERED_SEARCH_PATH`: a runtime bundled beside the executable
+    /// resolves its own imports from that directory, not from the working directory.
+    const LOAD_WITH_ALTERED_SEARCH_PATH: u32 = 0x0000_0008;
 
     #[link(name = "kernel32")]
     extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
         fn GetProcAddress(module: *mut c_void, name: *const u8) -> *mut c_void;
     }
 
-    pub fn load_library_w(path: &str) -> *mut c_void {
-        let wide: Vec<u16> = std::ffi::OsStr::new(path)
+    pub fn load_library_w(path: &Path) -> *mut c_void {
+        let wide: Vec<u16> = path
+            .as_os_str()
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
-        unsafe { LoadLibraryW(wide.as_ptr()) }
+        unsafe {
+            LoadLibraryExW(
+                wide.as_ptr(),
+                std::ptr::null_mut(),
+                LOAD_WITH_ALTERED_SEARCH_PATH,
+            )
+        }
     }
 
     pub fn get_proc_address(module: *mut c_void, name: &str) -> Option<*mut c_void> {
@@ -208,7 +233,7 @@ mod winload {
 use winload::{get_proc_address, load_library_w};
 
 #[cfg(not(windows))]
-fn load_library_w(_path: &str) -> *mut c_void {
+fn load_library_w(_path: &Path) -> *mut c_void {
     std::ptr::null_mut()
 }
 #[cfg(not(windows))]

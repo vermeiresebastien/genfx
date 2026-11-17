@@ -40,7 +40,7 @@ fn bundle_ui(ui: &std::path::Path) {
         panic!(
             "ui bundle failed: `node bundle.mjs` exited {} in {}\n--- child stderr ---\n{}\n\
              --- end stderr ---\nFix the bundler or install its dev dependencies \
-             (`npm ci` in apps/desktop/ui); do not build the desktop app on top of a stale \
+             (`npm ci` in apps/desktop); do not build the desktop app on top of a stale \
              committed bundle.",
             out.status,
             ui.display(),
@@ -148,8 +148,11 @@ fn main() {
     println!("cargo:rerun-if-changed=../ui/main.js");
     println!("cargo:rerun-if-changed=../ui/monitor.js");
     println!("cargo:rerun-if-changed=../ui/monitor.html");
-    println!("cargo:rerun-if-changed=../ui/package.json");
-    println!("cargo:rerun-if-changed=../ui/package-lock.json");
+    // The npm root sits at apps/desktop, not beside the webview sources: the
+    // NSIS bundler refuses a `frontendDist` that contains `node_modules`, so the
+    // tooling has to live outside the asset directory it ships.
+    println!("cargo:rerun-if-changed=../package.json");
+    println!("cargo:rerun-if-changed=../package-lock.json");
     println!("cargo:rerun-if-changed=../ui/view");
     println!("cargo:rerun-if-changed=../ui/store.js");
     println!("cargo:rerun-if-changed=../ui/commands.js");

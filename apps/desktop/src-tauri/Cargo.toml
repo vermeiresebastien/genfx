@@ -27,3 +27,20 @@ flux-integrations = { path = "../../../crates/integrations" }
 [[bin]]
 name = "flux-desktop"
 path = "src/main.rs"
+
+[features]
+# `default = []` keeps `cargo build -p flux-desktop` — the CI `gui-build` step —
+# compiling the plain binary, exactly like `flux-app`. A *packaged* build opts in
+# through `cargo xtask package --features …`, so what ships is a decision that is
+# recorded in the build command rather than a side effect of a crate default.
+default = []
+# Embedded assets. Without this the `tauri` crate emits `cargo:dev`, the app runs
+# in dev mode, and `generate_context!` serves the webview from `frontendDist` on
+# disk — a binary that shows a blank window on a machine with no source tree.
+# `tauri build` passes this itself; a hand-run `cargo build --release` does not.
+custom-protocol = ["tauri/custom-protocol"]
+link = ["flux-app/link"]
+ndi = ["flux-app/ndi"]
+spout = ["flux-app/spout"]
+vision = ["flux-app/vision"]
+live-audio = ["flux-app/live-audio"]

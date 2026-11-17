@@ -27,15 +27,17 @@ jobs:
         run: choco install ffmpeg -y
       # Any step that builds flux-desktop runs apps/desktop/src-tauri/build.rs,
       # and since I5 item 1 a bundler that cannot run is a hard build failure.
-      # apps/desktop/ui/node_modules is gitignored, so a fresh checkout could not
+      # apps/desktop/node_modules is gitignored, so a fresh checkout could not
       # execute `node bundle.mjs` at all: measured at 63bc321 that died with
       # ERR_MODULE_NOT_FOUND, was swallowed as `cargo:warning=ui bundle failed
       # with exit ...`, and embedded the committed app.bundle.js under a green
       # build — the defect item 1 removes. Installing the lockfile's exact tree
-      # is what makes the new gate runnable here rather than merely red.
-      - name: Install UI bundler dependencies (apps/desktop/ui)
+      # is what makes the new gate runnable here rather than merely red. The npm
+      # root is apps/desktop, not apps/desktop/ui, because the NSIS bundler
+      # refuses a frontendDist that contains node_modules.
+      - name: Install UI bundler dependencies (apps/desktop)
         run: npm ci
-        working-directory: apps/desktop/ui
+        working-directory: apps/desktop
       - name: Format check
         run: cargo fmt --all -- --check
       - name: Clippy (no deny)
@@ -69,6 +71,17 @@ jobs:
         run: cargo build -p flux-desktop
       - name: Release build
         run: cargo build --release -p flux-app
+      # AT082's artifact. Until this tranche `bundle.active` was false, so no carrier in
+      # this file or in verify.ps1 could produce an installer and the ledger cited a
+      # command that built the CLI instead. cmd_package writes the installer path, size
+      # and sha256 into implementation/evidence/package.json, which the evidence upload
+      # below carries; a missing npm tree is exit 3, not a skipped step. Gated on the
+      # runner OS the same way infrastructure/verify.ps1 gates its `installer-bundle`
+      # step: NSIS is a Windows container, so on the macOS entry this matrix declares
+      # for the future the step would be a red job over an artifact it cannot build.
+      - name: Windows installer bundle
+        if: runner.os == 'Windows'
+        run: cargo run -q -p xtask -- package
       # Live WASAPI capture is a non-default feature on both crates, so nothing
       # above compiles it: measured at 9e113b4 the entire live-audio stack
       # (~2,400 lines plus 12 tests) was built by no gate. windows is a
@@ -93,6 +106,16 @@ jobs:
         with:
           name: evidence-${{ matrix.os }}
           path: implementation/evidence/**
+      # The installer itself, so a reviewer can census the payload against the sha256 in
+      # package.json instead of taking the evidence file's word for it. Unsigned: Windows
+      # SmartScreen will warn on first run of an unfamiliar file.
+      - name: Upload installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
 
   # Optional Ableton Link build. Runs only when a prebuilt abl_link.lib is present
   # (e.g. uploaded as an artifact); otherwise skipped — never fails for a missing SDK.

@@ -668,20 +668,52 @@ The hardware step is real, but it comes after a code step, and this document say
   primary. `spec/VERIFICATION.md` AT065 additionally requires "consumer failure does not stop
   preview" — test by unplugging the external display mid-run.
 
-### E4 — `bundle.active = false`: there is no packaged app to put on a second machine. Owner: ALONE
-- `apps/desktop/src-tauri/tauri.conf.json:24-27` — `"bundle": { "active": false }`. So the only
-  "app" is an `.exe` in `target\`, which explains why AT082
-  (`implementation/requirements.json:4008`, clean-install/offline-launch/DLLs-without-dev-PATH)
-  is `implemented_unverified` and why `implementation/STATE.json:163` lists "No signed installer".
-  It also means C2's hand-carried `msvcp140*.dll` problem (and NDI's DLL search) is *untested*,
-  because nobody has ever run a packaged Flux.
-- **Shortest procedure.** Enable bundling, build the MSI/NSIS, install on a clean Windows user
-  account, launch offline with no dev PATH.
-- **Pass.** Installer runs as standard user; `flux-desktop` starts; `spout_shim.dll`,
-  `spoutdx_shim.dll`, `ndi_shim.dll`, `Processing.NDI.Lib.x64.dll` and the VC++ runtime resolve
-  **without** `apps/` present — note `crates/integrations/src/spout.rs:219-221` searches
-  `apps/spout-bridge/spoutdx_shim.dll`, a source-tree-relative path that will not exist in an
-  installed layout. User projects survive uninstall.
+### E4 — the installer now builds; what has never run is a machine that did not build Flux. Owner: ALONE
+- **Closed 2026-11-17:** the premise of this row was `tauri.conf.json > bundle > "active": false`,
+  and `cargo run -q -p xtask -- package` had never been able to produce an installer. Bundling is
+  on (`active: true`, `targets: ["nsis"]`, `windows.nsis.installMode: currentUser` = HKCU, no
+  admin), the verb builds and inventories the artifact, and `implementation/evidence/package.json`
+  now carries `artifacts[]` with path, size, mtime and sha256 — measured on a dirty tree, so read
+  that file's own `provenance` block rather than assuming which commit produced the bytes.
+- **The loader half of the Pass clause is closed too.** `crates/platform/src/layout.rs` resolves
+  every sidecar against `std::env::current_exe()` (exe dir, then `bin/`, `resources/`, `ffmpeg/`),
+  and the shims load through `LoadLibraryExW` + `LOAD_WITH_ALTERED_SEARCH_PATH` so a shim's *own*
+  imports resolve from its directory; the `set_var("PATH")` mutation that used to do this is gone
+  (it raced, and could not affect an already-cached search path). The source-relative
+  `apps/spout-bridge/*.dll` candidates this row named are gone with it, and a source test
+  (`crates/integrations/src/tests.rs`) fails if either comes back.
+- **Still open, and it is an owner decision, not a build default:** `bundle.resources` is empty by
+  default, so the 7-Zip census of the built installer is `flux-desktop.exe` (19,397,120 B),
+  `$TEMP\MicrosoftEdgeWebview2Setup.exe` (1,897,688 B — the bootstrapper, so a machine without the
+  WebView2 runtime needs network at install), five `$PLUGINSDIR` entries, `uninstall.exe`… and no
+  `spout_shim.dll`, `spoutdx_shim.dll`, `ndi_shim.dll`, `Processing.NDI.Lib.x64.dll`, VC++ runtime
+  or `ffmpeg.exe`. A feature-on install would therefore still not find its shims: resolution is
+  fixed, *shipping* is not. `--with-ffmpeg <dir>` is the implemented resource route; third-party
+  DLLs in an installer need the same licensing call.
+- **New 2026-11-17, and it bounds what an opt-in release build may claim:** `flux spout` (sender
+  enumeration) crashes in a **release** build and not a debug one. Measured here:
+  `target/release/flux.exe spout` exits `0xc0000005` with no stdout — 5 runs of the committed-loader
+  build and 1 of the `LOAD_WITH_ALTERED_SEARCH_PATH` build, 6 of 6 — and WER names the
+  faulting module `SpoutLibrary.dll` at offset `0x232e3` (bucket `e0543064afd06a0745e212203945e5c7`).
+  The same source built with the *committed* loader form — `LoadLibraryW` plus `set_var("PATH")` —
+  crashes identically, so `LOAD_WITH_ALTERED_SEARCH_PATH` is not the cause, and WER's `LoadedModule`
+  list shows `spout_shim.dll`, `SpoutLibrary.dll`, `MSVCP140.dll` and `VCRUNTIME140_1.dll` all
+  resolved from `apps\spout-bridge`, so resolution works. `target/debug/flux.exe spout` on the same
+  bytes prints `Spout sender registry: 0 sender(s)` and exits 0, as does the pre-change
+  `target/d036/flux-features.exe` — whose negative control (same exe, cwd `C:\Windows`, shim
+  unreachable) exits 1 `SdkMissing`, which is what makes that 0 a real enumeration rather than a
+  skip. The fault sits in the detached worker `SpoutRuntime::senders_timeout` spawns
+  (`crates/integrations/src/spout.rs:129`): the same release binary reaches the shim on the main
+  thread fine, because `flux spout-send` prints `offscreen GL ready: true` before it fails for a
+  different reason. Reachability is narrow — `spout` is compiled out of `default = []` in both
+  `flux-app` and `flux-desktop`, no CI step builds release *with* features, and `senders_timeout` has
+  exactly one caller (`crates/app/src/main.rs:889`), which is the CLI, not the GUI — but an opt-in
+  `--features spout` package therefore ships a release binary with a crashing CLI leg, and that is
+  why the default stays off.
+- **Shortest procedure.** Install into a fresh standard-user profile with PATH stripped to
+  system32, launch offline, then uninstall and confirm the project directory survives.
+- **Pass.** Installer runs as standard user; `flux-desktop` starts with no dev PATH; every native
+  shim the build advertises resolves from the installed layout; user projects survive uninstall.
 - **Failure looks like.** `ERROR_INVALID_DLL`/182 again, but now for the *installed* copy — and
   this is a strong candidate for the root cause of the very blocker in C2, since 182 is a DLL
   dependency-load failure, not a "the DLL is bad" failure. Test the installed layout's loader
@@ -971,20 +1003,26 @@ The hardware step is real, but it comes after a code step, and this document say
 - **Failure looks like.** Not applicable yet — an untested assumption. Treat Syphon (C5) as
   downstream of this.
 
-### G2 — Code signing / notarisation: no identity, and bundling is switched off. BLOCKED + ALONE
+### G2 — Code signing / notarisation: no identity. The installer exists and is unsigned. BLOCKED + ALONE
 - **Unproven.** `implementation/BLOCKERS.md:42` "Code signing / notarization: no identity;
-  builds are unsigned"; `implementation/STATE.json:163` "No signed installer".
-  `apps/desktop/src-tauri/tauri.conf.json:25` `"active": false` — so beyond the missing identity
-  there is no installer artifact to sign at all. Windows SmartScreen and macOS Gatekeeper
-  behavior are therefore entirely unknown, and unsigned is exactly what breaks the clean-user,
-  offline, dev-PATH-free launch AT082 (`implementation/requirements.json:4008`) wants.
-- **Shortest procedure.** Partly alone: turn bundling on and produce an **unsigned** MSI/NSIS,
-  then install it on a standard user account, offline, with the Rust toolchain not on PATH.
-  That exercises everything except the certificate. Windows EV/OV cert and an Apple Developer
-  ID (+ notarisation) are purchases/accounts — external.
+  builds are unsigned" is still the whole story: there is no certificate, so nothing here is
+  signed. What changed on 2026-11-17 is the other half of this row — `tauri.conf.json > bundle`
+  is now `active: true` with `targets: ["nsis"]`, and `cargo run -q -p xtask -- package` produces
+  `target/release/bundle/nsis/Flux_0.1.0_x64-setup.exe`, whose sha256 and size land in
+  `implementation/evidence/package.json` (AT082). So an installer *does* exist to sign now, and
+  Windows SmartScreen behaviour on an unsigned, unknown-publisher file has *still* never been
+  observed, because no install has been run. macOS Gatekeeper is not reachable from this tree at
+  all: there is no macOS target built here (`spec/` calls the engine Windows-first, and R001's
+  blocker still says "macOS hosts unavailable").
+- **Shortest procedure.** The certificate is the external part. Everything else is already
+  possible today: install the unsigned NSIS on a standard user account, offline, with the Rust
+  toolchain not on PATH, and record what SmartScreen actually says. That exercises everything
+  except the trust chain. Windows EV/OV cert and an Apple Developer ID (+ notarisation) are
+  purchases/accounts — external.
 - **Pass (unsigned stage).** Installer completes as standard user; app launches; all native
-  shims load (E4). **Pass (signed stage).** No SmartScreen warning on Windows; on macOS the app
-  passes notarisation and opens on first launch.
+  shims load (E4 — note that shipping the shims is itself still open). **Pass (signed stage).**
+  No SmartScreen warning on Windows; on macOS the app passes notarisation and opens on first
+  launch.
 - **Failure looks like.** "Windows protected your PC", or an installed app that dies at load on
   `spout_shim.dll`/`ndi_shim.dll` because the loader resolves them relative to a source tree that
   is not there — see C2/C4's note about the manually-carried VC++ runtime.

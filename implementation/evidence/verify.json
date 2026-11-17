@@ -1,7 +1,7 @@
 {
-    "generatedAt":  "2026-11-16T02:03:59.8211778Z",
-    "gitHash":  "1a418a1",
-    "gitDirty":  false,
+    "generatedAt":  "2026-11-17T21:22:37.6902154Z",
+    "gitHash":  "6320d3e",
+    "gitDirty":  true,
     "gitDirtyScope":  "working tree, excluding implementation/evidence/",
     "rustc":  "rustc 1.99.0 (b940084d7 2026-09-28)",
     "quick":  false,
@@ -9,7 +9,7 @@
     "counts":  {
                    "blocked_external":  0,
                    "failed":  0,
-                   "passed":  18
+                   "passed":  22
                },
     "external":  {
                      "ndiRuntime":  true,
@@ -65,6 +65,10 @@
                                  "exit":  0,
                                  "ok":  true
                              },
+                  "ui-bundle-cache-buster":  {
+                                                 "exit":  0,
+                                                 "ok":  true
+                                             },
                   "fixtures":  {
                                    "exit":  0,
                                    "ok":  true
@@ -77,6 +81,18 @@
                                     "exit":  0,
                                     "ok":  true
                                 },
+                  "live-audio-platform":  {
+                                              "exit":  0,
+                                              "ok":  true
+                                          },
+                  "live-audio-app":  {
+                                         "exit":  0,
+                                         "ok":  true
+                                     },
+                  "installer-bundle":  {
+                                           "exit":  0,
+                                           "ok":  true
+                                       },
                   "link-integration":  {
                                            "exit":  0,
                                            "ok":  true

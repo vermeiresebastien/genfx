@@ -13,6 +13,10 @@ use serde::Serialize;
 /// app layer can name these types without a `#[cfg]` of its own.
 pub mod capture;
 
+/// Where sidecar binaries live for this process — see the module's own note on
+/// why every pre-existing candidate was working-directory-relative.
+pub mod layout;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DeviceInfo {
     pub id: String,

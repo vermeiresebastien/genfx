@@ -52,6 +52,7 @@ node apps/max-for-live/check-maxpat.cjs
 cargo run -q -p xtask -- fixtures
 cargo build -p flux-desktop
 cargo build --release -p flux-app
+cargo run -q -p xtask -- package
 ```
 
 `--test-threads=1` is passed by hand — this list, `.github/workflows/ci.yml` and

@@ -1394,9 +1394,158 @@ fn cmd_report() -> i32 {
     }
 }
 
-fn cmd_package(_args: &[String]) -> i32 {
-    println!("package: building release binary...");
-    let status = Command::new("cargo")
+/// What `cargo xtask package` should produce. Every token here changes the artifact, so
+/// an unrecognised one is a usage error rather than something to ignore.
+#[derive(Debug, PartialEq, Eq)]
+struct PackageOptions {
+    bundles: Vec<String>,
+    features: Vec<String>,
+    ffmpeg: Option<std::path::PathBuf>,
+}
+
+fn parse_package_args(args: &[String]) -> Result<PackageOptions, String> {
+    let mut o = PackageOptions {
+        bundles: vec!["nsis".to_string()],
+        features: Vec::new(),
+        ffmpeg: None,
+    };
+    let mut i = 0;
+    while i < args.len() {
+        let (key, inline) = match args[i].split_once('=') {
+            Some((k, v)) => (k, Some(v.to_string())),
+            None => (args[i].as_str(), None),
+        };
+        let value = match inline {
+            Some(v) => v,
+            None => {
+                i += 1;
+                match args.get(i) {
+                    Some(v) => v.clone(),
+                    None => return Err(format!("{key} needs a value")),
+                }
+            }
+        };
+        match key {
+            "--bundles" => {
+                o.bundles = value
+                    .split(',')
+                    .map(|b| b.trim().to_ascii_lowercase())
+                    .filter(|b| !b.is_empty())
+                    .collect();
+                for b in &o.bundles {
+                    if b != "nsis" && b != "msi" {
+                        return Err(format!("unknown bundle {b:?}; package builds nsis or msi"));
+                    }
+                }
+                if o.bundles.is_empty() {
+                    return Err("--bundles needs nsis or msi".to_string());
+                }
+            }
+            "--features" => {
+                for f in value.split(',') {
+                    let f = f.trim();
+                    if !f.is_empty() {
+                        o.features.push(f.to_string());
+                    }
+                }
+            }
+            "--with-ffmpeg" => o.ffmpeg = Some(std::path::PathBuf::from(value)),
+            other => return Err(format!("unknown option {other}")),
+        }
+        i += 1;
+    }
+    Ok(o)
+}
+
+/// The feature set handed to the bundler: whatever the caller opted into, plus the one
+/// that decides whether the shipped app embeds its assets or reads them off the working
+/// directory. Idempotent, because a caller who names it must not get it twice.
+fn bundle_features(forwarded: &[String]) -> Vec<String> {
+    let mut features = forwarded.to_vec();
+    if !features.iter().any(|f| f == "custom-protocol") {
+        features.push("custom-protocol".to_string());
+    }
+    features
+}
+
+/// The sidecars an opt-in FFmpeg bundle ships. A directory has to carry `ffmpeg.exe`;
+/// naming the executable works too and picks up a sibling `ffprobe.exe` when present.
+/// Pointing at neither is an error, not a silent empty resource list: an installer that
+/// claims bundled media but carries nothing is the same overpromise D036 closed.
+fn ffmpeg_resources(given: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut out = Vec::new();
+    if given.is_dir() {
+        for name in ["ffmpeg.exe", "ffprobe.exe"] {
+            let p = given.join(name);
+            if p.is_file() {
+                out.push(p);
+            }
+        }
+    } else if given.is_file() {
+        out.push(given.to_path_buf());
+        if let Some(dir) = given.parent() {
+            let probe = dir.join("ffprobe.exe");
+            if probe.is_file() {
+                out.push(probe);
+            }
+        }
+    }
+    if out.is_empty() {
+        return Err(format!(
+            "--with-ffmpeg {} names no ffmpeg.exe",
+            given.display()
+        ));
+    }
+    Ok(out)
+}
+
+/// Bundler artifact names are the CLI's choice (`<productName>_<version>_x64-setup.exe`
+/// today), so the verb discovers the file instead of restating that pattern. Newest
+/// first, because a rebuilt installer in the same directory must not be shadowed by the
+/// copy it replaced.
+fn discover_artifacts(dir: &std::path::Path, ext: &str) -> Vec<std::path::PathBuf> {
+    let mut found: Vec<(u64, std::path::PathBuf)> = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some(ext) {
+            continue;
+        }
+        let mtime = std::fs::metadata(&path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        found.push((mtime, path));
+    }
+    found.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    found.into_iter().map(|(_, p)| p).collect()
+}
+
+fn cmd_package(args: &[String]) -> i32 {
+    const USAGE: &str = "usage: cargo xtask package [--bundles=nsis[,msi]] [--features=a,b] \
+                         [--with-ffmpeg=<dir-or-exe>]\n\
+                         exit: 0 installer produced, 1 build failed, 2 bad usage, \
+                         3 prerequisite missing";
+    let opts = match parse_package_args(args) {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("package: {e}\n{USAGE}");
+            return 2;
+        }
+    };
+    // The CLI binary is a deliverable in its own right (offline export, fixtures), so the
+    // release build of it stays part of this verb. The keys below are what
+    // `implementation/evidence/package.json` has carried since D031.
+    println!("package: building target/release/flux.exe...");
+    let cli_build = Command::new("cargo")
         .args([
             "build",
             "--release",
@@ -1405,25 +1554,245 @@ fn cmd_package(_args: &[String]) -> i32 {
             "--no-default-features",
         ])
         .current_dir(root())
-        .status();
-    let ok = status.map(|s| s.success()).unwrap_or(false);
-    let exe = root().join("target/release/flux.exe");
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    let flux_exe = root().join("target/release/flux.exe");
+
+    let cli = root().join("apps/desktop/node_modules/@tauri-apps/cli/tauri.js");
+    if !cli.is_file() {
+        eprintln!(
+            "package: no Tauri CLI at {} — run `npm ci` in apps/desktop. \
+             No installer was produced, so this is exit 3, not a pass.",
+            cli.display()
+        );
+        write_evidence(
+            "package",
+            &json!({
+                "ok": false,
+                "status": "blocked_external",
+                "reason": "apps/desktop/node_modules is not installed",
+                "exe": flux_exe.display().to_string(),
+                "exists": flux_exe.exists(),
+                "tauriCli": cli.display().to_string(),
+                "bundles": opts.bundles,
+            }),
+        );
+        return 3;
+    }
+
+    let mut resources: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(p) = opts.ffmpeg.as_deref() {
+        match ffmpeg_resources(p) {
+            Ok(v) => resources = v,
+            Err(e) => {
+                eprintln!("package: {e}");
+                return 2;
+            }
+        }
+    }
+
+    // Restated rather than trusted: the CLI adds `tauri/custom-protocol` itself today
+    // (measured in the `Running [tauri_cli] Command` line of a `--verbose` build), and
+    // that feature is what makes `cfg(dev)` false in `tauri-2.12.5/build.rs`. With it
+    // off, an installed app serves its webview from `frontendDist` on disk and opens a
+    // blank window, so an installer built without it is a broken artifact that says it
+    // built fine.
+    let features = bundle_features(&opts.features);
+    let mut cmd = Command::new("node");
+    cmd.arg(&cli)
+        .arg("build")
+        .arg(format!("--bundles={}", opts.bundles.join(",")))
+        .arg("--ci")
+        .arg(format!("--features={}", features.join(",")))
+        .current_dir(root().join("apps/desktop/src-tauri"));
+    if !resources.is_empty() {
+        let cfg = json!({ "bundle": { "resources": resources } });
+        cmd.arg(format!("--config={cfg}"));
+    }
+    println!(
+        "package: bundling {} ({})",
+        opts.bundles.join("+"),
+        features.join(",")
+    );
+    let bundle_exit = cmd.status().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
+
+    let mut artifacts = Vec::new();
+    for bundle in &opts.bundles {
+        let dir = root().join(format!("target/release/bundle/{bundle}"));
+        let ext = if bundle == "msi" { "msi" } else { "exe" };
+        for path in discover_artifacts(&dir, ext) {
+            let (mtime, mtime_utc) = file_mtime_utc(&path).unwrap_or((0, String::new()));
+            artifacts.push(json!({
+                "bundle": bundle,
+                "path": path.display().to_string(),
+                "sha256": sha256_of(&path),
+                "sizeBytes": std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+                "mtimeUnix": mtime,
+                "mtimeUtc": mtime_utc,
+            }));
+        }
+    }
+    let ok = bundle_exit == 0 && cli_build && !artifacts.is_empty();
+    let status = if ok {
+        "ok"
+    } else if bundle_exit != 0 {
+        "failed"
+    } else {
+        // Exit 0 from the bundler with no artifact on disk: the D036 shape this function
+        // exists to refuse, so it is reported as its own verdict and never folded into ok.
+        "no_artifact"
+    };
     write_evidence(
         "package",
-        &json!({"ok": ok, "exe": exe.display().to_string(), "exists": exe.exists()}),
-    );
-    println!(
-        "package: {}",
-        if ok {
-            "built target/release/flux.exe"
-        } else {
-            "FAILED"
-        }
+        &json!({
+            "ok": ok,
+            "status": status,
+            "exe": flux_exe.display().to_string(),
+            "exists": flux_exe.exists(),
+            "cliBuildOk": cli_build,
+            "tauriCli": cli.display().to_string(),
+            "bundles": opts.bundles,
+            "features": features,
+            "bundleExit": bundle_exit,
+            "resources": resources,
+            "artifacts": artifacts,
+        }),
     );
     if ok {
+        for a in &artifacts {
+            println!("package: {}", a["path"].as_str().unwrap_or(""));
+        }
         0
     } else {
+        eprintln!(
+            "package: {} (bundleExit {bundle_exit}, cliBuild {cli_build}, artifacts {})",
+            if status == "no_artifact" {
+                "the bundler exited 0 but left no installer"
+            } else {
+                "FAILED"
+            },
+            artifacts.len()
+        );
         1
+    }
+}
+
+#[cfg(test)]
+mod packaging {
+    use super::{bundle_features, discover_artifacts, ffmpeg_resources, parse_package_args};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{Duration, SystemTime};
+
+    fn scratch(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("xtask-package-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("scratch dir");
+        dir
+    }
+
+    fn touch(path: &Path, secs: u64) {
+        let f = fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .expect("open for mtime");
+        f.set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(secs))
+            .expect("set mtime");
+    }
+
+    /// The default verb builds an NSIS per-user installer, and no invocation of it may
+    /// leave `custom-protocol` out: without that feature `cfg(dev)` is true, the webview
+    /// serves `frontendDist` off the working directory, and the installed app is a blank
+    /// window that reported a successful build.
+    #[test]
+    fn defaults_to_nsis_and_always_carries_the_protocol_feature() {
+        let o = parse_package_args(&[]).expect("no arguments is the default build");
+        assert_eq!(o.bundles, vec!["nsis".to_string()]);
+        assert_eq!(
+            bundle_features(&o.features),
+            vec!["custom-protocol".to_string()]
+        );
+        let o = parse_package_args(&["--features=spout,ndi".to_string()]).unwrap();
+        assert_eq!(
+            bundle_features(&o.features),
+            vec![
+                "spout".to_string(),
+                "ndi".to_string(),
+                "custom-protocol".to_string()
+            ]
+        );
+        let o =
+            parse_package_args(&["--features".to_string(), "custom-protocol".to_string()]).unwrap();
+        assert_eq!(
+            bundle_features(&o.features),
+            vec!["custom-protocol".to_string()]
+        );
+    }
+
+    /// A token the verb cannot honour must stop it, not be dropped on the floor — an
+    /// installer built from a silently-ignored `--bundles` would be mislabelled work.
+    #[test]
+    fn refuses_the_options_it_cannot_build() {
+        for bad in ["--bundles=dmg", "--bundles=", "--oops=x"] {
+            assert!(
+                parse_package_args(&[bad.to_string()]).is_err(),
+                "accepted {bad}"
+            );
+        }
+        assert!(
+            parse_package_args(&["--features".to_string()]).is_err(),
+            "a flag with no value"
+        );
+    }
+
+    #[test]
+    fn an_ffmpeg_option_that_names_no_sidecar_is_refused() {
+        let dir = scratch("ffmpeg");
+        assert!(
+            ffmpeg_resources(&dir).is_err(),
+            "an empty directory is not a bundle of FFmpeg"
+        );
+        let exe = dir.join("ffmpeg.exe");
+        fs::write(&exe, b"fake").unwrap();
+        assert_eq!(
+            ffmpeg_resources(&dir).unwrap(),
+            vec![exe.clone()],
+            "ffprobe is optional, ffmpeg is not"
+        );
+        fs::write(dir.join("ffprobe.exe"), b"fake").unwrap();
+        assert_eq!(ffmpeg_resources(&dir).unwrap().len(), 2);
+        assert_eq!(
+            ffmpeg_resources(&exe).unwrap().len(),
+            2,
+            "naming the exe must still find the sibling"
+        );
+        assert!(ffmpeg_resources(&dir.join("nope.exe")).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The bundler chooses the artifact name, so discovery is the only way the verb can
+    /// say what it produced — and a rebuild must not be shadowed by the copy it replaced.
+    #[test]
+    fn discovers_the_installer_and_ignores_everything_else() {
+        let dir = scratch("artifacts");
+        let stale = dir.join("Flux_0.1.0_x64-stale-setup.exe");
+        let fresh = dir.join("Flux_0.1.0_x64-setup.exe");
+        fs::write(&stale, b"stale").unwrap();
+        fs::write(&fresh, b"fresh").unwrap();
+        fs::write(dir.join("Flux_0.1.0_x64-setup.nsis7z"), b"").unwrap();
+        touch(&stale, 1_700_000_000);
+        touch(&fresh, 1_800_000_000);
+        assert_eq!(discover_artifacts(&dir, "exe"), vec![fresh, stale]);
+        assert!(
+            discover_artifacts(&dir, "msi").is_empty(),
+            "the wrong extension is not an artifact"
+        );
+        assert!(
+            discover_artifacts(&dir.join("absent"), "exe").is_empty(),
+            "a directory that is not there is an empty answer, not a panic"
+        );
+        let _ = fs::remove_dir_all(&dir);
     }
 }
 

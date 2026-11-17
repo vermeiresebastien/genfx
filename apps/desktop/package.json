@@ -1,0 +1,13 @@
+{
+  "name": "flux-desktop-build",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Build tooling for the Flux desktop webview and installer.",
+  "scripts": {
+    "bundle": "node ui/bundle.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.5",
+    "esbuild": "0.28.2"
+  }
+}
