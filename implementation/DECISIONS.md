@@ -3941,3 +3941,129 @@ the same table says v5 and v6 of that action are the node24 pair and v4 is not. 
 property of 2026-11-18, and re-taking it is one `curl` per row of the table.
 
 The file is 3 943 lines at the commit carrying this section.
+
+## D045 — 2026-11-18 the flag's necessity sentence is twelve parallel runs old, and the record behind it did not exist
+
+### Why this lane opened
+
+`AGENTS.md` has carried, since the live-audio legs were wired, the sentence "On
+the live-audio legs the flag is not hygiene, it is the only form that finishes",
+with a witness: `cargo test -p flux-app --features live-audio` without
+`--test-threads=1` printed 63 of the 65 `ok` lines, no `test result:` line, and was
+still spinning 2 h 38 m later. That sentence is an instruction, not a footnote — it
+is why the flag is hand-passed on every `cargo test` line in three carriers and why
+`requirements.rs` reddens a carrier that loses it. Under this repository's first
+rule a claim that strong gets re-run before it is repeated, so the first probe was
+the command exactly as written, no flag, bounded by `timeout 150`.
+
+It exited 0 in 10.06 s: `test result: ok. 65 passed; 0 failed`, and the three tests
+the paragraph names — `export::tests::document_only_run_reports_document_only`,
+`export::tests::an_export_reports_the_class_its_options_asked_for_and_nothing_else`,
+`record::tests::recording_produces_frames_for_duration` — printed `ok`. One run of
+the form the file calls a deadlock.
+
+One green trial is not a verdict in the direction the sentence is being retired,
+either: the fault described is a race, and races are probabilistic — which is the
+same reason D034/D035 built a rate for the `STATUS_ACCESS_VIOLATION` rather than
+arguing from one crash. So the probe became a census. One confounder was cleared
+first: the original witness ends with a process still spinning, and a stray
+`flux_app` test binary holding the device would have made every number below mean
+something else. `tasklist //FI "IMAGENAME eq flux_app*"` answered "No tasks are
+running which match the specified criteria".
+
+### The census, on this tree, clean
+
+Measured at `efdf253` with a clean working tree — committed and pushed before the
+first trial, so nothing under measurement changed mid-run — on 24 logical CPUs,
+which is also the default libtest thread count the parallel form therefore ran
+with. `ok lines` counts every `... ok` line across the run's targets: 65 lib + 16
+in the `flux` binary + 0 doctests.
+
+| form | command | trials | exits | lib-suite `test result:` | ok lines |
+| --- | --- | --- | --- | --- | --- |
+| parallel | `cargo test -p flux-app --features live-audio` | 12 | 12 × 0 | 65 passed / 0 failed, 9.29–10.22 s (median 9.53) | 81 every trial |
+| serial | `… -- --test-threads=1` | 3 | 3 × 0 | 65 passed / 0 failed, 14.05 / 15.09 / 14.10 s | 81 every trial |
+| parallel | `cargo test -p flux-platform --features live-audio` | 2 | 2 × 0 | 13 passed / 0 failed, 0.02 / 0.01 s | 13 |
+| serial | `… -- --test-threads=1` | 2 | 2 × 0 | 13 passed / 0 failed, 0.03 / 0.03 s | 13 |
+
+The three named carriers are `ok` in all twelve parallel logs — counted per log,
+not sampled from the first, because a census that samples its own evidence is the
+mistake D042 records about the annotation stream. Per-trial lib times, ascending:
+9.29 9.35 9.36 9.47 9.50 9.52 9.53 9.59 9.62 9.73 10.13 10.22. The parallel twelve
+are also ~1.4× faster than the serial three, which is what 24 threads against 1
+should be, and is reported because it makes the green runs unattractively easy to
+believe. `smoke/` is gitignored, so the evidence lives in
+`smoke/T18-par-{1..12}.txt`, `smoke/T18-ser-{1..3}.txt`,
+`smoke/T18-platform-{parallel,serial}-{1,2}.txt`, produced by
+`smoke/T18-parallel-trials.sh`, `smoke/T18-parallel-more.sh`,
+`smoke/T18-serial-trials.sh` and `smoke/T18-platform-legs.sh`; the numbers are
+written into the documents because nothing outside this host can read those files.
+
+### What this does not say
+
+It does not say the race is gone. 0 hangs in 12 trials bounds the rate at
+`1 − 0.05^(1/12)` ≈ 22 % at the 95 % level: consistent with a fault that turns up
+about once in five runs, and consistent with a far rarer one that simply did not
+turn up. Twelve trials cannot retire a defect; what they retire is the *absolute*.
+The corrected paragraph in `AGENTS.md` therefore says both things — keep passing the
+flag, stop calling it the only form that finishes.
+
+Nor does it identify the mechanism, and honestly no measurement here could. The
+only mechanism note in the repository is `crates/tests/tests/dag_parallel.rs:10-17`,
+"GPU device creation is not safe concurrently from multiple test threads (it can
+deadlock)", attached to a function-local `OnceLock<Mutex<()>>` — which is exactly
+why that file's four tests are covered and `flux-app`'s are covered by nothing.
+`crates/render/src/gpu.rs:66` is where both forms go: `Instance::new`,
+`enumerate_adapters`, a sort, then `pollster::block_on(adapter.request_device(..))`.
+That a `block_on` around a driver call *hangs* rather than fails is a property of
+the old witness, not of anything measured today. And the tree the hang was produced
+on is not named in the sentence — `ecf0274` is cited there for the serial 18.45 s
+re-measurement only — so the one comparison that would separate "this tree fixed
+it" from "it is rare" cannot be made from what this repository recorded.
+
+The workspace-wide claim is deliberately untouched. `AGENTS.md`'s other sentence,
+that "a bare `cargo test` races GPU device creation", is about
+`cargo test --workspace`; that form was not run unflagged here — it is a ~19-minute
+run that also carries the access-violation flake, and folding two faults into one
+census would attribute each to neither. It stands as written, untested by D045.
+
+### Where the claim lived, and where it did not
+
+`grep` across `implementation/`, `docs/` and `spec/` for `2 h 38 m`, `63 of`,
+`spinning`, `only form that finishes` and `ecf0274` returns nothing. The whole
+witness — the hang, the timings, the three carrier tests, the "NOT fixed here"
+decision — existed only inside that one `AGENTS.md` paragraph. The rule that a
+status claim should be traceable to a record was not met by the most load-bearing
+verification instruction in the repo, and it still reaches CI — the three carriers
+copy the command, not the claim, so nothing downstream could check it against a record.
+
+One copy is not prose, and it is not closed: `crates/xtask/src/bin/requirements.rs:981`
+builds the mutant's failure text as "that form is a measured deadlock (63 of 65 ok
+lines, no `test result:` line, still spinning 2 h 38 m later)". It remains literally
+true of the run it names and does not assert the absolute, but it sits in a `[[bin]]`
+target whose tests no `verify.ps1` step executes, so editing it means a source
+change, a workspace rebuild and a re-gate to re-point a sentence that is not itself
+false. Left, and named: whoever touches that file next should make the message say
+what D045 says — measured hanging once, twelve parallel runs at `efdf253` did not.
+
+### What changed, and the next step
+
+`AGENTS.md`'s live-audio paragraph is rewritten from this census. No command line in
+the canonical fence moved, so the carrier census is byte-for-byte the one the gate
+prints: `requirements: 20 cargo test command lines read from 3 carriers … AGENTS.md
+[3], ci.yml [6], verify.ps1 [11]`, exit 0, re-run after the edit. Re-run gates:
+`node .github/check-workflow.mjs` exit 0, `cargo run -q -p xtask --bin requirements
+-- --check` exit 0, `cargo fmt --all -- --check` exit 0 and silent. No source changed,
+which is also the honest limit: the cargo suites were not re-run for a markdown-only
+change whose subject is the runner flag — the census above *is* that measurement.
+
+The next step this lane names rather than takes is the one that would make the
+absolute unnecessary instead of merely unproven: a single process-wide serialiser
+around device creation at `crates/render/src/gpu.rs:66`, shared by every caller
+instead of re-declared per test file, which retires the race where both forms reach
+and makes `dag_parallel.rs`'s local mutex redundant. It is a renderer source change,
+it owes the workspace suite and a `verify.ps1` run behind it, and it cannot be
+*justified* by a census that did not reproduce the fault — so it waits for a run
+that does, or for a decision to spend the gates anyway.
+
+The file is 4 069 lines at the commit carrying this section.

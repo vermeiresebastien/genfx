@@ -62,22 +62,32 @@ default, so a bare `cargo test` races GPU device creation. GPU tests are
 serialised per test binary by a function-local mutex, which means different
 files hold different mutexes.
 
-On the live-audio legs the flag is not hygiene, it is the only form that
-finishes. Without it, `cargo test -p flux-app --features live-audio` printed 63
-of the 65 `ok` lines, no `test result:` line, and was still spinning 2 h 38 m
-later; with it, the same bytes finished 65 passed / 0 failed in 17.91 s —
-re-measured on this host at `ecf0274` as 18.45 s (`smoke/` is untracked, so the
-numbers are written here rather than cited).
-The two tests that never return in parallel are
-`export::tests::document_only_run_reports_document_only` and
-`export::tests::an_export_reports_the_class_its_options_asked_for_and_nothing_else`;
-each calls `export_project` directly, as does
-`record::tests::recording_produces_frames_for_duration` through
-`record_project`, and no test in that binary takes the `gpu_lock()` serialiser
-`crates/tests/tests/dag_parallel.rs` uses. That is where the deadlock lives and
-it is NOT fixed here: the list carries the flag because the flag is the form that
-works. `cargo run -q -p xtask --bin requirements -- --check` reads these three
-carriers and fails if any live-audio `cargo test` line loses the flag.
+On the live-audio legs the flag is what CI runs and nothing here licenses
+removing it — but the stronger sentence this file carried, that it is "the only
+form that finishes", is contradicted by measurement on this tree and is corrected
+here rather than copied. Its witness is real and is not retracted: that command
+without the flag once printed 63 of the 65 `ok` lines, no `test result:` line, and
+was still spinning 2 h 38 m later. Re-taken at `efdf253` on a clean tree (D045):
+twelve consecutive parallel invocations of that exact command all exited 0 — 65
+passed / 0 failed, lib-suite 9.29–10.22 s, and all three carrier tests printing
+`ok` in every one of the twelve logs — against 14.05 / 15.09 / 14.10 s for three
+serial ones. So those carriers do return in parallel here, the hang stands
+unreproduced with its mechanism still unnamed, and 0 of 12 only bounds it (≈ one
+run in five at the 95% level); it does not prove it gone. The other leg never hung:
+`cargo test -p flux-platform --features live-audio` gave 13 tests in 0.01–0.02 s
+parallel and 0.03 s serial. Keep passing the flag — it is what
+`.github/workflows/ci.yml` and `infrastructure/verify.ps1` run, and
+`cargo run -q -p xtask --bin requirements -- --check` reads those carriers and
+reddens a run where a live-audio `cargo test` line loses it. What this lane could
+not check is the tree the original witness was taken on: the sentence named
+`ecf0274` only for the serial re-measurement, and no record of the hang exists in
+`implementation/`, `docs/` or `spec/` — it lived in this paragraph alone. Still the
+only mechanism note in the repo, `crates/tests/tests/dag_parallel.rs:11-17`:
+"GPU device creation is not safe concurrently from multiple test threads (it can
+deadlock)", implemented as a function-local lock, so different files hold different
+mutexes and nothing covers `flux-app`. Retiring the race rather than the flag means
+one process-wide serialiser at the thing both forms call — `crates/render/src/gpu.rs:66`
+— and that is D045's named next step, not D045's change.
 
 Never wrap a verification command in a pipe or a trailing `echo` — it replaces the
 tool's exit status with the echo's. Check the exit code of the thing you are claiming.
