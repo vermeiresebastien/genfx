@@ -3778,24 +3778,98 @@ one level deep — `.github/workflows/**.yml` in a subdirectory would be neither
 seen here, and nothing asserts that either. (3) The controls are still anchored to *this* `ci.yml`'s
 bytes: a mutant whose `from` text has been edited away reports `matches 0 times` and reddens the run,
 which is the right failure, but it means a refactor of the probe's PowerShell obliges whoever refactors
-it to edit the battery in the same commit. (4) A deprecation this tranche deliberately left alone:
-the whole annotation stream of run #56, collapsed, is one line —
+it to edit the battery in the same commit. (4) A deprecation this tranche deliberately left alone — and
+the paragraph written about it was wrong in two ways, which D043 corrected from the very same run:
 
 ```
-! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on
-  Node.js 24: actions/checkout@v4.
+##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to
+run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4.
 ```
 
-That is one distinct line. It appears 2 340 times in the finished 2 165 048-byte stream `gh run watch`
-wrote, because the watcher re-renders everything it knows on every poll — the same file prints
-`Workflow structure`, a step that executed exactly once, 780 times — so a count taken from that stream is
-a count of ticks, not of events. (An earlier draft of this sentence said 597, which is what the same file
-held while the run was still going; a count read off a live artifact has to be re-taken before it is
-published.) The fact is the text: every job in this workflow pins `actions/checkout@v4`, whose declared
-runtime is Node 20, and GitHub runs it on Node 24 under protest. Nothing is broken by that today — five
-jobs, all green — and bumping a major action version is a `ci.yml` edit that re-points citations of its
-own and would have been a second changed variable in a run whose whole purpose is to observe the first.
-So it is recorded here as the next lane's cheap win, with the annotation as its evidence, rather than
-slipped into this commit.
+That is one line of `verify`'s job log, emitted at `Complete job`, wrapped here for the page. What D042
+published above it was the *watcher's* rendering — the same sentence naming only `actions/checkout@v4` —
+and the watcher is the wrong carrier for this fact. Across the five job logs of run #56 the protest
+appears four times: `ndi`, `ableton-link` and `spout` each name checkout alone, `verify` names both
+actions, and `sdk-probe` prints nothing because it runs no action at all. Why the `gh run watch` stream
+carried only the checkout-only variant 2 340 times and never mentioned `upload-artifact` is a mechanism
+this lane did not establish — truncation, or a poll that stopped short of the last job's annotation set.
+The rule it points to is the one AGENTS.md now carries: read an annotation from the job log. So
+"every job in this workflow pins `actions/checkout@v4`" was false in the counting and true in kind — four
+of five jobs, the fifth having no checkout step — and the fix is two pins, not one. The tick warning
+stands untouched: that 2 165 048-byte stream repeats one rendered line 2 340 times and prints
+`Workflow structure`, a step that ran once, 780 times, so a count read off it is a count of polls; and an
+earlier draft of that sentence said 597, which is what the same file held while the run was still going.
+Nothing was broken by the protest — five jobs, all green — and a major action bump re-points citations of
+its own, so it stayed out of this commit. D044 makes it, and names the runtime each version actually
+declares.
 
 The file is 3 801 lines at the commit carrying this section.
+
+## D043 — 2026-11-18 the directory scan's first runner witness is a clean scan, and a clean scan is the easy half
+
+### What #57 was asked to show
+
+D042 left exactly one open item, in its own words: "the hosted witness for *this* shape is a run that has
+not happened yet: #57 will be the first whose `verify` step 3 executes the directory scan." #57 is
+`44236197754`, head `f68248a`, created 04:16:39Z. It concluded `success` with all five jobs green —
+`sdk-probe`, `ndi`, `spout`, `ableton-link` and `verify` (`134572812050`) — and that job ran 04:16:43Z →
+05:16:11Z: **59 min 28 s**, which is 15 min 32 s inside the 75-minute bound and 2 min 25 s *under* #56's
+61 min 53 s. D042's four-log census is five wide now, and the bound's worst measured case is unchanged.
+
+Two facts were readable before the job finished, and they are the two the AGENTS.md trap says to keep
+apart. `GET /actions/runs/{id}/jobs` reported step 3's `conclusion: "success"` about a minute into a
+59-minute job, while the same job's *output* stayed unfetchable (`BlobNotFound`) until `Complete job` had
+run. The conclusion is the weaker witness and it is the only one that was available at that minute; this
+section is written from the log.
+
+### Twenty-seven lines, and the one of them that had never appeared before
+
+Fetched with `gh run view --log --job 134572812050` (1 124 971 bytes): the step's group opened at
+04:16:53.360Z and its script wrote twenty-seven lines between 04:16:58.6685858Z and 04:16:58.7756335Z —
+**107 ms** of work inside a 5.4 s window, the other 5.3 s being `pwsh` plus `node` coming up and the first
+reads, which this carrier cannot separate. Twenty stdout lines became twenty-seven exactly as D042's local
+re-run said they would: nine leg lines, eleven `control …: … as required`, six
+`discover …: … as required`, one tail. Every leg line carries its `[ci.yml]` suffix, so D042's per-file
+attribution is visible in a hosted log for the first time.
+
+One line had never appeared in one:
+
+```
+leg 8: OK (1 workflow file(s) audited from .github/workflows)
+```
+
+and the tail agrees with this host byte for byte:
+
+```
+workflow check: ci.yml clean (5 jobs, 35 steps, 8 references, 102 plain scalars); 17 controls as required
+```
+
+So the runner enumerated the directory beside the script, found one workflow file, audited it, and exited
+0. That closes D042's open item, and it is a second, independent confirmation that resolving the default
+from `import.meta.url` asks nothing of the step's working directory: the runner invoked
+`node .github/check-workflow.mjs` from the workspace root, and the script never reads `process.cwd()` for
+that default.
+
+### What #57 does not show
+
+It witnesses a *clean* scan, which is the easy half. No runner has ever executed leg 8's fault state or
+the `[release.yaml]` attribution this tranche exists for; both were proven on this host, in two throwaway
+`%TEMP%` trees, and the commands and the fixture are D042's table because the trees do not survive. The
+six `discover` cases that *did* fire on the runner are pure functions over name lists, so their hosted
+appearance proves the arithmetic and not the filesystem. And #57 still pins `actions/checkout@v4` and
+`actions/upload-artifact@v4`: its log carries the same one `##[warning]Node.js 20 is deprecated…` line
+naming **both** actions, the same two `DEP0040` punycode warnings from the two upload steps, and
+`Current runner version: '2.338.2'` beside them. That is D044's before-control, read from the same carrier
+its after-measurement will use.
+
+**The census, five runs wide.** #57's own step windows by the same opener-to-next-opener method — so each
+upper-bounds its command, runner bookkeeping included — in seconds: `clippy` 297.0,
+`cargo test --workspace` 1 125.1, `catalog` 327.3, `cargo build -p flux-desktop` 231.8,
+`cargo build --release -p flux-app` 299.8, **`cargo run -q -p xtask -- package` 1 008.7**,
+`cargo test -p flux-app --features live-audio` 128.6: seven steps totalling 3 418.3 s (56 min 58 s) of
+the job's 3 568. The installer column across the four runs that finished is now
+952.0 / 1 033.7 / 1 126.5 / 1 008.7. It moved *down* here, which is the expected shape of an observational
+census of a shared runner — and is the reason D042 refused to call any single one of those numbers a
+property of the installer.
+
+The file is 3 875 lines at the commit carrying this section.

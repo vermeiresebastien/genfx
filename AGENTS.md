@@ -134,16 +134,22 @@ them first.
   is three runs wide now: `44226667811` is green too, and its `verify` job took 61 min 53 s, which it
   was only allowed to spend because the bound had already moved. D042 re-takes it whole: 56 runs, 25
   of which created jobs, 47 jobs — 25 failure / 21 success / 1 cancelled — three runs `success`. A
-  hosted run ending `cancelled` is not a red gate, and with 31 of those 56 runs never having created
-  a job at all,
-  "CI did not report" is not the same fact as "CI reported nothing wrong". The hosted installer is not the hosted `verify.json`: 28 of that
-  artifact's 33 evidence files are this host's checkout copy, and the five the runner did write say
+  hosted run ending `cancelled` is not a red gate, and with 31 of those 56 runs never having created a
+  job at all, "CI did not report" is not the same fact as "CI reported nothing wrong". The hosted
+  installer is not the hosted `verify.json`: 28 of that artifact's 33 evidence files are this host's
+  checkout copy, and the five the runner did write say
   its toolchain is rustc 1.100.0 and its graphics device is a Basic Render Driver over Dx12. Reading
   a hosted job is itself gated on that job finishing: `GET /actions/jobs/{id}/logs` for a running job
   redirects to a blob that answers `BlobNotFound` (measured 2026-11-18 on job `134541386792`, at
   02:59:01Z), while `GET /actions/runs/{id}/jobs` lists its steps and per-step conclusions the whole
   time. So a step's *conclusion* is readable for exactly as long as the job has left to run before
   its *output* is, and a sentence that says "the log says" must name which of the two it has.
+  Annotations have their own carrier trap, and D043 walked into it: `gh run watch` *renders* them, and
+  its rendering of run #56's node20 protest named only `actions/checkout@v4` — the `verify` job's own
+  log names `actions/checkout@v4` **and** `actions/upload-artifact@v4`, and across the five job logs the
+  protest appears four times (three jobs checkout-only, `verify` both, `sdk-probe` not at all, because
+  it runs no action). Read an annotation from `gh run view --log --job <id>`; a watcher's stream is a
+  count of its own polls and an incomplete copy of its text.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
