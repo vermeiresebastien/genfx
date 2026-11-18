@@ -714,7 +714,8 @@ fn main() {
         if !findings.is_empty() {
             eprintln!(
                 "requirements: {} finding(s) in the command carriers — fix the line, do not \
-                 relax this gate (the serialised form is the only one that finishes)",
+                 relax this gate ({SERIALISE} is what all three carriers run, and D045's \
+                 twelve unflagged runs bound the hang near one in five rather than closing it)",
                 findings.len()
             );
         }
@@ -978,8 +979,9 @@ fn serialisation_findings(carrier: &str, text: &str) -> Vec<String> {
         .map(|(n, code)| {
             format!(
                 "{carrier}:{n} runs a live-audio `cargo test` without {SERIALISE}: {code} \
-                 — that form is a measured deadlock (63 of 65 ok lines, no `test result:` \
-                 line, still spinning 2 h 38 m later)"
+                 — that form hung once (63 of 65 ok lines, no `test result:` line, still \
+                 spinning 2 h 38 m later); D045 re-ran it 12x at efdf253 with no hang, which \
+                 bounds the rate near one run in five and does not close the fault"
             )
         })
         .collect();

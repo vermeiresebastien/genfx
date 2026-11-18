@@ -70,8 +70,9 @@ here rather than copied. Its witness is real and is not retracted: that command
 without the flag once printed 63 of the 65 `ok` lines, no `test result:` line, and
 was still spinning 2 h 38 m later. Re-taken at `efdf253` on a clean tree (D045):
 twelve consecutive parallel invocations of that exact command all exited 0 — 65
-passed / 0 failed, lib-suite 9.29–10.22 s, and all three carrier tests printing
-`ok` in every one of the twelve logs — against 14.05 / 15.09 / 14.10 s for three
+passed / 0 failed (that is the lib suite; the leg totals 81 over three targets —
+65 lib, 16 in the `flux` binary, 0 doc), lib-suite 9.29–10.22 s, and all three
+carrier tests printing `ok` in every one of the twelve logs — against 14.05 / 15.09 / 14.10 s for three
 serial ones. So those carriers do return in parallel here, the hang stands
 unreproduced with its mechanism still unnamed, and 0 of 12 only bounds it (≈ one
 run in five at the 95% level); it does not prove it gone. The other leg never hung:

@@ -4035,16 +4035,16 @@ witness — the hang, the timings, the three carrier tests, the "NOT fixed here"
 decision — existed only inside that one `AGENTS.md` paragraph. The rule that a
 status claim should be traceable to a record was not met by the most load-bearing
 verification instruction in the repo, and it still reaches CI — the three carriers
-copy the command, not the claim, so nothing downstream could check it against a record.
+copy the command, not the claim, so nothing downstream could check it against a record. D048 falsifies that clause on both sides: `.github/workflows/ci.yml:107-113` and `infrastructure/verify.ps1:154-157` sit outside those three directories and copy the witness, and `requirements.rs:717` printed the retired absolute itself until D048 retired it — ungated either way, because the checker reads only command lines.
 
-One copy is not prose, and it is not closed: `crates/xtask/src/bin/requirements.rs:981`
+One copy is not prose, and it is not closed: `crates/xtask/src/bin/requirements.rs:982`
 builds the mutant's failure text as "that form is a measured deadlock (63 of 65 ok
 lines, no `test result:` line, still spinning 2 h 38 m later)". It remains literally
 true of the run it names and does not assert the absolute, but it sits in a `[[bin]]`
 target whose tests no `verify.ps1` step executes, so editing it means a source
 change, a workspace rebuild and a re-gate to re-point a sentence that is not itself
 false. Left, and named: whoever touches that file next should make the message say
-what D045 says — measured hanging once, twelve parallel runs at `efdf253` did not.
+what D045 says — measured hanging once, twelve parallel runs at `efdf253` did not. D048 took the file, did that, and found the worse string beside it.
 
 ### What changed, and the next step
 
@@ -4273,9 +4273,191 @@ The flag stays in all three carriers: nothing here licenses removing it, and
 `requirements --check` reddens a live-audio leg that loses it. The hang keeps its
 unnamed mechanism and its ≈ one-run-in-five bound. `crates/tests/src/lib.rs` still has no
 lock of its own, and the `gpu_lock()` in `dag_parallel.rs`/`node_editor.rs` still
-serialises whole test bodies, which is more than creation. `requirements.rs:981` still
-hardcodes D045's witness into a mutant's failure text, for the reason D045 gave. Beyond
+serialises whole test bodies, which is more than creation. `requirements.rs:982` (was `:981`
+before D048's own edit shifted it) hardcoded D045's witness into the message a real `--check` prints when a carrier loses the flag, for the reason D045 gave; D048 re-pointed it and retired the absolute at `:717`, which this list missed. Beyond
 this lane: AT015's evidence arm, the SSL 2 device measurement, and AT082's owner half.
 
 The file is 4 281 at the commit carrying this section, and this section is appended
 below D046's, so no citation above it moved.
+
+## D048 — 2026-11-18 the node20 protest is read going away, and a cross-machine count that nearly invented a defect
+
+D044 re-pinned six `uses:` lines and closed with a promise it could not keep when it was written:
+the node20 after-measurement belonged to "the next record", because runs #58 and #59 were still in
+flight. Both have since completed `success` with all five jobs green. This is that read, whole.
+
+**Setup.** Before-control is run #56 (`44226667811`, head `4ce015a`). After is run #58
+(`44244459935`, head `efdf253` — the D044 commit) and run #59 (`44245978890`, head `4b4e1a7`, the
+D045 commit). #59 is the replicate D044 named and its carrier identity is proven by blob equality,
+not by eye: `ci.yml` is `0b7f720eb7cb0c1e8a9524775e2a0fef96b330f8` at `efdf253`, `4b4e1a7` and
+`1a8bd55`, so nothing in #59's log can be attributed to the workflow file. Counts are `grep -c`
+over the REST job logs in `smoke/` (`T18-56rest-*`, `T17-56-verify`, `T18-58-*`, `N59-*`,
+`N58-verify.log`), plain UTF-8 with a BOM and no ANSI, so a zero is a zero and not an
+escape-sequence artifact.
+
+| job | #56 | #58 | #59 | what the job downloads |
+|---|---|---|---|---|
+| sdk-probe (decides the optional legs) | 0 | 0 | 0 | nothing — no `Download action repository` line |
+| ndi (optional) | 1 | 0 | 0 | `checkout` only |
+| ableton-link (optional) | 1 | 0 | 0 | `checkout` only |
+| spout (optional) | 1 | 0 | 0 | `checkout` only |
+| verify (windows-latest) | 1 | 0 | 0 | `checkout` + `upload-artifact` ×2 |
+| **protest lines per run** | **4** | **0** | **0** | |
+
+**That column counts lines, not actions.** The protest is emitted once per *job*, under
+`Complete job`, and names every node20-targeting action the job used. #56's ndi log reads
+`…forced to run on Node.js 24: actions/checkout@v4.` — one action. #56's verify log reads
+`…Node.js 24: actions/checkout@v4, actions/upload-artifact@v4.` — two actions, still one line
+(`T17-56-verify.log:9049`). So "4 before, 0 after" is a census of jobs; the six `uses:` lines
+D044 changed are covered by the two distinct action names inside those lines.
+
+**`sdk-probe` is the control, not a zero.** It reads 0 in all three runs and downloads no action
+at all in any of them, which is what makes the other zeros evidence rather than a grep finding
+only what it expects.
+
+**Both bumped actions are quiet, and the second one is more than D044 claimed to fix.** #56
+carries 2 `[DEP0040] DeprecationWarning: The punycode module is deprecated` lines, both in
+`verify`; the three `checkout`-only jobs carry 0, and `verify` is the only job with
+`upload-artifact` steps, exactly two (`ci.yml:116`, `ci.yml:125`). So the count tracked
+`upload-artifact` invocations, not node20. This record expected `@v6` might still print 2 —
+punycode is loaded by an action's own bundle and a version bump is not obliged to stop loading it
+— and #58 prints **0**. `actions/checkout@v5` resolves to
+`fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09` (it was `11d5960a326750d5838078e36cf38b85af677262`
+under `@v4`); `actions/upload-artifact@v6` resolves to
+`b7c566a772e6b6bfb58ed0dc250532a479d7789f`. `dtolnay/rust-toolchain@stable` is
+`39008827e6b4319a349e9a42dfc90579dd25f1ca` in every run — a moving tag that happened not to move,
+which is why D044 left it alone. Runner `2.338.2` throughout, above the `2.327.1` floor
+`checkout@v5` asks for. `verify` took **58 min 10 s** (05:28:11Z → 06:26:21Z), a fourth duration
+for the census D041 raised the bound over: after 55 min 1 s, 59 min 54 s and 61 min 53 s, against
+75.
+
+**Two log carriers, and only one of them knows which step it is in.** `gh run view --log` prefixes
+each line `job ⇥ step ⇥ timestamp`; that is the carrier D043 read an annotation's source out of. It
+exits 1 mid-run with "run 44244459935 is still in progress; logs will be available when it is
+complete" — for a job finished twenty minutes earlier, because the *run* gates the *job*. The
+per-job endpoint `GET /actions/jobs/{id}/logs` answers for any completed job while its run is still
+going (and needs `--allow-escape-sequences`), but emits bare `timestamp ⇥ content` with no step
+field — so a count over it is a whole-job count and cannot attribute. Attribution comes back by
+bucketing those timestamps into the step windows of `GET /actions/jobs/{id}`
+(`.steps[].started_at/completed_at`, second resolution, projected in `smoke/N58-verify-steps.json`):
+
+| `verify` step | result lines | passed |
+|---|---|---|
+| Workspace tests | 41 | **316** |
+| Live-audio platform tests (WASAPI capture) | 2 | 13 |
+| Live-audio app tests | 3 | **81** |
+
+That bucketing has a live edge, and this lane fell off it on the re-check: the windows are
+second-resolution and both legs straddle theirs. The platform leg's only two result lines are
+stamped `06:24:11.200` and `06:24:11.201`, inside the second its step closes, and the app leg's
+last two are stamped `06:26:10.151` and `06:26:10.451`, inside the second *its* step closes. So a
+`t >= started_at && t <= completed_at` filter moves the platform's `13 passed` + `0 passed` into
+the app window and drops the app's own `16 passed` + `0 passed` out of it. The platform step then
+reads **0 result lines** — its 13 `... ok` lines are stamped `06:24:10.867`–`06:24:10.888`, some
+300 ms *before* the verdicts that belong to them, so they stay inside the window and the step looks
+like it ran tests but printed no verdict — and the app step reads **3 lines totalling 78**, which
+is neither leg. The table above is summed from the raw `test result:` timestamps read beside their
+`Running unittests` / `Doc-tests` headers; the windows say which step a line is plausibly in and
+must not be used to say how many tests a step ran.
+
+**…and it corroborates D045's decomposition rather than correcting it.** The leg-count question
+looked like a defect for about ten minutes: `AGENTS.md` said the flagged command "all exited 0 — 65
+passed / 0 failed" (at `:71-72` when D045 wrote it, `:72-73` in the tree this section is committed
+against), and the hosted `verify` prints
+81 for the same step. It is not a disagreement. D045 already wrote the decomposition at
+`DECISIONS.md:3979` — "`ok lines` counts every `... ok` line across the run's targets: 65 lib + 16
+…" — and its census table carries two separate columns, "lib-suite `test result:`" = 65 passed and
+"ok lines" = 81 every trial. This host's `smoke/T18-par-1.txt` prints the three result lines that
+make it up: `:197` 65 passed (lib), `:219` 16 passed (the `flux` binary), `:240` 0 passed under the
+`Doc-tests flux_app` header at `:221`, and `grep -c "^test .* ok$"` = 81 = 65 + 16 + 0. The hosted
+runner buckets the same leg at 3 lines / 81 independently, so two machines on two GPUs agree as
+soon as the leg is summed, and the number this record nearly "corrected" was already correct where
+it was written.
+
+What survives is smaller and is about a reader who only ever opens one file. A wrap-tolerant grep for
+`65 passed` (the phrase is itself hard-wrapped in one carrier) answers from four places outside this
+section: `AGENTS.md:72-73`, `DECISIONS.md:3959`, the two D045 table cells at `:3984` and `:3985`, and
+`implementation/STATE.json`'s `current_task`. The table cells print `81` in the next column. `:3959` is
+D045's own narrative, twenty lines above the decomposition it states at `:3979`, so a reader of that
+record gets it right. The other two are standalone summaries in the two files a command gets copied
+out of without the record beside them, and both carry the decomposition now, in parentheses: the leg
+is 81 over three targets and the 65 is the lib suite. "lib-suite" sat inside that clause but attached
+to the timings (`lib-suite 9.29–10.22 s`), so the sentence could be read as a leg total 16 tests short.
+Clarity, not fact, and no measured number moved. The `AGENTS.md` edit is the only one in this tranche
+that grows a document, at +1 line; it was taken because no tracked file cites an `AGENTS.md` line
+number (`grep` for `AGENTS.md:[0-9]` answers only from `smoke/`, which is gitignored) and the carrier
+parser stops at the closing fence on `:57`, far above this paragraph. The `STATE.json` edit sits inside
+one JSON string and leaves the file at the 192 lines that string already declares. "63 of the 65 `ok`
+lines" in the hang witness stays exactly right and untouched: the three carrier tests D045 names print
+at `T18-par-1.txt:193-195`, immediately above the lib verdict at `:197`, so they are inside the 65 and
+the lib line is the one that witness was counting.
+
+**And D045's sweep missed a copy of what it retired — in the gate itself.** Its "Where the claim
+lived, and where it did not" paragraph states its scope honestly (`grep` across `implementation/`,
+`docs/` and `spec/`) and then draws a wider conclusion: "the three carriers copy the command, not
+the claim, so nothing downstream could check it against a record". The scope was honest; the
+conclusion was not. Two carriers outside the three directories restate the witness as prose —
+`ci.yml:107-113` and `verify.ps1:154-157` each carried "a measured deadlock (63 of 65 ok lines, no
+`test result:` line, still spinning 2 h 38 m later)" in a comment. Worse is the third copy:
+`requirements.rs:717`, the summary `--check` prints when a carrier loses the flag, closed with "the
+serialised form is the only one that finishes" — the exact absolute `DECISIONS.md:4009` retired. It
+survived because nothing reads it: the checker's own `command_lines()` cuts every line at its first
+`#` and keeps only those whose code part contains `cargo test`, so a comment cannot redden the gate
+that exists to protect the sentence. `requirements.rs:982` (D045 cited it at `:981`; `:717` grew by
+one line and moved it) carries the sibling wording, and D045's reason for leaving it — "it remains
+literally true of the run it names and does not assert the absolute" — holds for the parenthetical
+and not for "that form **is** a measured deadlock". D047's open list named `:981` as a mutant's
+failure text; it is also, and more importantly, the message a developer reads when their own leg
+goes red, since `serialisation_findings` is called on the real carriers at `:1024` and printed at
+`:712`. All three sites are re-worded here, line-neutrally in the two carriers and +2 lines in the
+generator, and the re-worded strings keep `--test-threads=1` in the finding so
+`a_live_audio_line_without_the_flag_is_a_finding` still asserts on it.
+
+**A near-miss worth keeping: the heuristic was the defect.** Before writing the table this lane
+doubted that `T18-56rest-*` came from #56, because its job IDs (`134541386508`, `134541386972`,
+`134541452981`, `134541453067`) sit far from #55's (`1344905xxxxx`) and near #58's
+(`1345999xxxxx`). `GET /actions/jobs/{id}` → `run_id` returns `44226667811` for all five, and the
+bands are in fact monotonic with run creation (#55 `1344905`, #56 `1345413`, #57 `1345728`, #58
+`1345999`, #59 `1346049`), so ID proximity carries no information about run membership at all.
+Resolve `run_id`; do not reason from a band.
+
+Four more job logs already in `smoke/` from earlier runs (`134442296098`, `134444792239`,
+`134490547846`, `134572812050`) carry the same protest, three naming both actions and one naming
+only `checkout` — the before-side is deeper than the single control above, and none of it needed a
+new fetch.
+
+**Gates this tranche owes, and what each one can see.** `cargo fmt --all -- --check` silent (the
+generator strings are source); `node .github/check-workflow.mjs` exit 0 with all 17 controls firing
+and leg 0 still reading "block mapping over 256 lines" — the checker's own count, unchanged because
+the block is 7 lines in and 7 out (`wc -l` says 255, and the two numbers are not the same thing) —
+and a green checker says nothing about this section's prose, because it parses `#` as a comment,
+which is the point of writing that here rather than leaving it implied;
+`cargo test -p xtask --bin requirements -- --test-threads=1` 22 passed / 0 failed, which is the
+only way the re-worded strings are executed at all, and AGENTS.md's rule is that no `verify.ps1`
+step runs a `[[bin]]` target; `cargo run -q -p xtask --bin requirements -- --check` exit 0 printing
+the census byte-for-byte as D045 recorded it — `20 cargo test command lines read from 3 carriers …
+AGENTS.md [3], ci.yml [6], verify.ps1 [11]` — which is the proof that rewriting seven comment lines
+moved no command; and `cargo test --workspace -- --test-threads=1` exit 0 at 41 result lines and
+**318 passed / 0 failed / 0 ignored**, which is D047's +2 over the 316 the hosted `verify` printed
+for the same step in the table above — two trees' totals for two legs, and which leg is which.
+Ledger freshness is untouched by design: neither string reaches `generate()`, and
+`requirements.json` contains no `deadlock`/`test-threads`/`serialis` occurrence to re-stamp.
+
+**Closed, and what is not.** Closed: the node20 protest for both bumped actions on both after-runs,
+D044's residual "the read belongs to the next record", D045's falsified "nothing downstream could
+check it" clause (annotated in place at `:4038`, not rewritten), the retired absolute at
+`requirements.rs:717`, and D047's open item at `:982`. Not closed: whether the pinned majors *stay*
+quiet is a property of upstream tags and of the runner image, and the only gate here is the next
+run's log. The hang's mechanism is still unnamed and its rate still bounded near one run in five,
+so the flag stays in all three carriers. And 58 min 10 s is spend, not verdict — three of the four
+census durations now sit between 55 and 62 minutes against a 75-minute bound, which is margin, not
+slack.
+
+Counts: 2 after-runs × 5 jobs = 10 job-instances read, 0 protests; 1 before-run × 5 jobs, 4
+protests; 6 `uses:` lines re-pinned by D044 and now measured across 3 runs; 2 comment carriers of a
+retired witness corrected; 1 gated copy of the retired absolute corrected; 1 D045 conclusion
+falsified by its own path scope; 1 D047 open item closed and its reach corrected; 1 near-miss
+recorded, in which this lane's own cross-check was the thing that was wrong.
+
+The file is 4 463 at the commit carrying this section, and this section is appended
+below D047's, so no citation above it moved.
