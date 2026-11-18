@@ -113,7 +113,7 @@ build, not the default suite growing by eleven.
 
 **Step 4 — Turn "compiles" into "gated", with a falsifier.** Add one command per
 block to `infrastructure/verify.ps1` and a `live-audio (optional)` job to
-`ci.yml` mirroring the `ndi` pattern (`ci.yml:209-217`), gated on the machine
+`ci.yml` mirroring the `ndi` pattern (`ci.yml:220-228`), gated on the machine
 (Windows) and not on an environment variable (the D027 lesson). The falsifier is
 a pair of CLI guards in the `flux` `[[bin]]` target: a default build of the live
 subcommand exits 1 naming `--features live-audio`, and a feature build gets past

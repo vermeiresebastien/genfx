@@ -74,6 +74,12 @@ It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is st
 green behind the reformat — 233 passed, 0 failed across 40 result lines (29 test binaries
 + 11 doctests), re-measured 2026-11-16 on the D036 tree; it was 196 before the OSC receive
 bridge (D022) added 8, then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034, +5 D035 and +6 D036.
+That 233/40 is the D036 tree's figure, not the current one: 316 passed across 41 result lines is what
+`AGENTS.md` and `STATE.json` carry, re-measured 2026-11-18 at `3667fd2` with exit 0. The +83 is not one
+lane's doing — the 31 commits between `1a418a1` and `6320d3e` add 78 `#[test]` attributes and D037 adds 13,
+91 attributes against +83 executed tests, because a `#[test]` inside a `#![cfg(feature = …)]` module
+never runs in a default-features workspace build and an attribute added to a target already counted moves
+nothing. D041's tranche changes no Rust bytes, so 316/41 still describes the tree this file sits on.
 The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
 a single exit-code read, and recorded skipped SDK gates as passes. Both are fixed (D020),
@@ -91,10 +97,16 @@ variable removed from the environment — is `17 passed / 0 failed / 0 blocked_e
 produces; `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034), `2361785` (D035) and `1a418a1` (D036)
 are each `18 passed / 0 failed / 0 blocked_external`, with `gitDirty false` except at D034, whose own
 decision record was still being written while its gates ran. The two SDK files are gitignored, so a
-fresh clone still records 2 blocked steps here. CI records no such thing — its SDK legs are separate
-jobs that clone their own sources: `DECISIONS.md` D039 reads what they really did, D040 what the gate
-that replaced them did on a runner and what the first green hosted run actually shipped, byte for
-byte. See `AGENTS.md` § "Traps inside this repo's own verification harness".
+fresh clone still records 2 blocked steps here. That count has moved twice since: D037 took the ceiling
+18 → 22, and D041's `workflow-structure` step is the 23rd — the run behind it measured **23 passed /
+0 failed / 0 blocked_external**, `VERIFY: PASS`, exit 0, with the new step second in the list rather
+than last. CI records no such thing — its SDK legs are separate jobs that clone their own sources:
+`DECISIONS.md` D039 reads what they really did, D040 what the gate that replaced them did on a runner
+and what the first green hosted run actually shipped, byte for byte, and D041 puts
+`.github/check-workflow.mjs` — eight structural legs, eleven mutation controls — in both harnesses,
+raises `verify`'s 60-minute bound to 75 after a hosted job came back green with six seconds left on it,
+and disposes a Dependabot advisory against a crate the Windows graph never links. See `AGENTS.md`
+§ "Traps inside this repo's own verification harness".
 
 ## Live control
 
@@ -117,5 +129,5 @@ with the app for the same port. Wire formats and the exact gaps: `docs/FILE-FORM
 | `docs/IMPLEMENTATION-ARCHITECTURE.md` | How the code actually works, incl. §3.6 add-a-node procedure and §8 divergence register |
 | `docs/PERFORMANCE-READINESS.md` | Gates A–H: what must be proven on real hardware, and the shortest procedure for each |
 | `docs/DISK-INVENTORY.md` | Measured inventory — committed vs regenerable bytes, and what could be reclaimed |
-| `implementation/DECISIONS.md` | Decision record D001–D019; D014–D019 are the 2026-11-10→14 reconciliation |
-| `implementation/STATE.json` | Machine-readable current state, re-measured at 2026-11-14 |
+| `implementation/DECISIONS.md` | Decision record D001–D041; D014–D019 are the 2026-11-10→14 reconciliation, D037–D041 the installer, the hosted gate and its clock |
+| `implementation/STATE.json` | Machine-readable current state, re-measured at 2026-11-18 |

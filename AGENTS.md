@@ -37,6 +37,7 @@ wgpu Vulkan, driver 560.94, rustc 1.99.0 stable, Node 24.19.0, FFmpeg 9.0.
 Match `.github/workflows/ci.yml`; anything else is not CI parity.
 
 ```
+node .github/check-workflow.mjs
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -A warnings
 # --test-threads=1 is required on every cargo test line below, not optional
@@ -117,12 +118,19 @@ them first.
   vendored candidates and exports the directory it finds, because `crates/integrations/build.rs:16`
   needs the variable *set*, not merely true; the run at `7235afd`, with that variable removed from
   the environment, is 17-0-0 again, and D032's `requirements-freshness` step made the ceiling 18.
+  D037 took it to 22 and D041's `workflow-structure` step (`node .github/check-workflow.mjs`, the
+  same script ci.yml runs as its own step 2) is the 23rd — so count the steps in the run you are
+  reading, not in this sentence.
   CI has no blocked steps to record. Its `link` and `spout` legs are separate jobs that clone their
   own SDK sources, and the first hosted run whose workflow could be read measured both *failing* on
   a toolchain path the image does not contain — D039 gates them on a machine probe instead, and D040
   reads both legs green on a runner, `verify` end to end twice, and one run (`44198109118`) whose
   conclusion is `success` — the first here — beside its neighbour's `cancelled` at the 60-minute
-  bound on a byte-identical workflow. The hosted installer is not the hosted `verify.json`: 28 of that
+  bound on a byte-identical workflow. That census is two runs wide now: `44211444352` is green too,
+  and its `verify` job took 59 min 54 s of the same 60-minute bound, which is why D041 raises
+  `verify` to 75 and why "the bound is marginal" is now a measurement rather than a worry. A hosted
+  run ending `cancelled` is not a red gate, and with 31 of 55 runs never having created a job at all,
+  "CI did not report" is not the same fact as "CI reported nothing wrong". The hosted installer is not the hosted `verify.json`: 28 of that
   artifact's 33 evidence files are this host's checkout copy, and the five the runner did write say
   its toolchain is rustc 1.100.0 and its graphics device is a Basic Render Driver over Dx12.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one

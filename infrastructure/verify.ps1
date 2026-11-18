@@ -107,6 +107,11 @@ function Resolve-SpoutShim {
 }
 
 Step 'fmt' { cargo fmt --all -- --check }
+# A rejected workflow runs zero jobs and writes zero logs, so every structural fault in
+# ci.yml used to be discovered by pushing and reading a run that never started. This is
+# the same script ci.yml runs as its own second step, and it carries its own mutation
+# battery: a leg that stops firing reddens this step rather than going quiet.
+Step 'workflow-structure' { node .github/check-workflow.mjs }
 Step 'unit-tests' { cargo test -p flux-domain -p flux-catalog -p flux-engine -p flux-media -p flux-audio -p flux-render -p flux-integrations -p flux-app --lib -- --test-threads=1 }
 if (-not $Quick) {
     # Three separate steps: these used to share one block, which recorded only the

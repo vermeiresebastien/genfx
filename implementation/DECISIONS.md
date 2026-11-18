@@ -1133,7 +1133,7 @@ trusting the gate.
 `target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
 
 `verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
-(`infrastructure/verify.ps1:201-203`, was `:200-202` until D032 inserted a step above it) so a run states which prerequisites it could reach. The
+(`infrastructure/verify.ps1:206-208`, was `:200-202` until D032 inserted a step above it) so a run states which prerequisites it could reach. The
 step list alone cannot: a blocked step and an absent SDK look identical, and a step that ran
 because a vendored library happened to be on the machine is not a step that ran on CI.
 
@@ -1405,7 +1405,7 @@ checked, not assumed.
   excluded pathspec is now measured at a commit that contains it, on a tree that was clean before
   the run, with the source change committed after. No claim in that record needed editing.
 - The seven feature-off CLI branches that print and return `Ok` are untouched, and the ledger had no
-  freshness gate. [D032 closed that: `verify.ps1:123` plus a matching `ci.yml` step, both harnesses.]
+  freshness gate. [D032 closed that: `verify.ps1:128` plus a matching `ci.yml` step, both harnesses.]
   [D036 closed the other half, and corrected the count: nine compiled-out branches, seventeen sites in
   the class. Both sentences above — this one and D027's — repeated D027's miscount for four lanes.]
 
@@ -2270,8 +2270,8 @@ tested limit rather than a surprise; P5's `left` value also re-measured the ledg
   reaches it and printed it under `--exact --nocapture` — but nothing reddens if the sentence is
   rewritten or `take(20)` becomes `take(10)`. D034 called that a deliberate trade; this lane keeps the
   trade and stops describing it as an oversight it fixed.
-- Arm 1 is asserted in the module and unreachable from either harness: `verify.ps1:123` and
-  `ci.yml:59` both point `--check` at a tracked path, and `git ls-files --error-unmatch
+- Arm 1 is asserted in the module and unreachable from either harness: `verify.ps1:128` and
+  `ci.yml:70` both point `--check` at a tracked path, and `git ls-files --error-unmatch
   implementation/requirements.json` succeeds, so exit 2 means only a deleted or never-checked-out
   ledger. The test exists so the verdict is not a lie if a checkout does hit it, not because a run
   produced it. Arm 12 is the reverse case: reachable — any tool that appends a final newline to the
@@ -2819,7 +2819,7 @@ The file is 2 818 lines at the commit carrying this section.
 
 ## D038 — 2026-11-17 the workflow file has not parsed since `d4e9a29`, so 29 of 49 CI runs died before creating a job
 
-`ci.yml:151` (that blob; `:217` at `3667fd2`) read `run: cargo test -p flux-integrations --features`
+`ci.yml:151` (that blob; `:217` at `3667fd2`, `:228` here) read `run: cargo test -p flux-integrations --features`
 `ndi ndi::`. A plain YAML scalar may not end with a colon that is followed by a line break: the
 last `:` of `ndi::` is read as a mapping indicator, so `yaml.safe_load` raises `ScannerError:
 mapping values are not allowed here … line 151, column 65`, the file yields no jobs at all, and
@@ -2956,7 +2956,7 @@ machine, not an environment variable, decides. The probe prints that itself, in 
 - Every `cargo test` command text in the file is byte-identical to before (`shell: pwsh` was the only
   addition), so the freshness carriers are untouched: `cargo run -q -p xtask --bin requirements --
   --check` exit 0 reading 20 lines from `[3, 6, 11]`, and `cargo fmt --all -- --check` exit 0.
-- The only tracked file that still names a 2022 toolchain directory is `ci.yml:122`, inside the comment
+- The only tracked file that still names a 2022 toolchain directory is `ci.yml:133`, inside the comment
   describing this defect; the other grep hits are under `_upstream/`, matched by `.gitignore:4`.
 
 ### The first push of this gate produced zero jobs, because a hyphen is not a property access
@@ -3087,6 +3087,9 @@ doing its job rather than being argued for. Both `verify` jobs have since conclu
 `Windows installer bundle` killed mid-step, steps 20–23 reported `skipped`. The run conclusions
 follow their jobs: **#54 is `success`**, the first green hosted run this repository has had in 54
 runs, and #53 is `cancelled`, which is not the same verdict as `failure` and is not a red gate.
+A third data point arrived after this sentence was written: #55 (`44211444352`, at `e4578c2`) is the
+second run to conclude `success`, and its `verify` job took **59 min 54 s** — six seconds inside the
+bound this section calls marginal. D041 re-takes the census below rather than leaving it here.
 
 What is measured here is not only the green. The two jobs ran the **same workflow**:
 `git rev-parse 8c7ed59:.github/workflows/ci.yml` and the same against `3667fd2` both give
@@ -3229,7 +3232,7 @@ right: `Cargo.toml:20` sets `rust-version = "1.85"` under `[workspace.package]`,
 says `rust-version.workspace = true`, and the only declaration that binds is
 `apps/desktop/src-tauri/Cargo.toml:6` repeating the literal, so the workspace has been advertising an
 MSRV it enforces on one crate. A warn-by-default cannot redden a step whose command is
-`cargo clippy --workspace --all-targets -- -A warnings` (`ci.yml:44`), which is the point of the
+`cargo clippy --workspace --all-targets -- -A warnings` (`ci.yml:55`), which is the point of the
 sentence rather than its comfort. Steps 7 and 8 came back green on 1.100.0 in all three runs read here. (2) The
 hosted `test-gpu` green is a **software DX12 device**, so what CI proves about shaders is Naga → DX12
 for all 217 entries — coverage no host-side run has claimed, since this host only ever compiles them
@@ -3279,31 +3282,286 @@ the comment above it. Left as written, because it is D025's contemporaneous word
 
 ### Six things this does not close
 
-(1) A hosted *run* that concludes `success` has happened — #54, 00:12:57Z — and what did not close is
-the margin around it: three `verify` durations, 45 min 8 s / 55 min 1 s / 60 min 10 s-cancelled,
-against `timeout-minutes: 60` at `ci.yml:19`, on two jobs whose `ci.yml` blob is one and the same
-hash. So the next push can still read `cancelled` with nothing wrong in the tree, and the one-line fix
-is deliberately not made here: a timeout is also the only thing that ends a hung test, and choosing
-90 is an owner call about wall-clock spend, not a correctness call. (2) A skip is still not coverage, and now the
+(1) Was: a hosted *run* that concludes `success` had happened — #54, 00:12:57Z — and what did not close
+is the margin around it: three `verify` durations, 45 min 8 s / 55 min 1 s / 60 min 10 s-cancelled,
+against `timeout-minutes: 60` at the file's `:19` then. D041 closes the bound: its fourth measurement,
+#55 at 59 min 54 s, lands six seconds inside that same bound, and `verify` now carries
+`timeout-minutes: 75` at `ci.yml:23`. What that does *not* close is the reason a bound exists at all —
+it is the only thing that ends a hung test, so the raise trades up to fifteen more runner-minutes on a
+hang for margin the tree cannot otherwise reach, and D041 made that call under "fix anything you need",
+not on an owner ruling about wall-clock spend. (2) A skip is still not coverage, and now the
 shipping side says the same thing: both legs build fresh `_upstream/` clones, the vendored
 `abl_link.lib` and `spout_shim.dll` stay gitignored, and the hosted installer's payload above has no
-shim in it at all — so no hosted job compiles or ships the bytes `verify.ps1` gates here. (3) No gate
-checks that the workflow parses, and no gate checks that a leg's `if:` names an output the probe
-actually writes; the nine-line duplicate-key detector that would have caught both dead runs still
-lives in a scratch directory — and that battery was itself wrong until this commit, because its D038
-check tested *parsed* `run:` values for a trailing colon, which flags the repaired line too (a quoted
-`"… ndi::"` still ends in `:`) and cannot see quoting at all. Read off the source instead, it reports
-nothing on this file and catches the breaking shape when the old line is restored into a copy at
-`:217` — a message, not new coverage, since `safe_load` already raises on that form.
-(4) Nothing hosted installs or launches the artifact, so AT082 stays `implemented_unverified` for the
+shim in it at all — so no hosted job compiles or ships the bytes `verify.ps1` gates here. (3) Was: no gate
+checked that the workflow parses, or that a leg's `if:` names an output the probe actually writes, and
+the nine-line duplicate-key detector that would have caught both dead runs lived in a scratch directory
+— and that battery was itself wrong until this commit, because its D038 check tested *parsed* `run:`
+values for a trailing colon, which flags the repaired line too (a quoted
+`"… ndi::"` still ends in `:`) and cannot see quoting at all. D041 closes this: `.github/check-workflow.mjs`
+is in both harnesses with eight legs and eleven controls, its leg 7 reads the *source* text of a plain
+scalar rather than the parsed value, and `plainScalarColon` is the control that asserts the quoting half
+of this mistake cannot come back. (4) Nothing hosted installs or launches the artifact, so AT082 stays `implemented_unverified` for the
 same reasons its blocker names — and `embedBootstrapper` means a first install on a machine without
 the WebView2 runtime needs a network, which no CI job tests. (5) The toolchain worry is measured
-now, not feared: the runner is on 1.100.0 and this host on 1.99.0, and it survived steps 7 and 8
-three times over. It is not closed, because `-A warnings` buys silence rather than safety — the
+now, not feared: the runner is on 1.100.0 and this host on 1.99.0, and it survived hosted steps 6 and 7
+(`Format check`, `Clippy (no deny)`) in each of #50, #53, #54 and #55 — `gh api …/actions/jobs/<id>` numbers them
+that way at #54 and #55, and this sentence said 7 and 8 until D041 checked, which is `Clippy` and
+`Workspace tests`. D041's gate is inserted as hosted step 3, so from the next run 6 and 7 *become* 7 and
+8; the off-by-one was real, not a renumbering. It is not closed, because `-A warnings` buys silence rather than safety — the
 `unused field 'rust-version' in 'workspace.package'` complaint is cargo reading this workspace's own
 manifest, no gate anywhere reads it, and a future toolchain that *errors* would land at the same step
 for the same reason. (6) The hosted `gitDirty: true` at a committed clean checkout is unattributed:
 no step prints `git status --porcelain`, so every provenance block CI writes overstates dirtiness, and
 D026's `implementation/evidence/` exclusion cannot be assumed to be the whole rule.
 
-The file is 3 309 lines at the commit carrying this section.
+The file is 3 309 lines at `e4578c2`, the commit that wrote this sentence. D041 appends below it, so
+that number is a property of the older blob and not of the one carrying both sections; the newer count
+is in D041's own stamp.
+
+## D041 — 2026-11-18 the workflow gate two sections called "un-asked" is in both harnesses now, and the bound it ships beside had six seconds left on it
+
+D038 ended with a nine-line duplicate-key detector living in a scratch directory; D039's residual list
+called a real gate "un-asked". This asks. It also takes the two things the lane had been carrying as
+judgement — the 60-minute bound and an open Dependabot advisory — and turns both into measurements.
+Everything below comes from a file in this commit, from `gh api`, or from a command whose full text is
+given. The local harness run is `smoke/T17-verify.log`, and `smoke/` is ignored, so its numbers are
+written here rather than cited.
+
+### Eight legs, and the eleven controls that say they still fire
+
+`.github/check-workflow.mjs` is Node-only and dependency-free: neither `Cargo.lock` nor
+`apps/desktop` holds a YAML parser, so it scans the YAML subset this workflow actually uses (block
+mappings, block sequences, block scalars, `#` comments) rather than pretending to be `safe_load`. The
+legs, in the order the script prints them:
+
+| leg | asserts | fault class it exists for |
+|---|---|---|
+| 0 | the file parses as nested block mappings at consistent depth | an over-indented key, a line that is not a key |
+| 1 | no mapping scope holds the same key twice | the duplicated `shell:` that emptied run #52's `/jobs` |
+| 2 | every `needs.X` is a dotted identifier | `needs.sdk-probe`, which Actions rejects at parse time |
+| 3 | every `needs:` entry and `needs.X` names a declared job | a leg renamed without re-pointing its consumer |
+| 4 | every `needs.X.outputs.Y` key is declared by X *and* X is in that job's `needs` | the silent class: an empty value makes `if:` false forever |
+| 5 | every job output reads from a step id that exists and writes that key | a probe that stopped emitting one output, gating a leg off nobody notices |
+| 6 | every job bounds and bases itself, every step has `uses:` or `run:` | an unbounded job, a step that runs nothing |
+| 7 | no plain scalar ends in `:` or holds `: ` | D038's own fault: `run: … ndi::` yields zero jobs, zero logs |
+
+Leg 5 is deliberately narrower than it could be. It accepts the write shape this workflow uses — a
+PowerShell table entry `k = 'name'` fed to `Add-Content $env:GITHUB_OUTPUT` — and does not accept
+`echo "name=$v"`, because nothing here writes that way and a clause no control exercises is coverage
+claimed on paper. The comment at the leg says which line to widen if that ever goes red on a real leg.
+
+Each leg is driven against a mutant of the committed file, and the battery compares **leg sets by
+equality**, not "did something fire": a mutant that trips an extra leg fails the run. `control` asserts
+the real file is clean, `inScalarControl` asserts a duplicated assignment inside a `run: |` body stays
+clean — PowerShell, not YAML — and `plainScalarColon` unquotes the one line in the file that ends in
+`::` and requires leg 7 *and only leg 7* to fire, which is the quoting half of D038's own mistake
+frozen as an assertion. Eleven controls, each printing its own line:
+
+```
+node .github/check-workflow.mjs
+```
+
+```
+leg 0: OK (block mapping over 256 lines, block scalars skipped)
+…
+workflow check: …/ci.yml clean — 5 jobs, 35 steps, 8 references, 102 plain scalars; 11 controls as required
+```
+
+Two things it does not do, stated so nobody reads the green as more than it is: it does not evaluate
+`if:` expressions beyond the names inside them, so `== 'True'` compared against a probe that writes
+`true` still passes; and its parser is a subset, so a flow-style mapping or a quoting shape this file
+does not use today is opaque to it, not checked.
+
+### The same gate in both harnesses, because D032 set the rule
+
+`ci.yml:31-32` runs it as step 2, right after `actions/checkout@v4` and before anything that could burn
+a toolchain install, and `verify.ps1:114` runs the identical command as `Step 'workflow-structure'`.
+Gating a rule in one harness and not the other is the defect D032 closed for the ledger, so both carry
+it. One command per `Step` block, as the trap list requires. It is a `Step`, not a `Blocked` leg: a
+Node script that cannot run is a red, not a skip, and the ceiling moves 22 → 23 (D037's run recorded 22,
+and this tranche's run below is the first with 23).
+
+Being a `.mjs` and not a `[[bin]]`, it is also visible to `verify.ps1` — the trap that "a green
+`verify.ps1` does not mean the workspace suite ran" is about cargo tests in binary targets, and this
+gate is not one.
+
+### The run: 23 steps, and the second one is the new one
+
+`env -u FLUX_ABLETON_LINK_LIB -u FLUX_SPOUT_SHIM powershell -NoProfile -ExecutionPolicy Bypass -File
+infrastructure/verify.ps1` — D035's form, so the Link and Spout verdicts come from the machine and not
+from the shell that happens to hold the variables. It printed `steps: passed=23 failed=0
+blocked_external=0` and `VERIFY: PASS`, exit 0. `verify.json` carries `gitHash: e4578c2`, `gitDirty:
+true` over its stated scope, `external` all three true, and 23 step records that are each
+`{exit: 0, ok: true}` — which is the ceiling the sentence above predicts, read off the run rather than
+off the file. The new step is not last in the list, it is second:
+
+```
+== workflow-structure ==
+leg 0: OK (block mapping over 256 lines, block scalars skipped)
+leg 7: OK (102 plain scalars, none in the shape that makes YAML raise)
+control control: clean as required
+… eleven controls, each printing "fired as required" or "clean as required"
+workflow check: .github/workflows/ci.yml clean — 5 jobs, 35 steps, 8 references, 102 plain scalars;
+                11 controls as required
+```
+
+Then the three gates that read files rather than run code, each with its exit status taken un-piped:
+
+- `cargo run -q -p xtask --bin requirements -- --check` → exit 0, `requirements.json is fresh`, and
+  "20 `cargo test` command lines read from 3 carriers … AGENTS.md [3], ci.yml [6], verify.ps1 [11]".
+  Adding a `node` line to `ci.yml` moved none of those three numbers, which is why the ledger gate stayed
+  green without an edit.
+- `cargo run -q -p xtask -- evidence` → exit 0, `33 files, 9 stamped by their writer, 4 naming a commit
+  in a header, 20 unattributed, 0 missing provenance`. That is one file more than the 32/19 D036, D033,
+  D034 and D035 all reported, and the reason is not the writer: `git ls-tree` gives 32 tracked files in
+  `implementation/evidence/` at `1a418a1` (the last run's `headAtRun`) and 33 at HEAD, and the one that
+  arrived between them is `live-capture-2026-11-16.txt`, committed six hours *after* `1a418a1` at
+  `a8470d4`. So every earlier tally was correct for the tree it was taken on.
+- The five `glib` probes in the section below, re-taken with the cargo lock free, each with its own exit
+  status: `0` for both `cargo tree` legs, `101` for the `--precise 0.20.0 --dry-run`, `0` for the `7z`
+  listing, and empty stdout for both greps.
+
+For the record against the previous blob: the `verify.json` committed at `e4578c2` (this commit's parent,
+`git show HEAD:implementation/evidence/verify.json`) reads `gitHash 6320d3e`, 22 steps, no
+`workflow-structure` key and `passed: 22` — so the ceiling this section claims really did move 22 → 23,
+and the 22 belongs to D037's tree rather than to anything in this tranche.
+
+What this run does **not** measure is the workspace suite, and the two numbers must not be traded.
+`verify.ps1`'s own log holds 20 `test result: ok` lines totalling 320 tests, because its `unit-tests`
+step is eight `--lib` packages and never `cargo test --workspace`. The workspace figure this document
+carries — 316 across 41 result lines — was re-measured at `3667fd2` (that tree plus uncommitted docs), and
+`git diff --name-only 3667fd2..e4578c2 -- '*.rs'` prints nothing. This tranche adds no Rust file at all:
+markdown, a `.mjs`, a workflow and the harness, so a replay would re-measure identical bytes. The `.mjs`
+is not covered by that
+argument and was run: it is the step above. The rebuilt installer is
+`6,372,806` bytes, sha256 `9ea259ce2b765091bad12329dad9ff2c607a6aac38fe6e75bafcd83532c0e7e0`, and
+`package.json` stamps it to `gitHash: e4578c2` with `gitDirty: true`.
+
+### Four `verify` durations, and the six seconds that decided the bound
+
+D040 left `timeout-minutes: 60` in place and called raising it "an owner call about wall-clock spend".
+Then #55 ran:
+
+| run | head | `verify` job | wall | conclusion |
+|---|---|---|---|---|
+| #50 | `738641c` | `134425386086` | 45 min 8 s | `success` (job), `failure` (run: a leg went red) |
+| #53 | `8c7ed59` | `134442296098` | 60 min 10 s | `cancelled` mid-step at `Windows installer bundle` |
+| #54 | `3667fd2` | `134444792239` | 55 min 1 s | `success` |
+| #55 | `e4578c2` | `134490547846` | **59 min 54 s** | `success` |
+
+Every one of the four reports 25 step entries — `Set up job`, the 22 steps the file had before this
+tranche, `Post Run actions/checkout@v4` and `Complete job`, numbered 1…23 then 46 and 47 — and within
+that array `Format check` is 6 and `Clippy (no deny)` is 7. The next run reports 26 and they become 7 and
+8. #53 and #54 overlap: #53 started 23:13:06Z and #54 at 23:17:55Z, so the cancelled run and the green
+one are the same workflow content racing the same bound from two pushes five minutes apart.
+
+Read `startedAt`/`completedAt` yourself — there is no `timingDuration` field on `gh run view --json jobs`:
+
+```
+gh run view 44211444352 --json jobs -q '.jobs[]|"\(.name)|\(.conclusion)|\(.startedAt)|\(.completedAt)|\(.steps|length)"'
+```
+
+59 min 54 s against a 60-minute bound is a six-second margin on a job whose own steps are not the
+variable. `verify` now declares `timeout-minutes: 75` at `ci.yml:23`, with the four durations above in
+the comment so the next reader does not have to re-take them. The call is made here, under "fix anything
+you need", and it is one line to undo. What it trades is stated in D040's list item (1): a timeout is
+also the only thing that ends a hung test, so a hang now burns up to fifteen more runner-minutes.
+
+Census re-taken twice over all 55 runs, at 01:55Z and again at 02:46Z with the same result
+(`gh api --paginate` on `/actions/runs`, then `/jobs` per
+run): **24 runs created jobs, 42 jobs — 25 `failure`, 16 `success`, 1 `cancelled`**, and **two runs
+conclude `success`**, not the one D040 recorded. The `runs_with_jobs` count is 24 because 31 of the 55
+runs created no job at all — every one of them a workflow GitHub could not read, which is what legs 0, 1
+and 7 exist for.
+
+### GHSA-wrw7-89jp-8q8g: in the lock, not in the graph, not in the artifact
+
+The push that carried D040 turned on Dependabot's first alert here: `glib` 0.18.5, medium, unsoundness
+in the `Iterator`/`DoubleEndedIterator` impls for `glib::VariantStrIter`, first patched at 0.20.0,
+manifest `Cargo.lock`. It is an advisory against a crate this product compiles for a platform it does
+not ship, and five commands say so — each run with its exit status read un-piped:
+
+```
+cargo tree -i glib --target x86_64-pc-windows-msvc -e normal   # 0, "nothing to print"
+cargo tree -i glib --target x86_64-unknown-linux-gnu -e normal # 0, glib v0.18.5 under gtk ← tauri
+cargo update -p glib --precise 0.20.0 --dry-run                # 101, gtk 0.18.2 requires glib ^0.18
+grep -rn "VariantStrIter" crates apps spec docs implementation # empty (this file excepted)
+grep -rn "glib::" crates apps spec docs                        # empty
+```
+
+- **Graph:** `glib` is reached only through `tauri → gtk ^0.18 / webkit2gtk ^2`, and those are
+  target-gapped dependencies behind a `cfg(any(…))` that names Linux *and* the four BSDs (spelled out
+  below). The Windows graph does not contain `glib` at all — that is what "nothing to print" means — so
+  nothing here links it, and `cargo update` cannot raise it without `gtk` raising it, which `tauri` pins.
+  The newest stable `tauri` on the registry (2.12.6) still requires `gtk ^0.18`.
+- **Sources:** `VariantStrIter` and `glib::` appear in no file in this workspace — grep empty. The
+  soundness hole is in an iterator over GVariant string arrays; nothing in Flux calls into glib.
+- **Artifact:** `7z l -ba target/release/bundle/nsis/Flux_0.1.0_x64-setup.exe` exits 0 and lists eight
+  entries — four NSIS plugin DLLs (`System`, `nsDialogs`, `nsis_tauri_utils`, `StartMenu`),
+  `modern-wizard.bmp`, `$TEMP\MicrosoftEdgeWebview2Setup.exe`, `flux-desktop.exe` at 19 397 120 bytes and
+  the `uninstall.exe` stub. A Rust crate compiled for another platform cannot be in it, and is not.
+- **Ship surface:** `apps/desktop/src-tauri/tauri.conf.json` bundles a WebView2 bootstrapper on Windows.
+  The Linux stack that would pull in `glib` is not built, packaged, tested or published here.
+
+So the alert is a true statement about a crate this lockfile resolves and a build this repository does
+not produce. It is **left open on GitHub** rather than dismissed: dismissing a shared visible state is
+the owner's click, not this commit's. A `Cargo.lock` that carries an unreachable vulnerable crate is not
+a defect to fix here, and `cargo update` cannot fix it anyway — that is the whole content of this
+section, and the five commands above are how to re-check it before repeating any of it.
+
+The `^0.18` is not a coincidence of this lockfile and it is not reachable from here. Re-taken against
+the registry with `curl -A … https://index.crates.io/ta/ur/tauri`, the newest stable `tauri` (2.12.6)
+and even `3.0.0-alpha.6` both require `gtk ^0.18` under
+`cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))`
+— so the gate is not merely Linux, it is every BSD-family target, and none of them is what this
+repository builds, ships or tests. `cargo update -p glib --precise 0.20.0 --dry-run` therefore exits 101
+naming `gtk v0.18.2` as the requirement holder, and the only way to change the answer is to change
+upstream.
+
+### Nine carriers moved, and the pair-half that a regex cannot see
+
+`ci.yml` grew 11 lines and `verify.ps1` 5, so every citation at or past `ci.yml:22` and `verify.ps1:110`
+moved. Each was re-resolved by printing the line a citation lands on against the line it named at
+`HEAD`, not by arithmetic — and two of them turned out to have been stale *before* this tranche:
+`IMPLEMENTATION-ARCHITECTURE.md:883` and the second `ci.yml:29` on `PERFORMANCE-READINESS.md:1150` still
+pointed at the fmt step from before D040's own sweep, whose right-hand column they now disagree with.
+
+| where | names | was | now |
+|---|---|---|---|
+| `PLANNING/AUDIO-REACTIVE-LANE-PLAN.md:116` | the `ndi` job block | `ci.yml:209-217` | `:220-228` |
+| `docs/IMPLEMENTATION-ARCHITECTURE.md:883` | the fmt step | `:29` (stale at `e4578c2`: `:42`) | `:53` |
+| `docs/PERFORMANCE-READINESS.md:1150` | the fmt step, twice | `:42`, `:29` | both `:53` |
+| `docs/PERFORMANCE-READINESS.md:1150` | `requirements-freshness` | `verify.ps1:123` | `:128` |
+| `implementation/STATE.json:131` | the clippy step | `ci.yml:44` | `:55` |
+| `implementation/STATE.json:134`, `:164` | `requirements-freshness` | `verify.ps1:123` | `:128` |
+| `implementation/DECISIONS.md:1136` | the spout Step and its `Blocked` arm | `verify.ps1:201-203` | `:206-208` |
+| `implementation/DECISIONS.md:1408`, `:2273` | `requirements-freshness` | `:123` | `:128` |
+| `implementation/DECISIONS.md:2274` | ci.yml's `--check` step | `:59` | `:70` |
+| `implementation/DECISIONS.md:2822`, `:2959`, `:3235` | the ndi `run:` line, the 2022 comment, clippy | `:217`, `:122`, `:44` | `:228`, `:133`, `:55` |
+
+What is deliberately *not* re-pointed: D040's own drift table and its `verify.ps1:200-202 → :201-203`
+sentences. Those record one tranche's arithmetic against named blobs, and rewriting them would destroy
+the record without fixing a pointer. A reader who wants today's coordinates reads the table above.
+AGENTS.md already warns that a `file:NNN` regex misses the second number of `:3819, 3829`; the same trap
+has a cheaper cousin here — the `/`:31`` half of "`ci.yml:29`/`:31`" matches no pattern at all, so the
+sentence around every hit got read rather than the pattern alone.
+
+### Five things this does not close
+
+(1) The gate checks the file it is pointed at. `FILE` defaults to `workflows/ci.yml` beside the script,
+and nothing asserts that a second workflow file, if one ever appears, gets its own step — a new
+`.github/workflows/*.yml` is unchecked by construction until someone adds a leg for it. (2) It validates
+*names*, not *values*: `== 'True'` compared against a probe that writes `true` passes all eight legs and
+still skips its leg forever on the runner. That is the silent class half-closed — the typo that renames
+is caught, the typo that mis-compares is not, and no static scan of a `${{ }}` string can decide it
+without running the probe. (3) The script is proven locally; the runner has not seen it yet. It is file
+step 2 of the `verify` job and therefore hosted step 3, behind `Set up job` and `checkout`, and until
+that run's log is read this section claims a local exit code and nothing more. (4) `timeout-minutes`
+bounds a *job*, not a run, so a queue delay or a hung `sdk_probe` can still spend wall-clock the bound
+never touches; and 75 minutes of
+margin is margin, not a fix for the installer step's variance, which is still unexplained. (5) The
+advisory is disposed as a *risk to this artifact*, not as a state change: GHSA-wrw7-89jp-8q8g stays open
+on GitHub (dismissing shared visible state is the owner's click), `glib` 0.18.5 stays in `Cargo.lock`,
+and closing it upstream needs `tauri` to move to `gtk 0.20` — which this repository does not control.
+
+The file is 3 567 lines at the commit carrying this section.

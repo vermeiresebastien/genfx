@@ -16,9 +16,20 @@ jobs:
         # not claimed as verified until a real run exists.
         os: [windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # 60 was the bound for every run before 2026-11-18, and it is marginal rather than
+    # safe: measured on a runner, the verify job finished 25 green steps in 55 min 1 s, and
+    # the sibling push on a byte-identical workflow was cancelled at 60 min 10 s inside the
+    # installer step. 75 buys back the margin without removing the bound.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+      # GitHub rejects an unreadable workflow before any job exists: a duplicated `shell:`
+      # key, a plain `run:` scalar ending in `::` (D038, 29 dead runs), and a hyphen in
+      # `needs.sdk-probe`, which the expression grammar rejects because a hyphen is not a
+      # dotted property access. It also checks the silent class — an `if:` that typos an
+      # output name evaluates to empty and skips its leg forever instead of failing.
+      - name: Workflow structure
+        run: node .github/check-workflow.mjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
