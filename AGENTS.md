@@ -58,9 +58,10 @@ cargo run -q -p xtask -- package
 
 `--test-threads=1` is passed by hand — this list, `.github/workflows/ci.yml` and
 `infrastructure/verify.ps1` all carry it, and there is no `.cargo/config.toml`
-default, so a bare `cargo test` races GPU device creation. GPU tests are
-serialised per test binary by a function-local mutex, which means different
-files hold different mutexes.
+default, so a bare `cargo test` runs each binary's tests multi-threaded. Device *creation*
+is serialised there — `Gpu::new` takes a process-wide lock since D047 — but whole-test
+coverage is not: GPU tests are serialised per test binary by a function-local mutex, which
+means different files hold different mutexes, and only two files declare one at all.
 
 On the live-audio legs the flag is what CI runs and nothing here licenses
 removing it — but the stronger sentence this file carried, that it is "the only

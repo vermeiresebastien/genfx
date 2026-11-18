@@ -748,8 +748,8 @@ Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the 
 from multiple test threads (it can deadlock)" — a `OnceLock<Mutex<()>>` `gpu_lock()` held by
 each test. That file's and `node_editor.rs:15-19` are the only two that have one, and
 because each file in `tests/` is its own test binary the lock never crosses files.
-`crates/tests/src/lib.rs` (the shared harness) has no lock at all, so its tests race each
-other on the same binary. Since D047 the creation half is guarded where every caller
+`crates/tests/src/lib.rs` (the shared harness) declares no lock of its own, so its tests race
+each other on everything outside creation. Since D047 the creation half is guarded where every caller
 actually goes: `Gpu::new` (`render/src/gpu.rs:97`) takes `device_creation_lock` (`:74`) as
 its first statement, so the guard is process-wide rather than per-file, and it now covers
 `flux-render`'s lib-suite and `flux-app`'s binary — the callers D045 counted as covered by
