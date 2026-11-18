@@ -3375,12 +3375,12 @@ does not use today is opaque to it, not checked.
 
 ### The same gate in both harnesses, because D032 set the rule
 
-`ci.yml:31-32` runs it as step 2, right after `actions/checkout@v4` and before anything that could burn
-a toolchain install, and `verify.ps1:114` runs the identical command as `Step 'workflow-structure'`.
-Gating a rule in one harness and not the other is the defect D032 closed for the ledger, so both carry
-it. One command per `Step` block, as the trap list requires. It is a `Step`, not a `Blocked` leg: a
-Node script that cannot run is a red, not a skip, and the ceiling moves 22 → 23 (D037's run recorded 22,
-and this tranche's run below is the first with 23).
+`ci.yml:31-32` runs it as step 2, right after `actions/checkout@v4` (`@v5` since D044) and before
+anything that could burn a toolchain install, and `verify.ps1:114` runs the identical command as `Step
+'workflow-structure'`. Gating a rule in one harness and not the other is the defect D032 closed for the
+ledger, so both carry it. One command per `Step` block, as the trap list requires. It is a `Step`, not a
+`Blocked` leg: a Node script that cannot run is a red, not a skip, and the ceiling moves 22 → 23 (D037's
+run recorded 22, and this tranche's run below is the first with 23).
 
 Being a `.mjs` and not a `[[bin]]`, it is also visible to `verify.ps1` — the trap that "a green
 `verify.ps1` does not mean the workspace suite ran" is about cargo tests in binary targets, and this
@@ -3873,3 +3873,71 @@ census of a shared runner — and is the reason D042 refused to call any single 
 property of the installer.
 
 The file is 3 875 lines at the commit carrying this section.
+
+## D044 — 2026-11-18 six action pins, chosen from each action's own manifest, and the one carrier that can say whether the protest stopped
+
+### What changed
+
+Six `uses:` lines and nothing else. `actions/checkout@v4` → `@v5` at `ci.yml:25`, `:201`, `:225`, `:242`
+(one per job that checks the repository out) and `actions/upload-artifact@v4` → `@v6` at `ci.yml:116`
+and `:125` (the two uploads in `verify`). `git diff --numstat` is 6/6 and the file is 255 lines before
+and after, so every `ci.yml:NN` citation in this repository still points where it pointed. No step name,
+`if:`, `shell:`, `run:` string or `timeout-minutes` value was touched.
+
+### Why those two versions, when the obvious one is wrong for half the fix
+
+Read out of the actions' own `action.yml` at `refs/tags/…` on 2026-11-18, `runs.using`:
+
+| action | v4 | v5 | v6 | v7 |
+|---|---|---|---|---|
+| `actions/checkout` | node20 | **node24** | — | — |
+| `actions/upload-artifact` | node20 | node20 | **node24** | node24 |
+
+So bumping `upload-artifact` to `v5` — the next major, what a reflexive bump picks — leaves the protest
+exactly where it was, because v5 still declares node20. v6 is the first release that changes the runtime,
+and its notes say so in the first line: "now runs on Node.js 24 (`runs.using: node24`) and requires a
+minimum Actions Runner version of 2.327.1". Among its PRs is "update @actions/artifact for Node.js 24
+punycode deprecation", which is the second thing this fixes: runs #56 and #57 each print
+`(node:…) [DEP0040] DeprecationWarning: The punycode module is deprecated` twice, once per upload step,
+and nothing else in those logs prints it. v7 also declares node24 but adds direct (unzipped) single-file
+uploads and an ESM module, neither of which this workflow uses; the cost of stopping at v6 is that
+Dependabot will open the v7 PR, and that is a smaller change than the one made here.
+
+The runner floor is not assumed. `Current runner version: '2.338.2'` is printed once in `verify`'s log in
+both #56 and #57, and 2.338.2 ≥ 2.327.1, so the hosted image that ran those two jobs can run both new
+pins. `actions/checkout` v5.0.0's notes name the same floor. Of the three inputs `verify` passes to
+`upload-artifact` — `name`, `path`, `if-no-files-found` — all three exist in v6's `action.yml`, and v6
+has no `post:` entry, so the hosted `steps[]` array keeps the shape D041 and D042 counted: `Set up job`,
+23 file steps, one post-checkout entry, `Complete job` = 26. Only the version inside that entry's *name*
+changes. `dtolnay/rust-toolchain@stable` is not in the protest list because it is a `composite` action and
+declares no JavaScript runtime at all — checked rather than inferred, and it is why three jobs protest and
+this lane leaves that ref alone.
+
+### What was run here, and what cannot be
+
+`node .github/check-workflow.mjs` exits 0 against the edited file with the census unchanged
+(5 jobs, 35 steps, 8 references, 102 plain scalars) and all eleven text mutants firing as required —
+which is the free demonstration that no mutant anchor is an action pin, and the answer to D042's residual
+(3) for this particular edit. `cargo run -q -p xtask --bin requirements -- --check` exits 0, its
+`ci.yml — any non-comment line` carrier still counting 6 `cargo test` lines. `cargo fmt --all -- --check`
+exits 0 and prints nothing.
+
+What none of those can do is accept the file the way GitHub does. The nine legs are a re-implementation
+of the structural rules, not the runner's parser, and a `uses:` ref that does not exist would be caught
+by the runner and not here — the versions above were checked against `refs/tags/v5` and `refs/tags/v6`
+over HTTPS, which is evidence and not proof of what the runner resolves them to. The only carrier that
+can answer is the next hosted run. #58 will be the first whose pins are the bumped ones, and its five job
+logs are the after-measurement: expect no `forced to run on Node.js 24` line anywhere, and expect the two
+`DEP0040` lines in `verify`'s log to be gone. #57 is the before-control, read from the same carrier.
+
+### What this closes, and what it does not
+
+D042's residual (4) and D043's before-control are the same item, and this is it. What stays: node20 is
+*forced*, not removed, so nothing in this repository was broken by the protest today — the bump buys the
+day it becomes fatal, and the day `sdk-probe`'s zero-action log stops being the only clean one is the day
+a new action is added, not this day. If `verify.ps1` or `ci.yml` ever adds `actions/download-artifact`,
+the same table says v5 and v6 of that action are the node24 pair and v4 is not. And the six pins are six
+*moving* refs: `@v5` is a tag that can be re-pointed by its owner, so the manifest read above is a
+property of 2026-11-18, and re-taking it is one `curl` per row of the table.
+
+The file is 3 943 lines at the commit carrying this section.

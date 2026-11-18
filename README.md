@@ -106,10 +106,15 @@ and what the first green hosted run actually shipped, byte for byte, and D041 pu
 `.github/check-workflow.mjs` — eight structural legs, eleven mutation controls — in both harnesses,
 raises `verify`'s 60-minute bound to 75 after a hosted job came back green with six seconds left on it,
 and disposes a Dependabot advisory against a crate the Windows graph never links. D042 makes the unit of
-audit that gate reads the directory instead of one filename — nine legs, the ninth a fault when the scan
+audit that gate reads the directory instead of one filename — nine legs, leg 8 a fault when that scan
 finds no YAML at all, seventeen controls — and reads the log D041 left unread: run #56 concluded
 `success` with `verify` in 61 min 53 s, the first run that finished only because the bound had been
-raised. See `AGENTS.md`
+raised. D043 reads #57, the first hosted run of the scan: step 3 printed
+`leg 8: OK (1 workflow file(s) audited from .github/workflows)` with a tail byte-identical to this host's,
+and no runner has seen leg 8 fire yet. D044 re-pins the six `uses:` lines that protest names —
+`actions/checkout` to `@v5`, `actions/upload-artifact` to `@v6`, each version read out of that action's own
+manifest at its tag — and run #58's five job logs are the only carriers that can say whether it stopped.
+See `AGENTS.md`
 § "Traps inside this repo's own verification harness".
 
 ## Live control

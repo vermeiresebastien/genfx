@@ -149,7 +149,7 @@ them first.
   log names `actions/checkout@v4` **and** `actions/upload-artifact@v4`, and across the five job logs the
   protest appears four times (three jobs checkout-only, `verify` both, `sdk-probe` not at all, because
   it runs no action). Read an annotation from `gh run view --log --job <id>`; a watcher's stream is a
-  count of its own polls and an incomplete copy of its text.
+  count of its own polls and an incomplete copy of its text. D044 re-pinned them to `@v5`/`@v6`.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
