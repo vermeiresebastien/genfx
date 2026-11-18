@@ -1,18 +1,24 @@
 # Blockers
 
 ## External prerequisites (cannot be supplied by this run)
-- **NDI** (R006, AT060): **transport works; the product path does not.** Re-measured
-  2026-11-15 (`evidence/ndi-2026-11-15.txt`): the NDI 6 Tools runtime loads and
-  `NDIlib_initialize` succeeds, `flux ndi` runs discovery, and synthetic 640×360 RGBA
+- **NDI** (R006, AT060): **transport works and now carries a Flux render; the product path
+  does not.** Re-measured 2026-11-15 (`evidence/ndi-2026-11-15.txt`): the NDI 6 Tools runtime
+  loads and `NDIlib_initialize` succeeds, `flux ndi` runs discovery, and synthetic 640×360 RGBA
   frames come back both through a same-process loopback and across two processes
   (`ndi-send` → `ndi-recv`, 108,601-byte PNG whose sampled pixels match the sent gradient).
+  Re-measured 2026-11-18 (`evidence/ndi-loopback-2026-11-18.txt`, D049) on a render instead of
+  a pattern: `flux ndi-loopback` builds the gen.plasma + fx.bloom project, renders it through
+  `export::PreviewRenderer` and sends those bytes, which come back within max R17 G6 B11 of
+  the render they came from, 21.9x further from the other render, alpha plane unchanged.
   The 2026-11-09 line here read "**Fully working — discovery, send, and receive verified**"
   and "discovery found **5 live sources**"; that count was the network's state that
   afternoon (Premiere, the NVIDIA sender, Test Patterns), not a capability — today the same
   command finds **0** sources. Two things are still missing and no blocker list should hide
-  them: there is **no wgpu→NDI producer**, so a Flux render is never what gets sent, and no
-  third-party consumer has ever received from Flux (the peer in every run above is Flux's
-  own receiver). `apps/ndi-bridge/ndi_shim.cpp` is compiled against the official NDI SDK
+  them: there is **no producer on the running preview** — `trait LiveSink`
+  (`crates/integrations/src/live.rs:37`) has no implementor, so what crosses is a CLI's own
+  one-shot render and not what Flux is showing — and no third-party consumer has ever received
+  from Flux (the peer in every run above is Flux's own receiver).
+  `apps/ndi-bridge/ndi_shim.cpp` is compiled against the official NDI SDK
   headers (vendored via `ndi-sdk`), so structs are correct; `ndi_shim.dll` itself dates from
   2026-11-09 and was not rebuilt for these runs.
 - **Spout2 (Windows)** and **Syphon (macOS)**: Spout2 (BSD-2) worked **send-side** — 83 frames

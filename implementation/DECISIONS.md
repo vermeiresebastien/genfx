@@ -188,7 +188,7 @@ being read as proof.
    no-op until a `LearnBinding` sets `control_map.graph_id`. Separately,
    `/flux/v1/bridge/…` is rejected by the address gate (`osc.rs:44`), and the NDI/Spout
    senders emit a synthetic 640×360 gradient rather than a rendered frame — behind
-   features that are off by default.
+   features that are off by default. (D049 retired the NDI half on 2026-11-18: the NDI commands render a Flux project; `spout-send-dx` still sends the pattern.)
    *Correction to the first pass of this audit, which claimed "control application is
    not wired": the application half is implemented; the gap is the transport→command
    wire. That makes it a wiring job, not a missing subsystem.*
@@ -445,7 +445,7 @@ Three things fall out of this, and they change the reading of the old evidence.
   critical-path render, not frames on glass; that is gate F2 and it is still unmeasured.
 - **Four of the six spec profiles do not exist.** `particles`, `sdf`, `fluid` and `recording`
   (`spec/VERIFICATION.md:139-142`) are not in the table, so naming them is a refusal rather than
-  a measurement. The `BLOCKERS.md:58-59` CPU-producer ceiling is untouched by this change.
+  a measurement. The `BLOCKERS.md:70-71` CPU-producer ceiling is untouched by this change.
 - **`benchmark.json` holds one profile at a time.** Each run overwrites the file, so the 4K row
   above was read from a copy taken before the next run replaced it. Unchanged, because making the
   evidence filename profile-specific is a separate call about what `implementation/evidence/`
@@ -802,7 +802,7 @@ path" is no longer true of the tree on disk, and is now checkable rather than as
 Lane 3's leftover was stated as "ndi-discovery still names more than its 2 tests prove", and D023
 fixed that inside the harness. Following the same thread one level up found the identical defect
 shape in the status ledger: `implementation/requirements.json` is **generated** (`generatedBy:
-"cargo xtask report (requirements)"`, writer `crates/xtask/src/bin/requirements.rs:584`, was `:174` until D032 separated generating from writing), and its
+"cargo xtask report (requirements)"`, writer `crates/xtask/src/bin/requirements.rs:732`, was `:174` until D032 separated generating from writing), and its
 AT060 row asserted `verified` because a `match` arm three hundred lines earlier says so.
 
 ### Why editing the JSON would have been the wrong repair
@@ -811,8 +811,8 @@ Two acceptance records claimed more than their evidence, in the same way the NDI
 
 | record | at HEAD | after | the gap |
 |---|---|---|---|
-| AT060 — "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior" | `verified` | `implemented_unverified` + blocker | one of four clauses is measured (loopback, re-measured today); release counts, stride/timestamps and the missing-runtime path on a host without NDI are not, and there is still no wgpu→NDI producer |
-| AT063 — "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion" | `verified` | `implemented_unverified` + blocker | `crates/integrations/src/link.rs:288` (then `:249`) does assert single-master arbitration, but only inside a `--features link` build, and the AC's Max-transport and seek/loop clauses are asserted by nothing — which is exactly what `BLOCKERS.md:26-35` and `:54-55` had already said. The ledger was the outlier, not the blockers file. |
+| AT060 — "Actual NDI official SDK/runtime send/receive loopback; frame/audio release counts, stride/timestamps, missing-runtime behavior" | `verified` | `implemented_unverified` + blocker | one of four clauses is measured (loopback, re-measured today); release counts, stride/timestamps and the missing-runtime path on a host without NDI are not, and there is no wgpu→NDI producer — the last of those four was D025's own present tense and D049 closed it on 2026-11-18 |
+| AT063 — "Max/conditional Link transport; single master, seek/loop/start-stop behavior, tempo phase aligned, no control-as-audio confusion" | `verified` | `implemented_unverified` + blocker | `crates/integrations/src/link.rs:288` (then `:249`) does assert single-master arbitration, but only inside a `--features link` build, and the AC's Max-transport and seek/loop clauses are asserted by nothing — which is exactly what `BLOCKERS.md:32-41` and `:54-55` had already said. The ledger was the outlier, not the blockers file. |
 
 A hand-edit would have survived until the next `cargo run -p xtask --bin requirements`, i.e. until
 the next gate run. The generator now produces the claim its own evidence supports, and the
@@ -822,7 +822,7 @@ also the only available proof that the generator is deterministic on this tree.
 ### The `blocker` field got a second job
 
 `record()` already took `blocker: Option<&str>`, but the acceptance loop always passed `None`, so an
-AC could never say *why* it was not verified. `at_blocker(id)` (`crates/xtask/src/bin/requirements.rs:472`)
+AC could never say *why* it was not verified. `at_blocker(id)` (`crates/xtask/src/bin/requirements.rs:504`)
 is now wired into that loop and carries the missing clause list for both rows. `blocker_for()`
 (product requirements) is untouched.
 
@@ -874,8 +874,8 @@ invalidates every citation below it, and nothing in CI notices.
 
 - `docs/PERFORMANCE-READINESS.md` **C1** argued that BLOCKERS.md:4 "says NDI Fully working". D023 had
   already retired that sentence, so the row was attacking a document that no longer said it. Rewritten
-  against current lines (`main.rs:714`/`:571`/`:453`, `live.rs:37-41`, `STATE.json:85-86`,
-  `requirements.json:3745`) and it now says what changed since: the docs, not the code.
+  against current lines (`main.rs:714`/`:571`/`:453` as then numbered, `live.rs:36-40`, `STATE.json:85-86`,
+  `requirements.json:3747` — `:3745` as then numbered; the 3 evidence lines D049 added to AT060 land below it, so it did not move)) and it now says what changed since: the docs, not the code.
 - **A6 "Doc conflict"** used to be a conflict *between* files (BLOCKERS vs requirements vs STATE). The
   ledger is no longer in the disagreement, so the remaining conflict is inside one object:
   `STATE.json:77` "supported + verified when built with feature link" against `STATE.json:82`, which
@@ -1129,7 +1129,7 @@ trusting the gate.
 
 `flux spout` itself was the other half of the same class: when no candidate resolved it printed
 "spout_shim.dll not found" and returned `Ok` — exit 0. It now returns
-`ErrorCode::SdkMissing` (`crates/app/src/main.rs:857-863`, was `:821-827` until D036), measured exit 1 from
+`ErrorCode::SdkMissing` (`crates/app/src/main.rs:1027-1032`; the two earlier numbers in this chain — `:857-863` until D049 and `:821-827` until D036 — name `cmd_spout_send`'s zero-frame arm, not this one, so they were wrong as well as stale), measured exit 1 from
 `target/debug`, while an empty registry stays exit 0 because finding nothing is an answer.
 
 `verify.json` gained `external = { ndiRuntime, abletonLinkLib, spoutShim }`
@@ -1269,7 +1269,7 @@ command that would resume verification, so both new blockers name a resume step.
 
 ### Guard
 
-`mod evidence_routing` (`crates/xtask/src/bin/requirements.rs:528-571`) — 2 tests. One asserts,
+`mod evidence_routing` (`crates/xtask/src/bin/requirements.rs:581-697`) — 2 tests. One asserts,
 per record, that its evidence contains its own subject and none of the neighbouring protocols';
 the other pins AT059/AT062 to `blocked_external`. A string test is the right shape here because a
 grouped arm cannot fail: nothing observes *which* record a string was written for. The assertions
@@ -1312,7 +1312,7 @@ Four citation sites into the generator itself — `requirements.rs:374`, `:396`,
   survived CI silently, and the statuses D025 and D028 fixed were only as current as the last manual
   run. D028 patched prose, not a step — one harness alone is the divergence AGENTS.md forbids.
 - `docs/PERFORMANCE-READINESS.md:22-23` insists a Max GUI is *not* external ("he has Live 12")
-  while `BLOCKERS.md:36-40` makes `.amxd` depend on Max's Save-As dialog. AT062 has to sit on one
+  while `BLOCKERS.md:42-46` makes `.amxd` depend on Max's Save-As dialog. AT062 has to sit on one
   side of that, and the ladder (`spec/START-HERE.md:93`) has no status for "blocked on a human
   clicking Save". `blocked_external` is the closest legal label, not the right one — flagged, not
   resolved.
@@ -1959,7 +1959,7 @@ printed, by `check_freshness`, with two leading spaces of its own (`eprintln!(" 
 ### Twenty-five drifts is the size at which the cap becomes observable
 
 `check_freshness` prints `diffs.iter().take(20)` and then `... and {} more`
-(`crates/xtask/src/bin/requirements.rs:616-621`). Nothing produced more than two drifts until now, so
+(`crates/xtask/src/bin/requirements.rs:764-768`). Nothing produced more than two drifts until now, so
 that `if` had never been evaluated. The new test mutates `status` on the first 25 records — the field
 the gate exists to police, not a harmless scalar, so a comparator that special-cased status would
 still be caught — and the run with `--nocapture` prints exactly 20 rows (`FX001` first, then
@@ -1979,7 +1979,7 @@ collapsing 25 real drifts into the line-number fallback — so the test asserts 
 
 ### A 96-character cap is now part of the contract, on purpose
 
-`short()` truncates any reported value past 96 chars (`crates/xtask/src/bin/requirements.rs:715-724`),
+`short()` truncates any reported value past 96 chars (`crates/xtask/src/bin/requirements.rs:858-871`),
 and the real `counts` object is 91 — so the assertion that the row names `"acceptance"` on both sides
 also asserts that the summary block still fits inside the message. If a spec category ever grows to
 four digits, or an eighth key is added,
@@ -2188,7 +2188,7 @@ turns into is recorded there rather than here.
 D034's "What this does not close" named two residues and both were real. The method was the problem:
 that list was written from D033's handover sentence and from the two tests the lane had just added, so
 it could only report what the previous lane had already thought about. This lane opened
-`check_freshness` (`crates/xtask/src/bin/requirements.rs:598-624`) and `drift_lines` (`:629-683`),
+`check_freshness` (`crates/xtask/src/bin/requirements.rs:746-772`) and `drift_lines` (`:777-831`),
 enumerated every `out.push`, `eprintln!` and `return` in them, and grepped the `freshness` module for
 the assertion that pins each. Two entries came out of that which no residue list would have produced:
 the loop at `:658-660`, for a record this tree generates and the committed file lacks — the single most
@@ -2601,9 +2601,9 @@ a DLL "fallback search order" to `main.rs:219-221`; at every revision this lane 
 `6f68295`, `93484db`, `e110381`, HEAD) those lines are `cmd_render`'s cancel field and progress
 closure, and the order has always lived in `crates/integrations/src/spout.rs:46-50`. The same row's
 other citation was the opposite case: `main.rs:666-680` for the helper shell-out was **correct** at
-`58887cd`, moved to `:667` at `6f68295`, `:668` at `93484db`, `:726` at `e110381` and is `:737-766`
-now — three renumbers survived by nobody opening the file at the number it names. That is what the
-re-resolve rule is for.
+`58887cd`, moved to `:667` at `6f68295`, `:668` at `93484db`, `:726` at `e110381`, `:737-766` at
+`c521e2b` and `:900-936` after D049 — five renumbers, none survived by anybody opening the file.
+That is what the re-resolve rule is for.
 
 This file is 2 610 lines at the commit that carries this record, with the D036 heading at `:2409`; the
 only citation into it from outside is still `DECISIONS.md:116`, twice, from
@@ -2695,7 +2695,7 @@ documented rather than worked around; `embedBootstrapper` for WebView2.
 the launch leg below, which renders the editor from a payload built with it |
 | `crates/xtask/src/main.rs:1532` `cmd_package` | parses `--bundles` / `--features` / `--with-ffmpeg`, builds the release CLI **and** the bundle, discovers the artifacts, writes `artifacts[]` with sha256/size/mtime; exit 0 installer, 1 build failed or bundler-exited-0-with-nothing (`status: "no_artifact"`), 2 bad usage, 3 no Tauri CLI (`status: "blocked_external"`) | 4 tests in `mod packaging`, two of them proven red by mutation |
 | `.github/workflows/ci.yml`, `infrastructure/verify.ps1`, `AGENTS.md` | the verb joins the canonical command list, a CI step, and a Windows-gated `Step 'installer-bundle'` that `Blocked`s where NSIS cannot exist | `cargo run -q -p xtask --bin requirements -- --check` reads all three carriers |
-| `crates/xtask/src/bin/requirements.rs:334`, `:556`, `:622` | AT082's evidence list, its blocker arm, and its freshness case (9 → 10 entries: `["package.json","nsis","layout"]`) | 22 tests in the `requirements` bin, incl. `:665` `no_acceptance_row_cites_a_command_as_its_evidence` |
+| `crates/xtask/src/bin/requirements.rs:334`, `:563`, `:629` | AT082's evidence list, its blocker arm, and its freshness case (9 → 10 entries: `["package.json","nsis","layout"]`) | 22 tests in the `requirements` bin, incl. `:672` `no_acceptance_row_cites_a_command_as_its_evidence` |
 
 ### Why `custom-protocol` is restated rather than trusted
 
@@ -2746,7 +2746,7 @@ measurable from a checkout without touching OS state:
   release binary calls into the shim on the main thread without faulting: `flux spout-send` prints
   `offscreen GL ready: true` and only then fails for the unrelated D036 reason. So the fault is in
   the detached worker that `SpoutRuntime::senders_timeout` spawns (`spout.rs:129`), and it has one
-  caller in the tree — `crates/app/src/main.rs:889`, the CLI, not the GUI.
+  caller in the tree — `crates/app/src/main.rs:1034`, the CLI, not the GUI.
 
 Reachability: `spout` is compiled out of `default = []` in both `flux-app` and `flux-desktop`, and no
 CI step builds release *with* features, so no artifact this repository has ever produced contained
@@ -4035,9 +4035,9 @@ witness — the hang, the timings, the three carrier tests, the "NOT fixed here"
 decision — existed only inside that one `AGENTS.md` paragraph. The rule that a
 status claim should be traceable to a record was not met by the most load-bearing
 verification instruction in the repo, and it still reaches CI — the three carriers
-copy the command, not the claim, so nothing downstream could check it against a record. D048 falsifies that clause on both sides: `.github/workflows/ci.yml:107-113` and `infrastructure/verify.ps1:154-157` sit outside those three directories and copy the witness, and `requirements.rs:717` printed the retired absolute itself until D048 retired it — ungated either way, because the checker reads only command lines.
+copy the command, not the claim, so nothing downstream could check it against a record. D048 falsifies that clause on both sides: `.github/workflows/ci.yml:107-113` and `infrastructure/verify.ps1:154-157` sit outside those three directories and copy the witness, and `requirements.rs:724` printed the retired absolute itself until D048 retired it — ungated either way, because the checker reads only command lines.
 
-One copy is not prose, and it is not closed: `crates/xtask/src/bin/requirements.rs:982`
+One copy is not prose, and it is not closed: `crates/xtask/src/bin/requirements.rs:989`
 builds the mutant's failure text as "that form is a measured deadlock (63 of 65 ok
 lines, no `test result:` line, still spinning 2 h 38 m later)". It remains literally
 true of the run it names and does not assert the absolute, but it sits in a `[[bin]]`
@@ -4273,7 +4273,7 @@ The flag stays in all three carriers: nothing here licenses removing it, and
 `requirements --check` reddens a live-audio leg that loses it. The hang keeps its
 unnamed mechanism and its ≈ one-run-in-five bound. `crates/tests/src/lib.rs` still has no
 lock of its own, and the `gpu_lock()` in `dag_parallel.rs`/`node_editor.rs` still
-serialises whole test bodies, which is more than creation. `requirements.rs:982` (was `:981`
+serialises whole test bodies, which is more than creation. `requirements.rs:989` (was `:981`
 before D048's own edit shifted it) hardcoded D045's witness into the message a real `--check` prints when a carrier loses the flag, for the reason D045 gave; D048 re-pointed it and retired the absolute at `:717`, which this list missed. Beyond
 this lane: AT015's evidence arm, the SSL 2 device measurement, and AT082's owner half.
 
@@ -4399,11 +4399,11 @@ the claim, so nothing downstream could check it against a record". The scope was
 conclusion was not. Two carriers outside the three directories restate the witness as prose —
 `ci.yml:107-113` and `verify.ps1:154-157` each carried "a measured deadlock (63 of 65 ok lines, no
 `test result:` line, still spinning 2 h 38 m later)" in a comment. Worse is the third copy:
-`requirements.rs:717`, the summary `--check` prints when a carrier loses the flag, closed with "the
+`requirements.rs:724`, the summary `--check` prints when a carrier loses the flag, closed with "the
 serialised form is the only one that finishes" — the exact absolute `DECISIONS.md:4009` retired. It
 survived because nothing reads it: the checker's own `command_lines()` cuts every line at its first
 `#` and keeps only those whose code part contains `cargo test`, so a comment cannot redden the gate
-that exists to protect the sentence. `requirements.rs:982` (D045 cited it at `:981`; `:717` grew by
+that exists to protect the sentence. `requirements.rs:989` (D045 cited it at `:981`; `:717` grew by
 one line and moved it) carries the sibling wording, and D045's reason for leaving it — "it remains
 literally true of the run it names and does not assert the absolute" — holds for the parenthetical
 and not for "that form **is** a measured deadlock". D047's open list named `:981` as a mutant's
@@ -4446,7 +4446,7 @@ Ledger freshness is untouched by design: neither string reaches `generate()`, an
 **Closed, and what is not.** Closed: the node20 protest for both bumped actions on both after-runs,
 D044's residual "the read belongs to the next record", D045's falsified "nothing downstream could
 check it" clause (annotated in place at `:4038`, not rewritten), the retired absolute at
-`requirements.rs:717`, and D047's open item at `:982`. Not closed: whether the pinned majors *stay*
+`requirements.rs:724`, and D047's open item at `:989`. Not closed: whether the pinned majors *stay*
 quiet is a property of upstream tags and of the runner image, and the only gate here is the next
 run's log. The hang's mechanism is still unnamed and its rate still bounded near one run in five,
 so the flag stays in all three carriers. And 58 min 10 s is spend, not verdict — three of the four
@@ -4461,3 +4461,107 @@ recorded, in which this lane's own cross-check was the thing that was wrong.
 
 The file is 4 463 at the commit carrying this section, and this section is appended
 below D047's, so no citation above it moved.
+
+## D049 — 2026-11-18 the NDI senders carry a Flux render, the gate is frame identity by discrimination, and the blocker sentence about wgpu→NDI is retired
+
+**What changed.** `cmd_ndi_loopback` (`crates/app/src/main.rs:437`) and `cmd_ndi_send`
+(`:670`) used to build a hand-written RGBA gradient inside the function, at the same call
+site that later handed the bytes to `NdiSender::send`. Both commands now call
+`samples::demo_generator_project("gen.plasma", &["fx.bloom"], 4)`, open an
+`export::PreviewRenderer` (`:520` in the loopback, `:734` in the sender), and render real
+project frames through it. The loopback renders two frames — `render_rgba_at(..., 1_000, ...)`
+and `render_rgba_at(..., 2_000, ...)` at `:521`-`:522` — sends each and pumps the receiver until
+it gets one back that is byte-identical, or reports what did arrive. The sender renders on every
+iteration of its 30 fps loop (`:745`). `main.rs` grew 2 123 → 2 738 lines (+615); the new
+helpers are `render_rgba_at` (`:1678`), `FrameDiff`/`rgba_diff` (`:1748`/`:1783`),
+`FRAME_MARGIN` (`:1816`), `is_this_frame` (`:1840`), `pump_until_exact` (`:1868`), plus 6 tests.
+
+**The gate and what it actually asserts.** Byte-exactness is tried first: `pump_until_exact`
+returns `matched: true` and exits if the received buffer equals the sent buffer and the
+dimensions match. If it does not, three assertions must all pass before the command exits 0.
+(1) **Per-channel dominance**: for each of the four RGBA channels, `own.max[c] <= cross.max[c]`
+and `own.mean[c] <= cross.mean[c]` — the frame must be closer to its own render on every channel.
+(2) **The margin**: `own.mean_all() * FRAME_MARGIN <= cross.mean_all()` where `FRAME_MARGIN = 4.0`
+(`:1816`). `mean_all()` sums the four per-channel means (`:1762`). The measured ratio is
+21.9 (own mean_all ≈ 5.07, cross ≈ 110.9; run C in the evidence file), so the margin is satisfied
+with room, but a transport that blurred every frame toward the same thing would produce a ratio
+near 1.0 and fail it. `the_margin_is_what_refuses_a_transport_barely_better_than_nothing` builds
+a fixture with a ratio of exactly 2.0 — inside the margin — and asserts the refusal.
+(3) **Alpha absolute**: `rgba_alpha_delta(got, sent) == 0` for both frames, checked separately
+from the colour comparison. This is the only absolute assertion the round trip makes; the
+comparative gate carries the colour residual.
+
+**What the 6 tests are.** `discrimination_accepts_the_frame_that_was_actually_sent`: a lossy
+copy of A must pass as A, and the same test run backwards must refuse.
+`the_margin_is_what_refuses_a_transport_barely_better_than_nothing`: a fixture that satisfies the
+per-channel dominance half but sits inside the margin must be refused, so the margin is the only
+thing reddening this test. `a_frame_blurred_toward_both_renders_is_not_identified_as_either`:
+the midpoint of A and B is equidistant and must be refused in both directions.
+`the_alpha_plane_is_compared_separately_from_the_colour`: one alpha byte out of place must be
+visible to `rgba_alpha_delta` and must not be conflated with the colour nudge.
+`frame_distances_refuse_a_wrong_sized_frame_instead_of_calling_it_close`: `usize::MAX` sentinel
+on any mismatched-length pair, plus R/B-swap detection via `max_rgba_delta_rb_swapped`.
+`ndi_commands_load_the_runtime_before_the_shim`: source scan of all three NDI command bodies
+in `include_str!("main.rs")`, asserting `NdiRuntime::load()` appears before `NdiShim::load()`
+in each — a mutation that removes the runtime load line reddens this test, and the red is
+reproducible on the deleted 8 lines at `:693-700` (see the evidence file, section 6).
+All six are `#[cfg(test)]` in the `[[bin]]` target and are executed by `cargo test -p flux-app
+--bin flux`; no `verify.ps1` step reaches them (AGENTS.md's "a green verify.ps1 does not mean
+the workspace suite ran" rule applies to each of these individually).
+
+**Evidence** (`implementation/evidence/ndi-loopback-2026-11-18.txt`, 3 binaries, 13 invocations):
+Loopback (8 runs, C/D on `ca1788fc`, E/F on `48ac199b`, R1-R4 on `9a5a42fc`): all exit 0.
+All 8 print the same residual vectors to the last digit: own [max R17 G6 B11 A0, mean 2.240
+0.769 2.061 0.000], cross [max R181 G139 B175 A0, mean 46.564 33.400 30.908 0.000].
+680318 of 921600 bytes differ render to render. Six runs returned 0 variant frames; R1 and E
+returned 1. The "without a single byte of drift" wording on binary 1 was a hardcoded literal,
+not measured — §6 of the evidence file records the fix (the count is now `o0.frames + o1.frames`
+and `o0.variants + o1.variants`), and §6's two file-overwrite accidents (R2's stdout was lost
+to T19d-loopback-G.log) are also recorded.
+Cross-process (5 runs): 4 exit 0, 1 exit 1 (`FluxRender4`: connected to the advertised source,
+no frame within the 5 s window — the first NDI failure this record keeps, exit status correct
+per D036). The received PNG sha256 `200b8742907dde5e…` is identical across 3 different
+binaries (`ndi-2026-11-15.txt`, `ndi-loopback-2026-11-18.txt` §2, and §6).
+Sender rate: two runs agree exactly at 52.8 ms per iteration (18.9 fps), below the ≥25 fps
+criterion at `docs/PERFORMANCE-READINESS.md:552` — that criterion describes a different use
+case and was not what this command was written to meet.
+
+**Ledger changes.** `requirements.rs:530` AT060 blocker: "there is no wgpu→NDI path so a Flux
+render is never what is sent" replaced with the new text (frame identity by discrimination,
+residual named, no third-party consumer). `requirements.rs:428-430` AT060 evidence list grew by 3
+items. `requirements.rs:455` AT063 cite comment: `BLOCKERS.md:26-35` → `:32-41`. `requirements.rs:547`
+AT062 cite: `BLOCKERS.md:36-40` → `:42-46`. `requirements.rs` grew 1569 → 1576 (+7).
+`requirements.json` regenerated; `--check` exit 0. `BLOCKERS.md` NDI section rewritten; 65 → 71
+lines. `crates/integrations/src/lib.rs` AT060 `limitation` string updated to match.
+
+**Citation sweep.** 57 edits at 51 sites across 5 documents (`docs/PERFORMANCE-READINESS.md`,
+`implementation/DECISIONS.md`, `implementation/FINAL-REPORT.md`, `implementation/STATE.json`,
+`PLANNING/AUDIO-REACTIVE-LANE-PLAN.md`), applied by `smoke/apply-cites.cjs`. The script
+validates each `old` string occurs exactly once on its target line before writing, and checks
+line-count neutrality; three validation failures were fixed during this session (PR:1163
+duplicate cite, PR:265 wrong anchor string, PR:476 em-dash mismatch).
+
+**One off-by-one found and fixed during the commit.** `implementation/BLOCKERS.md:18` cited
+`crates/integrations/src/live.rs:36` for `trait LiveSink`. Line 36 is the doc comment; `pub trait
+LiveSink` is at `:37`. This was introduced by this tranche's rewrite of the NDI paragraph.
+Corrected in place before the commit.
+
+**What is NOT closed.** (1) AT060's release-counts, stride/timestamps, and missing-runtime
+behavior clauses stay unmeasured. (2) No third-party consumer has received from Flux; the peer
+in every cross-process run is Flux's own `ndi-recv`. (3) `trait LiveSink` (`live.rs:37`) still
+has no implementor — what crosses is the CLI's own one-shot render, not the image the preview
+is showing. (4) `cmd_spout_send_dx` still calls `fill_gradient` at `main.rs:891` and AT061's
+Spout blocker sentence is unchanged. (5) `ndi_shim.dll` dates from 2026-11-09 and was not
+rebuilt for these runs — the ABI is unchanged, only the bytes handed to it are. (6) The `>= 25
+fps sustained` criterion is not met at 18.9 fps and was not what this command was written for.
+(7) `smoke/` transcripts are in a gitignored directory; §6 records two overwrites that lost
+R2's raw output and build `48ac199b`'s run-E stdout.
+
+**Counts.** 21 tracked paths modified + 2 new untracked evidence files; +615 lines `main.rs`;
++7 lines `requirements.rs`; +6 lines `BLOCKERS.md`; 6 new tests; 3 binaries × 8 loopback runs;
+5 cross-process runs (4 exit 0, 1 exit 1); 57 citation edits at 51 sites; 1 off-by-one in a
+new sentence found and fixed; 3 validation failures in the re-point script fixed; 3 AT060
+evidence items added; 1 AT060 blocker string rewritten; workspace 318 → 324 passed across 41
+result lines (D048's 316 → 318 → now +6 new tests).
+
+The file is 4 567 at the commit carrying this section; no citation above D048 moved.

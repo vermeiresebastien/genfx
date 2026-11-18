@@ -1,0 +1,418 @@
+# NDI loopback and cross-process send with a FLUX RENDER as the frame
+#
+# provenance: gitHash c521e2b, working tree DIRTY (21 tracked paths modified — this
+#   tranche's code in crates/app/src/main.rs, crates/integrations/src/lib.rs and
+#   crates/xtask/src/bin/requirements.rs, the 12 documents that record it, and the 6
+#   evidence/*.json the gate run rewrote — plus this file and
+#   implementation/evidence/ndi-received-render-2026-11-18.png still untracked)
+# binary: target/debug/flux.exe — this file names THREE hashes for one command set, because
+#   the first was invalidated by a reformat and the second by a correctness fix to the text
+#   the command prints; §5 and §6 are what say the numbers survived both:
+#     ca1788fca83d6988646124599cc4fdf6c9a1d0c52d74deeaca5fdecb47481209, 11,898,368 B,
+#       mtime 2026-11-18T08:09:56Z — sections 1-3
+#     48ac199b974572e0f0a24d76762378e8588e26da6877e7035d5347ddeb9ea36f, 11,898,368 B,
+#       mtime 2026-11-18T09:47:45Z — section 5, after `cargo fmt` moved 3 lines
+#     9a5a42fcc2ba243c67ae500e9575082f52f9594c45b8d403ad71a4282f992171, 11,898,880 B,
+#       mtime 2026-11-18T10:22:41Z — section 6, after the summary line stopped printing
+#       a drift claim it does not measure (this one is 512 bytes larger, so it is not
+#       merely a re-stamp of the same code)
+# built with: cargo build -p flux-app --features ndi   (NOT the default-feature build)
+# host: Windows 10 19045, RTX 2080 Ti (wgpu Vulkan). NDI runtime present both as
+#       apps/ndi-bridge/Processing.NDI.Lib.x64.dll (29,863,120 bytes, dated 2026-04-14)
+#       and under C:\Program Files\NDI\NDI 6 Tools\Runtime\.
+# shim: apps/ndi-bridge/ndi_shim.dll, 24,064 bytes, mtime 2026-11-09 (NOT rebuilt for
+#       these runs — the ABI it exports is unchanged; only the bytes handed to it are)
+# measured: 2026-11-18T08:09Z - 08:12Z, 08:47Z - 08:49Z and 10:22Z - 10:26Z, local time
+#       09:09 - 09:12, 09:47 - 09:49 and 10:22 - 10:26 (+01:00). The raw per-run stdout is
+#       in smoke/T19-loopback-{C,D}.log, smoke/T19c-loopback-{E,F}.log,
+#       smoke/T19d-loopback-{G,H,I}.log and smoke/T19{,-c,-d}-{send,recv}-x{,2,3,4,5}.log,
+#       and smoke/ is gitignored (.gitignore:9) — the transcripts quoted below are the
+#       record, and §6 names the two of these files that were overwritten by a later run.
+# replaces: nothing. This is the successor to implementation/evidence/ndi-2026-11-15.txt,
+#       which measured the same transport on a hand-written gradient and stands as what it
+#       says it is.
+
+--------------------------------------------------------------------------------
+0. WHY THIS FILE EXISTS
+--------------------------------------------------------------------------------
+Every NDI measurement in this repository before 2026-11-18 put a synthetic gradient on
+the wire. `crates/app/src/main.rs` built it there (`fill_gradient`: R = (x*255/w + t/8)
+% 256, G = y*255/h, B = 128, A = 255) and `AT060`'s generated blocker said, accurately,
+"there is no wgpu->NDI path so a Flux render is never what is sent".
+
+`flux ndi-loopback` and `flux ndi-send` now build a `Project`
+(`samples::demo_generator_project("gen.plasma", &["fx.bloom"], 4)`) and render it through
+`export::PreviewRenderer` — main.rs:520 in the loopback, main.rs:734 with the per-frame
+`render_rgba_at` call at :745 in the sender — and hand those bytes to `NdiSender::send`.
+`flux spout-send-dx` still sends `fill_gradient` (called at main.rs:891, the function at
+:953), which is why that row stays open.
+
+The command does not claim byte-exactness. It cannot: the transport is lossy, and the
+first draft of this measurement asked for equality and came back with a maximum delta of
+17. What the command asserts instead is written out below, and the residual is printed
+rather than absorbed into a tolerance.
+
+--------------------------------------------------------------------------------
+1. Same-process loopback, twice (sender + receiver in one process)
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi-loopback                  (run C)
+resolved advertised source: DESKTOP-MLIF3MV (Flux Loopback 37180)
+NDI loopback: at t=1s 39 frame(s) back, closest 640x360, 0 of them different from the first, best per-byte delta 17 (205 with R/B swapped); vs its own render [max R17 G6 B11 A0, mean 2.240 0.769 2.061 0.000]; vs the other render [max R181 G139 B175 A0, mean 46.564 33.400 30.908 0.000]
+NDI loopback: at t=2s 60 frame(s) back, closest 640x360, 0 of them different from the first, best per-byte delta 18 (206 with R/B swapped); vs its own render [max R18 G6 B12 A0, mean 2.197 0.762 2.009 0.000]; vs the other render [max R186 G140 B176 A0, mean 46.736 33.490 30.658 0.000]
+NDI loopback OK with a named loss: Flux render of gen.plasma+fx.bloom at t=1s and t=2s, 640x360 RGBA (921600 B/frame). Not byte-exact: the residual against its own render is [max R17 G6 B11 A0, mean 2.240 0.769 2.061 0.000], against the other render [max R181 G139 B175 A0, mean 46.564 33.400 30.908 0.000]; alpha unchanged, dimensions unchanged, the two received frames differ, and the transport returned 99 repeated frame(s) without a single byte of drift. The two renders differ in 680318 of 921600 bytes
+exit 0
+
+$ target/debug/flux.exe ndi-loopback                  (run D, log closed 7.0 s after C's)
+resolved advertised source: DESKTOP-MLIF3MV (Flux Loopback 29596)
+NDI loopback: at t=1s 40 frame(s) back, closest 640x360, 0 of them different from the first, best per-byte delta 17 (205 with R/B swapped); vs its own render [max R17 G6 B11 A0, mean 2.240 0.769 2.061 0.000]; vs the other render [max R181 G139 B175 A0, mean 46.564 33.400 30.908 0.000]
+NDI loopback: at t=2s 60 frame(s) back, closest 640x360, 0 of them different from the first, best per-byte delta 18 (206 with R/B swapped); vs its own render [max R18 G6 B12 A0, mean 2.197 0.762 2.009 0.000]; vs the other render [max R186 G140 B176 A0, mean 46.736 33.490 30.658 0.000]
+NDI loopback OK with a named loss: ...
+exit 0
+   # run D's summary line is verbatim run C's above it, with "100 repeated frame(s)" where
+   # C printed "99" — 40+60 against 39+60. Nothing else in the two logs differs except the
+   # advertised port in the first line (29596 against 37180).
+   # "without a single byte of drift" is the wording this binary had, and §6 is the record of
+   # it being wrong as a sentence rather than wrong as a measurement: the runs quoted here
+   # really did return zero variants, but the count was printed from a literal, not read.
+
+Both runs: identical per-channel residuals to three decimal places. The frame counts are
+the only measurement that moves (39/60 against 40/60), which is what a
+rate-limited transport with a fixed transform looks like. Read the four numbers that way:
+
+  vs its own render   max R17 G6 B11  A0   mean 2.240 0.769 2.061 0.000
+  vs the other render max R181 G139 B175 A0 mean 46.564 33.400 30.908 0.000
+  ratio of the two mean sums: 21.9x at t=1s, 22.3x at t=2s  (the gate margin is 4.0x)
+  alpha plane: 0 bytes of 921600 changed, in both phases, in both runs
+  dimensions: 640x360 in, 640x360 back
+  the two renders themselves differ in 680318 of 921600 bytes, so a receiver that echoed
+    one buffer cannot satisfy both comparisons at once
+
+What the command refuses on: dimensions changed, or a received frame not closest to its
+own render, or the two received frames equal, or any alpha byte moved. `pump_until_exact`
+does ask for equality first — if the transport ever becomes lossless the byte-exact line
+prints instead of this one, and `o0.matched && o1.matched` is the branch that says so.
+
+--------------------------------------------------------------------------------
+2. Cross-process: flux ndi-send in one process, flux ndi-recv in a second
+--------------------------------------------------------------------------------
+$ target/debug/flux.exe ndi-send FluxRender1 14       (process A)
+NDI sender 'FluxRender1' broadcasting 640x360 of demo fixture gen.plasma + fx.bloom for 14s
+NDI sender stopped after 207 rendered frames in 14.0s.
+exit 0
+
+$ target/debug/flux.exe ndi-recv FluxRender1 smoke/recv_x    (process B, started 6 s later)
+connecting to: DESKTOP-MLIF3MV (FluxRender1)
+received 640x360 NDI frame -> smoke/recv_x\ndi_frame.png
+exit 0
+   # png 274,247 bytes, sha256 200b8742907dde5ec8ba1974e9865e2a5eae135de584fcafe35084a08df3cdd7
+   # committed as implementation/evidence/ndi-received-render-2026-11-18.png
+   # pixels: (0,0)=R153 G44 B56 A255   (319,179)=R229 G87 B40 A255
+   #         (639,0)=R237 G81 B36 A255  (639,359)=R170 G46 B50 A255
+   # over a 160x90 grid: 215 distinct R, 221 distinct G, 188 distinct B, 1 distinct A
+   # For comparison, `ndi-2026-11-15.txt` section 3 sampled (0,0)=R162 G0 B128,
+   # (639,0)=R158 G0 B125, (0,359)=R161 G254 B127, (320,180)=R33 G127 B127 — two of those
+   # four points are corners this file also sampled, and on those two the pattern signature
+   # is G=0 with B within 3 of 128. Neither holds for this frame: G is 44 and 81 on the top
+   # row, B is 56 and 36. Its own record warns that the R there is not reproducible (the
+   # gradient adds `t/8` to R), so the comparison is on G and B, not on R. This is the
+   # cheapest way to see that the thing on the wire is not the old pattern.
+
+$ target/debug/flux.exe ndi-send FluxRender2 12       (replicate, process A)
+NDI sender 'FluxRender2' broadcasting 640x360 of demo fixture gen.plasma + fx.bloom for 12s
+NDI sender stopped after 186 rendered frames in 12.1s.
+exit 0
+
+$ target/debug/flux.exe ndi-recv FluxRender2 smoke/recv_x2   (process B, 5 s later)
+connecting to: DESKTOP-MLIF3MV (FluxRender2)
+received 640x360 NDI frame -> smoke/recv_x2\ndi_frame.png
+exit 0
+   # png 274,247 bytes — sha256 identical to the run above
+
+Sender rate: 207 frames / 14.0 s is 67.6 ms per iteration and 186 / 12.1 s is 65.1 ms.
+The loop asks for 30 fps (a 33 ms sleep at main.rs:759), so the render plus the send costs
+the other 34.6 ms and 32.1 ms — the work is as long as the sleep, which is why the achieved
+rate is ~15.3 fps and not 30. That misses the >=25 fps sustained criterion at
+docs/PERFORMANCE-READINESS.md:552 (C4's "Pass." row), and this command is not the thing that
+criterion is written for: it names a receiver on a second machine at the project
+resolution, which nothing here measured. `spec/VERIFICATION.md` AT057 — the row an earlier
+draft of this file cited for 25 fps — says "Live source->take->offline export; captured
+timestamps align audio/video and survive relink" (spec/VERIFICATION.md:88) and carries no
+frame-rate number at all. The 15.3 fps is recorded because it is what the two runs printed.
+
+--------------------------------------------------------------------------------
+3. A defect this found in `flux ndi-send`, and the fix
+--------------------------------------------------------------------------------
+Before the runtime load was added, `ndi-send` could not start on this host at all:
+
+  flux: FluxError { code: SdkMissing, subsystem: "ndi",
+          message: "ndi-send: ndi_shim.dll not found (build apps/ndi-bridge)" }   exit 1
+
+The DLL is there (24,064 bytes). `NdiShim::load` walks
+`flux_platform::layout::candidates`, whose `bases()` ends in `PathBuf::from(".")`, so the
+candidate that matches is the RELATIVE path `./apps/ndi-bridge/ndi_shim.dll`, and
+`LOAD_WITH_ALTERED_SEARCH_PATH` on a relative `lpFileName` is documented as undefined
+behaviour: the shim's own import `Processing.NDI.Lib.x64.dll` is not resolved from the
+shim's directory. `cmd_ndi_loopback` and `cmd_ndi_recv` escape this only because they load
+the RUNTIME first, by an absolute path, so the module is already in the process when the
+shim is mapped and the loader satisfies the import by base name — that order is a comment
+at main.rs:446-448 and was never a rule any command had to follow. Setting
+`FLUX_NDI_SHIM` to the absolute shim path did not help on that same pre-fix binary: exit 1,
+same message. (That probe is stated of the pre-fix build only. Re-running it against the
+fixed build answers a different question — the fix loads the runtime by absolute path
+before the shim is even asked for, so the variable no longer routes around anything.)
+
+`cmd_ndi_send` now loads and initialises the runtime before the shim, the same order the
+other two use (main.rs:687-700, the shim load following at :701).
+`ndi_commands_load_the_runtime_before_the_shim` (main.rs:2708) scans the source for that
+order in all three commands, and it has been seen red twice, because the first red was
+taken on bytes the tree no longer has.
+
+Attempt 1 — with the eight-line load block deleted from `cmd_ndi_send`: pre-mutation
+`crates/app/src/main.rs` sha256 2698e886e461533d6937012220bf7edd7682a03ffcaa0539f4d49cc6376168f1,
+mutated 2587ca617e84431d70fc3397d36d5a3d249bce108b4a9345bc842edae069d0c0.
+
+  cargo test -p flux-app --bin flux ndi_commands_load_the_runtime_before_the_shim
+  -> panicked at crates\app\src\main.rs:2721:36 (that line number is in the MUTATED file;
+     the same panic arm is main.rs:2728 in the tree as it then stood):
+     cmd_ndi_send loads the shim with no runtime load above it
+     test result: FAILED. 0 passed; 1 failed  ...  exit 101
+
+Then `cargo fmt --all -- --check` went red on this file: the guard's own
+`match (body.find("NdiRuntime::load()"), body.find("NdiShim::load()"))` did not fit one
+line, and rustfmt broke it into five (+3 lines, main.rs now 2736). Both hashes above are
+therefore unreproducible from the committed tree, and neither number describes it — so the
+mutation was re-taken rather than cited forward.
+
+Attempt 2 — same eight lines deleted (691-698), on the fmt-clean tree: pre-mutation sha256
+62c9712fed755988e5e215e5b9c9cdbc005d98ef4f4b3bc333611178d931d128, mutated
+7963e6fffdf82a77d81b6014d971865cf86e548e179963f0efe1ef5e40efe7c8 (2728 lines against 2736).
+
+  cargo test -p flux-app --bin flux ndi_commands_load_the_runtime_before_the_shim -- --test-threads=1
+  -> panicked at crates\app\src\main.rs:2723:36 (in the MUTATED file; the same panic arm is
+     main.rs:2731 in the restored tree — the fmt +3 is why the two runs name different lines):
+     cmd_ndi_send loads the shim with no runtime load above it
+     test result: FAILED. 0 passed; 1 failed; 0 ignored; 21 filtered out; exit 101
+     smoke/T19b-mutation-ndi-order-red.log
+
+Restoring the file by copy reproduced 62c9712f… byte for byte (`sha256sum` and `wc -l` both
+agree with the pre-mutation pair), and the same command then passed (`1 passed; 0 failed`,
+exit 0, smoke/T19b-mutation-ndi-order-green.log) as did the whole bin suite
+(`22 passed; 0 failed`, 22 `ok` lines, exit 0, smoke/T19b-bin-suite-post-restore.log).
+One trap worth naming, from attempt 1: the first red run used `-- --exact` with the bare
+test name, matched nothing, printed "running 0 tests" and exited 0 — a filter that selects
+no test is not a pass, and cargo calls it ok. The two commands above pass the name as a
+substring filter and both print the test line they claim.
+
+What this says about the older record: `ndi-2026-11-15.txt` section 3 ran
+`flux ndi-send FluxE2E12 16` and got exit 0. That leg was therefore made in an
+environment where the import did resolve — a PATH containing the runtime's directory, or
+the runtime already loaded — and the transcript does not record which. Reproducing it
+today from a bare shell needs the order this section fixed.
+
+--------------------------------------------------------------------------------
+4. What this file does NOT show
+--------------------------------------------------------------------------------
+- It is not byte-exact and it is not claimed as one. Max R17 G6 B11 A0 over 921600 bytes.
+- No consumer that is not Flux received anything here. Both processes in section 2 are
+  Flux; the peer is Flux's own receiver, as it has been in every NDI run this repository
+  has recorded. Resolume Arena was not taken as the independent peer for this tranche.
+- Nothing past same-machine loopback: no second NIC, no Wi-Fi, no VLAN, no bandwidth
+  collapse, no reconnect.
+- The running app's output is not what goes out. `trait LiveSink`
+  (crates/integrations/src/live.rs:36) still has no implementor; what crosses is a CLI's
+  own one-shot render of a document, made for the purpose of being sent.
+- 640x360 is what these two commands choose for the fixture. A project passed as
+  `ndi-send <name> <secs> <path>` broadcasts at its own canvas size; that path is
+  exercised by nothing in this file.
+- `ndi_shim.dll` and `Processing.NDI.Lib.x64.dll` in apps/ndi-bridge are gitignored
+  artifacts of this machine; a fresh clone cannot rebuild either without the SDK
+  (`build_shim.bat:7` reads the headers out of this machine's cargo registry).
+- release counts, line stride and timestamps are still unmeasured, which is the other
+  half of what AT060's blocker lists.
+
+--------------------------------------------------------------------------------
+5. A reformat moved the binary hash, and the measurement does not care
+--------------------------------------------------------------------------------
+After sections 1-3 were written, `cargo fmt --all -- --check` went red on `main.rs` and
+`cargo fmt --all` fixed it by splitting one `match (a, b)` tuple across five lines inside
+`mod tests`. Nothing else changed, and the edit is not compiled into a release of the
+binary at all — `mod tests` is `#[cfg(test)]`.
+
+That is not what the artifact did. Rebuilding with the identical command
+(`cargo build -p flux-app --features ndi`, exit 0) produced a flux.exe of the same
+11,898,368 bytes and a different sha256: ca1788fc… became 48ac199b…. So the hash in the
+header above identifies a build, not a program, and this repository already says so
+(AGENTS.md: "Binaries in `target/` are not evidence. If you claim a build, rebuild.").
+The honest consequence is that sections 1-2 had to be re-run against the binary the
+committed tree builds, and not defended by an argument about `#[cfg(test)]`.
+
+  $ target/debug/flux.exe ndi-loopback                                    (run E)
+  resolved advertised source: DESKTOP-MLIF3MV (Flux Loopback 43548)
+  NDI loopback: at t=1s 42 frame(s) back, closest 640x360, 0 of them different from the
+      first, best per-byte delta 17 (205 with R/B swapped); vs its own render [max R17 G6
+      B11 A0, mean 2.240 0.769 2.061 0.000]; vs the other render [max R181 G139 B175 A0,
+      mean 46.564 33.400 30.908 0.000]
+  NDI loopback: at t=2s 60 frame(s) back, closest 640x360, 1 of them different from the
+      first, best per-byte delta 18 (206 with R/B swapped); vs its own render [max R18 G6
+      B12 A0, mean 2.197 0.762 2.009 0.000]; vs the other render [max R186 G140 B176 A0,
+      mean 46.736 33.490 30.658 0.000]
+  NDI loopback OK with a named loss: … the two renders differ in 680318 of 921600 bytes
+  exit 0                                                    smoke/T19c-loopback-E.log
+
+  $ target/debug/flux.exe ndi-loopback                                    (run F)
+  best per-byte delta 17 then 18; own-render residuals [max R17 G6 B11 A0, mean 2.240
+  0.769 2.061 0.000] and [max R18 G6 B12 A0, mean 2.197 0.762 2.009 0.000]
+  exit 0                                                    smoke/T19c-loopback-F.log
+
+Run E and run F reproduce all eight residual vectors — both phases, own render and the
+other, max and mean — to the last printed digit, and the 680318-of-921600 render-to-render
+distance, against runs C and D. What moves is only the frame census and one variant digit:
+
+  run  binary  frames back t=1s / t=2s   different-from-previous t=1s / t=2s   summary
+  C    ca1788  39 / 60                  0 / 0                                99 repeated
+  D    ca1788  40 / 60                  0 / 0                               100 repeated
+  E    48ac19  42 / 60                  0 / 1                               102 repeated
+  F    48ac19  38 / 60                  0 / 0                                98 repeated
+
+E's single variant is the transport handing back one frame that differed from the frame
+before it, somewhere in the second phase, while still landing the closest frame on the
+same residual as C, D and F; the command reads the closest frame, so it is not a
+difference in what the gate asserts. The counts spread 38-42 against a fixed 60 in phase
+two, which is the same rate-limited-transport shape section 1 names. Four invocations on
+two executables agreeing on every residual the assertion reads is what makes `FRAME_MARGIN`
+a chosen strictness rather than a fit to one lucky run — and one run out of four showing a
+variant is the reason the command prints the counts at all instead of asserting they are
+zero.
+
+  $ target/debug/flux.exe ndi-send FluxRender3 12              (process A)
+  NDI sender 'FluxRender3' broadcasting 640x360 of demo fixture gen.plasma + fx.bloom for 12s
+  NDI sender stopped after 213 rendered frames in 12.0s.                        exit 0
+
+  $ target/debug/flux.exe ndi-recv FluxRender3 smoke/recv_c    (process B, 6 s later)
+  connecting to: DESKTOP-MLIF3MV (FluxRender3)
+  received 640x360 NDI frame -> smoke/recv_c\ndi_frame.png                       exit 0
+     # png 274,247 bytes — sha256 200b8742907dde5ec8ba1974e9865e2a5eae135de584fcafe35084a08df3cdd7,
+     # i.e. byte-identical to the PNG the pre-fmt binary received in section 2.
+
+The received PNG is the strongest of these: same 274,247 bytes and the same hash across
+two different executables, so the render->NDI->PNG path is reproducible at the byte level
+even though the transport is not lossless. The sender's own rate moved with the rebuild —
+213 frames / 12.0 s is 56.3 ms per iteration against 186 / 12.1 s (65.1 ms) and
+207 / 14.0 s (67.6 ms) above — so the achieved rate is 17.8 fps here against 15.3 fps
+there. What does not move is the shape: the work is of the same order as the 33 ms sleep,
+and none of these is the >=25 fps sustained figure that
+`docs/PERFORMANCE-READINESS.md:552` sets for a receiver on a second machine at the
+project resolution, which this host has never measured.
+
+--------------------------------------------------------------------------------
+6. The summary line printed a drift claim it does not measure
+--------------------------------------------------------------------------------
+Section 5 quotes run E's two per-phase lines, and one of them says "at t=2s 60 frame(s)
+back … 1 of them different from the first". The same run's last line said "the transport
+returned 102 repeated frame(s) without a single byte of drift". Both sentences were
+printed by one invocation of one command, and they contradict each other.
+
+The cause was the string, not the measurement: that clause was a literal in the
+`println!` at `crates/app/src/main.rs:645-660`, written when every run so far had happened
+to return zero variants, while the count the command actually holds (`PumpOutcome::variants`,
+main.rs:1861) was never interpolated. So the command asserted a property of the transport
+from a value it had decided not to read — the same class AGENTS.md names for a CLI that
+prints a failure and exits 0, with the verdict rather than the status being the thing that
+lied. The struct's own doc comment had already said what a variant means ("one change is the
+stale frame the previous phase left in the receiver"), so the number was not new: the
+sentence printed was the one that had not caught up with it.
+
+The fix prints the number: "the transport returned {} frame(s), {} of them differing from
+the frame immediately before" (`o0.frames + o1.frames`, `o0.variants + o1.variants`). Two
+lines longer, and that moved every line number in the file below the `println!` by +2, so
+the citations into `cmd_ndi_send`, `cmd_ndi_recv`, `cmd_spout_send_dx`, `cmd_osc_listen`
+and `capture_devices` across `docs/PERFORMANCE-READINESS.md`, `implementation/STATE.json`,
+`implementation/DECISIONS.md`, `implementation/evidence/live-capture-2026-11-16.txt` and
+`PLANNING/AUDIO-REACTIVE-LANE-PLAN.md` were re-resolved against the current bytes rather
+than shifted by arithmetic — 30 sites, each checked by printing the line it lands on.
+
+Rebuilt with the same command (exit 0): 11,898,880 bytes, sha256 9a5a42fc…. Four runs:
+
+  run  frames back t=1s / t=2s   variants t=1s / t=2s   total  printed summary
+  R1   37 / 60                   0 / 1                   97   1 of them differing
+  R2   -   / -                   - / -                   97   0 of them differing
+  R3   38 / 60                   0 / 0                   98   0 of them differing
+  R4   39 / 60                   0 / 0                   99   0 of them differing
+
+R1 is smoke/T19d-loopback-G.log, R3 and R4 are smoke/T19d-loopback-{H,I}.log. R2's stdout
+file is not recoverable, and the reason is this lane's own two accidents, recorded rather
+than smoothed over: the first run on this binary was redirected to
+smoke/T19c-loopback-E.log, which overwrote build 48ac199b's run-E stdout (§5 quotes that
+transcript in full, so the record stands but the file no longer holds it), and copying the
+first run's output to a §6 name then overwrote smoke/T19d-loopback-G.log, which had held
+R2. Both files live in a gitignored directory, so nothing tracked moved — but the
+"transcripts are in smoke/" sentence in the header had to become the weaker one it is now.
+
+All four print the same residual vectors the earlier builds printed, to the last digit: own
+render [max R17 G6 B11 A0, mean 2.240 0.769 2.061 0.000], the other render [max R181 G139
+B175 A0, mean 46.564 33.400 30.908 0.000], 680318 of 921600 bytes differing render to
+render. Put the three censuses together and the whole record is eight invocations on three
+executables — C and D, E and F, R1 to R4 — each returning between 97 and 102 frames, every
+one of them printing the identical residuals, and two of the eight handing back a single
+variant frame (E at t=2s, R1 at t=2s). The other six returned none.
+
+Cross-process, re-run on this binary:
+
+  $ target/debug/flux.exe ndi-send FluxRender4 12     (process A, started in background)
+  NDI sender 'FluxRender4' broadcasting 640x360 of demo fixture gen.plasma + fx.bloom for 12s
+  NDI sender stopped after 229 rendered frames in 12.1s.                               exit 0
+
+  $ target/debug/flux.exe ndi-recv FluxRender4 smoke/recv_x4   (process B, ~6 s later)
+  connecting to: DESKTOP-MLIF3MV (FluxRender4)
+  flux: FluxError { code: SdkMissing, subsystem: "ndi", …, message: "ndi-recv: no frame
+          received within 5s (source may be idle)", … }                                exit 1
+     # and it created no output directory: the connection to the advertised source
+     # succeeded, the first frame did not arrive inside the 5 s window.
+
+That is the first NDI *failure* this file records, and it is worth as much as the successes:
+the receive leg of the same machine, same build, same sender name shape, does not always
+get a frame. The exit status is correct — D036's rule that "this did not happen" means
+nonzero — so the failure was reported rather than printed at exit 0. Nothing here explains
+why, and nothing here should: the honest reading is that a single cross-process receive on
+this host is not a reproducible measurement, which is a weaker claim than §2 made it
+sound. The retry worked:
+
+  $ target/debug/flux.exe ndi-send FluxRender5 15 &  (process A)
+  NDI sender 'FluxRender5' broadcasting 640x360 of demo fixture gen.plasma + fx.bloom for 15s
+  NDI sender stopped after 284 rendered frames in 15.0s.                               exit 0
+
+  $ target/debug/flux.exe ndi-recv FluxRender5 smoke/recv_x5  (process B, 3 s later)
+  connecting to: DESKTOP-MLIF3MV (FluxRender5)
+  received 640x360 NDI frame -> smoke/recv_x5\ndi_frame.png                            exit 0
+     # png 274,247 bytes — sha256 200b8742907dde5ec8ba1974e9865e2a5eae135de584fcafe35084a08df3cdd7,
+     # byte-identical to what §2 and §5 received off two other executables.
+
+So the received PNG is now reproduced across three different builds, which is the strongest
+single fact in this file: the bytes a Flux render becomes on the other side of the transport
+do not depend on which of these three binaries sent them. The sender rate moved again —
+284 / 15.0 s is 52.8 ms per iteration, 18.9 fps, against 229 / 12.1 s (52.8 ms, 18.9 fps),
+213 / 12.0 s (56.3 ms) and 186 / 12.1 s (65.1 ms) — so two of these five runs agree exactly
+on the per-iteration cost, and the >= 25 fps sustained criterion
+(`docs/PERFORMANCE-READINESS.md:552`) is still not met and still not what this command is
+written for.
+
+Mutation control, third time, because the bytes above moved the line again:
+
+  pre-mutation crates/app/src/main.rs sha256 25be84ecd38b2fba0012e2fde2968af961c83ee4bc5f8160c3ca29381cad9c3f
+  (2738 lines); the same eight lines deleted at 693-700 gives sha256
+  fb5a5b2b002eee6e6a1e9893f989ec4fa595c31494f0fc5c6668561aa15c70b2 (2730 lines).
+
+  cargo test -p flux-app --bin flux ndi_commands_load_the_runtime_before_the_shim -- --test-threads=1
+  -> panicked at crates\app\src\main.rs:2725:36 (in the MUTATED file; the same panic arm is
+     main.rs:2733 in the restored tree — 2733 - 8 = 2725, which is the arithmetic this
+     section says nobody should trust without opening the file):
+     cmd_ndi_send loads the shim with no runtime load above it
+     test result: FAILED. 0 passed; 1 failed; 0 ignored; 21 filtered out; exit 101
+     smoke/T19e-mutation-ndi-order-red.log
+
+  Restoring by copy reproduced 25be84ec… byte for byte and `wc -l` returned 2738; the same
+  command then gave `1 passed; 0 failed`, exit 0 (smoke/T19e-mutation-ndi-order-green.log),
+  and the whole bin suite gave `22 passed; 0 failed` with 22 `ok` lines, exit 0
+  (smoke/T19e-bin-suite-post-restore.log). Attempts 1 and 2 above stay as what they were:
+  red taken twice more on bytes the tree no longer has, each annotated with the file it
+  describes.

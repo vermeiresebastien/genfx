@@ -3754,9 +3754,12 @@
       "evidence_paths": [
         "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io",
         "implementation/evidence/ndi-2026-11-15.txt (this run: in-process loopback, cross-process send->recv, negative-case exit codes)",
-        "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)"
+        "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)",
+        "flux ndi-loopback (D049): two frames of a gen.plasma + fx.bloom PreviewRenderer render, sent and received back in-process; each received frame is the render it came from, and the residual against the other render is what says so — this row's subject is a Flux frame, not a hand-written gradient",
+        "implementation/evidence/ndi-loopback-2026-11-18.txt (the render run, with the per-channel residual named)",
+        "crates/app/src/main.rs ndi-fidelity tests (`the_margin_is_what_refuses_a_transport_barely_better_than_nothing` and three more), run by `cargo test -p flux-app --bin flux` and by no verify.ps1 step"
       ],
-      "blocker": "loopback clause verified on synthetic frames; release counts, stride/timestamps and missing-runtime behavior unmeasured, and there is no wgpu->NDI path so a Flux render is never what is sent"
+      "blocker": "loopback clause now measured on a real Flux render, but not byte-exactly: the round trip costs max R17 G6 B11 and leaves alpha untouched, so the gate is frame-identity-by-discrimination and the loss is reported, not tolerated silently; release counts, stride/timestamps and missing-runtime behavior are still unmeasured, and no NDI consumer that is not Flux has taken a frame"
     },
     {
       "id": "AT061",
@@ -3782,7 +3785,7 @@
       "evidence_paths": [
         "apps/max-for-live (two .maxpat + bridge-osc.js; no .amxd exists in the tree)"
       ],
-      "blocker": "no .amxd exists, so pass-through, macro automation and Set-reopen are each unexercised; the missing prerequisite is a manual save, not a missing machine. Smallest resume step: open apps/max-for-live/*.maxpat in Max 8, Save As Max Audio/MIDI Effect, load the result in Live and count packets with `flux osc 9000` (BLOCKERS.md:36-40; no CLI path exists, so the ledger has no status for \"blocked on a human clicking Save\")"
+      "blocker": "no .amxd exists, so pass-through, macro automation and Set-reopen are each unexercised; the missing prerequisite is a manual save, not a missing machine. Smallest resume step: open apps/max-for-live/*.maxpat in Max 8, Save As Max Audio/MIDI Effect, load the result in Live and count packets with `flux osc 9000` (BLOCKERS.md:42-46; no CLI path exists, so the ledger has no status for \"blocked on a human clicking Save\")"
     },
     {
       "id": "AT063",

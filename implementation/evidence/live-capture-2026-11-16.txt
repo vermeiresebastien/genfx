@@ -12,7 +12,8 @@ not a claim from a document. Exit codes are the process's own, un-piped.
 lane-A working tree build. The committed binary (6f00058 and later) prints a
 different shape: one line per endpoint with `[tap] name (default)` followed by
 `id=...` on the next line, not grouped by tap with GUID-first rows. The current
-format is produced by `crates/app/src/main.rs:1086-1122` (`capture_devices`).
+format is produced by `crates/app/src/main.rs:1254-1290` (`capture_devices`; `:1086-1122` as
+recorded on 2026-11-16 — D049 grew that file by 615 lines).
 The measured facts below — 15 endpoints, 9 microphone, 6 loopback, all carrying
 friendly names, default render endpoint is S/PDIF not SSL 2 — remain accurate;
 only the printed layout changed.

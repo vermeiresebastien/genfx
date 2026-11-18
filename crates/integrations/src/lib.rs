@@ -68,18 +68,22 @@ pub fn capability_report() -> Vec<IntegrationCapability> {
             implemented: cfg!(feature = "ndi"),
             // A constant, not a build artifact, per this function's doc: the transport was
             // measured and stays measured regardless of how this binary was configured.
-            // Basis: `flux ndi-loopback` and `flux ndi-send` -> `flux ndi-recv`, both
-            // measured 2026-11-15 and saved to
-            // `implementation/evidence/ndi-2026-11-15.txt`.
+            // Basis: `flux ndi-loopback` and `flux ndi-send` -> `flux ndi-recv`, measured
+            // 2026-11-15 and saved to `implementation/evidence/ndi-2026-11-15.txt`, and
+            // measured again 2026-11-18 with a Flux render as the frame, in
+            // `implementation/evidence/ndi-loopback-2026-11-18.txt`.
             verified: true,
             limitation: if cfg!(feature = "ndi") {
-                "synthetic 640x360 RGBA frames verified send->receive in one process and \
-                 across two processes (2026-11-15); discovery runs but reports whatever the \
-                 network is broadcasting at the time, so source counts are not a capability \
-                 (0 sources today, 5 on 2026-11-09); there is NO wgpu->NDI path, so a Flux \
-                 render is never what gets sent; no third-party consumer interop proven; the \
-                 `ndi::` harness filter covers only the two runtime tests in ndi.rs, not \
-                 ndi_io"
+                "640x360 frames verified send->receive in one process and across two \
+                 processes (2026-11-15), and since 2026-11-18 what `ndi-loopback` and \
+                 `ndi-send` put on the wire is a PreviewRenderer render of a Flux project \
+                 rather than a test pattern; the round trip is not byte-exact (max R17 G6 \
+                 B11, alpha and dimensions unchanged) and the command names the residual \
+                 instead of tolerating it; discovery reports whatever the network is \
+                 broadcasting, so source counts are not a capability (0 sources today, 5 on \
+                 2026-11-09); there is still no producer on the running preview, because \
+                 `trait LiveSink` has no implementor; no third-party consumer interop \
+                 proven; the `ndi::` harness filter reaches ndi.rs only, not ndi_io"
                     .into()
             } else {
                 "built without feature `ndi`; the 2026-11-15 transport measurement \

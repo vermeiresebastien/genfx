@@ -17,9 +17,11 @@ shader harness, docs). The four judgments are kept separate (VERIFICATION §8).
 > - **"§6b NDI — fully working (discovery, send, receive verified)" is wrong about the
 >   frame.** The send/receive tests broadcast a synthetic 640×360 gradient built in
 >   `crates/app/src/main.rs`; no wgpu frame has ever crossed that boundary, and feature
->   `ndi` is off by default. Discovery really did run — the "5 live sources" was that
+>   `ndi` is off by default. **That second clause is the one D049 retired on 2026-11-18:** the
+>   NDI commands now render a Flux project and send it, which §6b records with its residual.
+>   Discovery really did run — the "5 live sources" was that
 >   afternoon's LAN and reads 0 today (§6b). This also contradicts the blockers paragraph
->   at `FINAL-REPORT.md:151-152` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
+>   at `FINAL-REPORT.md:153-154` (NDI listed as `blocked_external`) and `UPSTREAM.md:84`
 >   ("**No SDK headers are shipped**"). Both are true of this tree: the headers the shim
 >   compiles against sit in this machine's cargo registry, not in the repository.
 > - **"cargo test --workspace is green" is true but weak.** Measured 2026-11-16 (D036): 233 passed,
@@ -160,7 +162,7 @@ host, so that one really is an absent SDK. macOS builds unverified. Live camera/
 and GUI webview pixel verification need a device/session. SDF/particle CPU producers not
 realtime at 4K.
 
-### 6b. NDI — transport verified, product path absent (re-measured 2026-11-15)
+### 6b. NDI — transport verified, product path absent (re-measured 2026-11-15; the frame re-measured 2026-11-18)
 NDI Tools v6.3.2 is installed and auto-detected. `apps/ndi-bridge/ndi_shim.cpp` is
 compiled against the **official NDI SDK headers**, so every struct layout is correct — no ABI
 guessing. The older wording here ("vendored by the `ndi-sdk` crate") was vague about where those
@@ -191,9 +193,15 @@ Verified on this host, all of it in `implementation/evidence/ndi-2026-11-15.txt`
   session they printed the failure and exited 0 — which is why "verified" could sit
   next to a command that had never worked (`ndi-loopback` was one of them).
 
-What is **not** verified: there is no wgpu→NDI producer, so a Flux render never crosses
-this path; no third-party consumer (Resolume, NDI Video Monitor, TouchDesigner) has
-received from Flux; nothing past same-machine loopback is proven. The repeatable harness
+What is **not** verified: no third-party consumer (Resolume, NDI Video Monitor,
+TouchDesigner) has received from Flux, and nothing past same-machine loopback is proven.
+What *has* changed since this section was written is the frame: since 2026-11-18 (D049)
+`flux ndi-loopback` and `flux ndi-send` render a Flux project through
+`export::PreviewRenderer` and send those bytes
+(`implementation/evidence/ndi-loopback-2026-11-18.txt`), so "there is no wgpu→NDI producer"
+no longer describes this tree. What does still: there is no producer on the *running*
+preview (`trait LiveSink` has no implementor), and the round trip is not byte-exact.
+The repeatable harness
 gate is now named `ndi-runtime-loads`, which asserts only that the DLL loads and a
 discovery query does not crash — see D023. Its `ndi::` filter selects exactly the 2 tests
 in `crates/integrations/src/ndi.rs` (`runtime_loads_and_initializes`,

@@ -425,6 +425,9 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
                 "apps/ndi-bridge (C++ shim over official SDK headers) + crates/integrations ndi_io".into(),
                 "implementation/evidence/ndi-2026-11-15.txt (this run: in-process loopback, cross-process send->recv, negative-case exit codes)".into(),
                 "implementation/evidence/ndi-io.txt + ndi-received-frame.png (2026-11-09 cross-process send/receive)".into(),
+                "flux ndi-loopback (D049): two frames of a gen.plasma + fx.bloom PreviewRenderer render, sent and received back in-process; each received frame is the render it came from, and the residual against the other render is what says so — this row's subject is a Flux frame, not a hand-written gradient".into(),
+                "implementation/evidence/ndi-loopback-2026-11-18.txt (the render run, with the per-channel residual named)".into(),
+                "crates/app/src/main.rs ndi-fidelity tests (`the_margin_is_what_refuses_a_transport_barely_better_than_nothing` and three more), run by `cargo test -p flux-app --bin flux` and by no verify.ps1 step".into(),
             ],
         ),
         "AT061" => (
@@ -449,7 +452,7 @@ fn at_status(id: &str) -> (&'static str, Vec<String>) {
         // invocations clean, 2 failures of `set_playing_reflected_in_state`.
         // Licensing resolved (product not sold; DECISIONS D012). The AC's
         // Max-integration and seek/loop clauses are asserted by nothing, so the
-        // record cannot read `verified` — which is what implementation/BLOCKERS.md:26-35 says.
+        // record cannot read `verified` — which is what implementation/BLOCKERS.md:32-41 says.
         "AT063" => (
             "implemented_unverified",
             vec![
@@ -520,12 +523,16 @@ fn at_blocker(id: &str) -> Option<&'static str> {
              `crates/integrations/src/syphon.rs` sender/receiver behind that flag and run \
              `cargo test -p flux-integrations --features syphon syphon::` on macOS",
         ),
-        // Four clauses in this AC; only the first is measured. The rest need a
-        // host without the NDI runtime, and a consumer that is not our own CLI.
+        // The wgpu->NDI gap in this row's old blocker is closed: since D049 the bytes
+        // handed to the sender come from `PreviewRenderer`, and the command refuses when
+        // what returns is not that frame. What is left is the transport's own fidelity and
+        // a consumer that is not our own CLI.
         "AT060" => Some(
-            "loopback clause verified on synthetic frames; release counts, stride/timestamps and \
-             missing-runtime behavior unmeasured, and there is no wgpu->NDI path so a Flux render \
-             is never what is sent",
+            "loopback clause now measured on a real Flux render, but not byte-exactly: the \
+             round trip costs max R17 G6 B11 and leaves alpha untouched, so the gate is \
+             frame-identity-by-discrimination and the loss is reported, not tolerated \
+             silently; release counts, stride/timestamps and missing-runtime behavior are \
+             still unmeasured, and no NDI consumer that is not Flux has taken a frame",
         ),
         "AT061" => Some(
             "the OSC bytes are Flux's own encoder meeting Flux's own listener; no Max host has \
@@ -537,7 +544,7 @@ fn at_blocker(id: &str) -> Option<&'static str> {
              unexercised; the missing prerequisite is a manual save, not a missing machine. \
              Smallest resume step: open apps/max-for-live/*.maxpat in Max 8, Save As \
              Max Audio/MIDI Effect, load the result in Live and count packets with `flux osc 9000` \
-             (BLOCKERS.md:36-40; no CLI path exists, so the ledger has no status for \
+             (BLOCKERS.md:42-46; no CLI path exists, so the ledger has no status for \
              \"blocked on a human clicking Save\")",
         ),
         // The 7 link tests do assert single-master arbitration and phase, and since

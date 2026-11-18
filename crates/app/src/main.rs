@@ -440,8 +440,8 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
         use flux_integrations::ndi::NdiRuntime;
         use flux_integrations::ndi_io::NdiShim;
         // End-to-end NDI video pipeline proof: create a sender AND a receiver in
-        // one process, send a known RGBA gradient, receive it back, and confirm
-        // dimensions + non-empty content. Self-contained (no third-party sender).
+        // one process, render two frames of a deterministic project, send them and
+        // confirm each comes back as the frame that was sent. Self-contained.
         //
         // The runtime is loaded and initialised first so that the shim's dependency on
         // `Processing.NDI.Lib.x64.dll` resolves to the module already in the process
@@ -471,16 +471,11 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
         }
         let name = format!("Flux Loopback {}", std::process::id());
         let (w, h) = (640u32, 360u32);
-        let mut img = vec![0u8; (w * h * 4) as usize];
-        for y in 0..h {
-            for x in 0..w {
-                let i = ((y * w + x) * 4) as usize;
-                img[i] = (x * 255 / w) as u8; // R gradient
-                img[i + 1] = (y * 255 / h) as u8; // G gradient
-                img[i + 2] = 128; // B
-                img[i + 3] = 255; // A
-            }
-        }
+        // Two frames of a deterministic demo project, rendered after the sender is
+        // created. This used to be a hand-written gradient baked in right here, which is
+        // what let `AT060`'s blocker say that a Flux render is never what is sent — the
+        // sentence D049 closed.
+        let project = samples::demo_generator_project("gen.plasma", &["fx.bloom"], 4);
         let Some(sender) = shim.sender(&name, w, h) else {
             println!("failed to create NDI sender");
             shim.shutdown();
@@ -518,48 +513,154 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
             shim.shutdown();
             return Err(missing("NDI receiver creation failed"));
         };
-        // Pump frames (sender must keep sending while the receiver waits).
-        let mut got = None;
-        for _ in 0..40 {
-            sender.send(&img, w, h);
-            match recv.next_frame(150) {
-                Ok(Some(f)) => {
-                    got = Some(f);
-                    break;
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    println!("recv error: {e}");
-                    break;
-                }
+        // Render both frames now, from one renderer, so one wgpu device and one
+        // catalog build back the pair this command compares. A device this host
+        // cannot open is a missing prerequisite, so that error propagates.
+        let rendered = (|| -> FluxResult<(Vec<u8>, Vec<u8>)> {
+            let mut renderer = export::PreviewRenderer::new()?;
+            let a = render_rgba_at(&mut renderer, &project, 1_000, w, h)?;
+            let b = render_rgba_at(&mut renderer, &project, 2_000, w, h)?;
+            Ok((a, b))
+        })();
+        let (sent0, sent1) = match rendered {
+            Ok(pair) => pair,
+            Err(e) => {
+                drop(recv);
+                drop(sender);
+                shim.shutdown();
+                return Err(e);
             }
+        };
+        // The point of two frames is that they are not the same frame. If the fixture
+        // rendered identically, a receiver that echoed one buffer would pass.
+        if sent0 == sent1 {
+            drop(recv);
+            drop(sender);
+            shim.shutdown();
+            return Err(missing(
+                "the fixture renders identically at t=1s and t=2s, so no byte match here would prove motion",
+            ));
         }
+        let differing = sent0
+            .iter()
+            .zip(sent1.iter())
+            .filter(|(a, b)| a != b)
+            .count();
+        // Pump frames (sender must keep sending while the receiver waits), and keep
+        // pumping until the receiver hands back the exact bytes that were sent.
+        let pump0 = pump_until_exact(&sender, &recv, &sent0, w, h, 60);
+        let pump1 = pump_until_exact(&sender, &recv, &sent1, w, h, 60);
         drop(recv);
         drop(sender);
         shim.shutdown();
         // `rt.shutdown()` is deliberately not called: it would run `NDIlib_destroy` on
         // the one runtime instance shared with the shim, and the shim has already
         // finalized. A second destroy is not something to rely on being harmless.
-        match got {
-            Some(f) => {
-                let nonzero = f.rgba.iter().any(|&b| b != 0);
-                println!(
-                    "NDI loopback OK: sent {}x{} RGBA, received {}x{} ({} bytes, nonzero={})",
-                    w,
-                    h,
-                    f.width,
-                    f.height,
-                    f.rgba.len(),
-                    nonzero
-                );
+        let (o0, o1) = match (pump0, pump1) {
+            (Ok(a), Ok(b)) => (a, b),
+            (Err(e), _) | (_, Err(e)) => {
+                println!("recv error: {e}");
+                return Err(missing("NDI receive failed while pumping the render"));
             }
-            None => {
-                println!("NDI loopback: no frame received within timeout");
-                return Err(missing("no frame reached the receiver"));
-            }
+        };
+        // Four distances: each received frame against its own render and against the
+        // other one. Exactness is what the transport was asked for and it is tried
+        // first; the cross terms say the frame that came back is the frame that went
+        // up, and they are the part of the assertion no tolerance weakens.
+        let own0 = o0.best.as_ref().map(|g| rgba_diff(g, &sent0));
+        let own1 = o1.best.as_ref().map(|g| rgba_diff(g, &sent1));
+        let cross0 = o0.best.as_ref().map(|g| rgba_diff(g, &sent1));
+        let cross1 = o1.best.as_ref().map(|g| rgba_diff(g, &sent0));
+        let report = |o: &PumpOutcome,
+                      at: &str,
+                      own: Option<FrameDiff>,
+                      cross: Option<FrameDiff>| match (o.frames, own, cross) {
+            (0, _, _) => println!("NDI loopback: at {at} the receiver returned no frame at all"),
+            (_, Some(own), Some(cross)) => println!(
+                "NDI loopback: at {at} {} frame(s) back, closest {}x{}, {} of them different from \
+                 the first, best per-byte delta {} ({} with R/B swapped); vs its own render [{}]; \
+                 vs the other render [{}]",
+                o.frames,
+                o.dims.0,
+                o.dims.1,
+                o.variants,
+                o.best_delta,
+                o.best_swap_delta,
+                own.describe(),
+                cross.describe()
+            ),
+            _ => println!("NDI loopback: at {at} no frame of the sent size came back"),
+        };
+        report(&o0, "t=1s", own0, cross0);
+        report(&o1, "t=2s", own1, cross1);
+        if o0.matched && o1.matched {
+            println!(
+                "NDI loopback OK: Flux render of gen.plasma+fx.bloom at t=1s and t=2s, {}x{} RGBA \
+                 ({} B/frame), both received byte-exact after {} and {} frame(s); the two renders \
+                 differ in {differing} bytes",
+                w,
+                h,
+                w * h * 4,
+                o0.frames,
+                o1.frames
+            );
+            return Ok(());
         }
+        // Byte-exact is not available on this transport, so the proof is carried by three
+        // assertions, none of which is "some frames arrived".
+        let dims_kept = o0.dims == (w, h) && o1.dims == (w, h);
+        let pair = |own: Option<FrameDiff>, cross: Option<FrameDiff>| match (own, cross) {
+            (Some(own), Some(cross)) => is_this_frame(&own, &cross),
+            _ => false,
+        };
+        let carries_this_frame = pair(own0, cross0) && pair(own1, cross1);
+        let received_differ = match (&o0.best, &o1.best) {
+            (Some(a), Some(b)) => a != b,
+            _ => false,
+        };
+        // The one absolute the measurement does license: whatever NDI does to the colour
+        // of a frame, it leaves the alpha plane alone. A transport that mangled alpha is
+        // not this transport, and no comparative test would notice.
+        let alpha_exact = [(&o0, &sent0), (&o1, &sent1)].iter().all(|(o, sent)| {
+            o.best
+                .as_ref()
+                .map(|got| rgba_alpha_delta(got, sent) == 0)
+                .unwrap_or(false)
+        });
+        if !dims_kept || !carries_this_frame || !received_differ || !alpha_exact {
+            return Err(FluxError::new(
+                flux_domain::ErrorCode::Io,
+                "ndi",
+                format!(
+                    "ndi-loopback: the render did not survive the round trip (dimensions kept: \
+                     {dims_kept}, each received frame closer to its own render than to the other: \
+                     {carries_this_frame}, the two received frames differ: {received_differ}, the \
+                     alpha plane unchanged: {alpha_exact}; the two renders differ in {differing} \
+                     of {} bytes)",
+                    sent0.len()
+                ),
+            )
+            .with_recovery("check `flux ndi` for a peer sender advertising this machine's name"));
+        }
+        println!(
+            "NDI loopback OK with a named loss: Flux render of gen.plasma+fx.bloom at t=1s and \
+             t=2s, {}x{} RGBA ({} B/frame). Not byte-exact: the residual against its own render \
+             is [{}], against the other render [{}]; alpha unchanged, dimensions unchanged, the \
+             two received frames differ, and the transport returned {} frame(s), {} of them \
+             differing from the frame immediately before. The two renders differ in {differing} \
+             of {} bytes",
+            w,
+            h,
+            w * h * 4,
+            own0.map(|d| d.describe()).unwrap_or_else(|| "-".into()),
+            cross0.map(|d| d.describe()).unwrap_or_else(|| "-".into()),
+            o0.frames + o1.frames,
+            o0.variants + o1.variants,
+            sent0.len()
+        );
         Ok(())
     }
+
     #[cfg(not(feature = "ndi"))]
     {
         Err(feature_off("ndi-loopback", "ndi"))
@@ -569,6 +670,7 @@ fn cmd_ndi_loopback() -> FluxResult<()> {
 fn cmd_ndi_send(args: &[String]) -> FluxResult<()> {
     #[cfg(feature = "ndi")]
     {
+        use flux_integrations::ndi::NdiRuntime;
         use flux_integrations::ndi_io::NdiShim;
         let missing = |what: &str| {
             FluxError::new(
@@ -582,41 +684,84 @@ fn cmd_ndi_send(args: &[String]) -> FluxResult<()> {
             .cloned()
             .unwrap_or_else(|| "Flux Test Sender".into());
         let secs: u64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(10);
+        // The runtime is loaded and initialised before the shim, in the order
+        // `cmd_ndi_loopback` uses. `NdiShim::load` can be handed a relative candidate
+        // (`bases()` ends in `.`), and a relative path makes the loader's
+        // `LOAD_WITH_ALTERED_SEARCH_PATH` promise undefined, so the shim's import of
+        // `Processing.NDI.Lib.x64.dll` only resolves against the module already in the
+        // process. Without this line the sender cannot start on a host that has NDI.
+        let Some(_rt) = NdiRuntime::load() else {
+            println!("NDI runtime not found.");
+            return Err(missing("NDI runtime absent"));
+        };
+        if !_rt.initialize() {
+            println!("NDI runtime failed to initialize.");
+            return Err(missing("NDIlib_initialize failed"));
+        }
         let Some(shim) = NdiShim::load() else {
             return Err(missing("ndi_shim.dll not found (build apps/ndi-bridge)"));
         };
         if !shim.initialize() {
             return Err(missing("NDI shim failed to initialize"));
         }
-        let (w, h) = (640u32, 360u32);
+        // What goes out is a Flux render. With no project argument that render is the
+        // deterministic demo fixture, so the command still works with nothing to open;
+        // with a path it broadcasts that document at its own canvas size.
+        let project_path = args.get(3).cloned();
+        let (project, source) = match &project_path {
+            Some(p) => (
+                load_project(std::path::Path::new(p))?,
+                format!("project {p}"),
+            ),
+            None => (
+                samples::demo_generator_project("gen.plasma", &["fx.bloom"], 4),
+                "demo fixture gen.plasma + fx.bloom".into(),
+            ),
+        };
+        let (w, h) = match project_path {
+            Some(_) => (project.settings.size.width, project.settings.size.height),
+            None => (640u32, 360u32),
+        };
         let Some(sender) = shim.sender(&name, w, h) else {
             shim.shutdown();
             return Err(missing("failed to create NDI sender"));
         };
         println!(
-            "NDI sender '{}' broadcasting {}x{} for {}s",
+            "NDI sender '{}' broadcasting {}x{} of {source} for {}s",
             name, w, h, secs
         );
         let start = std::time::Instant::now();
-        let mut img = vec![0u8; (w * h * 4) as usize];
-        while start.elapsed().as_secs() < secs {
-            // Animated gradient so the receiver sees live, changing content.
-            let t = start.elapsed().as_millis() as u32;
-            for y in 0..h {
-                for x in 0..w {
-                    let i = ((y * w + x) * 4) as usize;
-                    img[i] = ((x * 255 / w + t / 8) % 256) as u8;
-                    img[i + 1] = (y * 255 / h) as u8;
-                    img[i + 2] = 128;
-                    img[i + 3] = 255;
-                }
+        let mut renderer = match export::PreviewRenderer::new() {
+            Ok(r) => r,
+            Err(e) => {
+                drop(sender);
+                shim.shutdown();
+                return Err(e);
             }
-            sender.send(&img, w, h);
+        };
+        let mut frames = 0u64;
+        while start.elapsed().as_secs() < secs {
+            let ms = start.elapsed().as_millis() as i64;
+            let img = match render_rgba_at(&mut renderer, &project, ms, w, h) {
+                Ok(f) => f,
+                Err(e) => {
+                    drop(sender);
+                    shim.shutdown();
+                    return Err(e);
+                }
+            };
+            if !sender.send(&img, w, h) {
+                drop(sender);
+                shim.shutdown();
+                return Err(missing("NdiSender::send refused the rendered frame"));
+            }
+            frames += 1;
             std::thread::sleep(std::time::Duration::from_millis(33)); // ~30fps
         }
         drop(sender);
         shim.shutdown();
-        println!("NDI sender stopped.");
+        let elapsed = start.elapsed().as_secs_f64();
+        println!("NDI sender stopped after {frames} rendered frames in {elapsed:.1}s.");
         Ok(())
     }
     #[cfg(not(feature = "ndi"))]
@@ -1525,6 +1670,256 @@ fn sanitize(name: &str) -> String {
         .collect()
 }
 
+/// One packed RGBA8 frame of `project` at `ms` milliseconds, at exactly the shape
+/// `NdiSender::send` asks for. `send` answers a bare `false` when the slice is not
+/// `w*h*4`, so a short readback would otherwise be an invisible no-op; the length is
+/// checked here, where the number that came back can be named.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn render_rgba_at(
+    renderer: &mut export::PreviewRenderer,
+    project: &Project,
+    ms: i64,
+    width: u32,
+    height: u32,
+) -> FluxResult<Vec<u8>> {
+    // A literal denominator cannot fail `new`'s only check; if ZERO were ever
+    // taken, both frames would render identically and the caller says so.
+    let time = flux_domain::RationalTime::new(ms, 1_000).unwrap_or(flux_domain::RationalTime::ZERO);
+    let px = renderer.render(project, time, width, height)?;
+    let expected = (width as usize) * (height as usize) * 4;
+    if px.len() != expected {
+        return Err(FluxError::new(
+            flux_domain::ErrorCode::GpuLimit,
+            "ndi",
+            format!(
+                "render at {ms} ms returned {} bytes for a {width}x{height} frame, not the \
+                 packed RGBA8 {expected} bytes the sender requires",
+                px.len()
+            ),
+        ));
+    }
+    Ok(px)
+}
+
+/// Largest per-byte difference between two packed RGBA frames. `usize::MAX` when the
+/// two are not the same length, because a frame that arrived at the wrong size is not
+/// "slightly off".
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn max_rgba_delta(got: &[u8], expect: &[u8]) -> usize {
+    if got.len() != expect.len() {
+        return usize::MAX;
+    }
+    got.iter()
+        .zip(expect.iter())
+        .map(|(a, b)| (*a as usize).abs_diff(*b as usize))
+        .max()
+        .unwrap_or(0)
+}
+
+/// The same delta after exchanging R and B in `got`. The shim sends and requests an
+/// RGBA fourcc, so a byte-exact match *should* be available; if it is not, this says
+/// whether the mismatch is a channel order rather than a corrupt transport, and turns
+/// the failure into a named finding instead of a loosened assertion.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn max_rgba_delta_rb_swapped(got: &[u8], expect: &[u8]) -> usize {
+    if got.len() != expect.len() || got.len() % 4 != 0 {
+        return usize::MAX;
+    }
+    got.chunks_exact(4)
+        .zip(expect.chunks_exact(4))
+        .map(|(g, e)| {
+            [g[2], g[1], g[0], g[3]]
+                .iter()
+                .zip(e.iter())
+                .map(|(a, b)| (*a as usize).abs_diff(*b as usize))
+                .max()
+                .unwrap_or(0)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+/// Per-channel disagreement between a received frame and a render: the largest and
+/// the average absolute difference of each of the four channels. A transport that
+/// decimates chroma shows up as a big B/R max with a near-zero A max; a transport
+/// that garbles rows shows up as a big max in all four.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+#[derive(Clone, Copy, Debug)]
+struct FrameDiff {
+    max: [usize; 4],
+    mean: [f64; 4],
+}
+
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+impl FrameDiff {
+    /// The single largest per-byte difference over all channels.
+    fn worst(&self) -> usize {
+        self.max.iter().copied().max().unwrap_or(0)
+    }
+
+    /// The mean per-byte difference summed over all channels.
+    fn mean_all(&self) -> f64 {
+        self.mean.iter().sum()
+    }
+
+    fn describe(&self) -> String {
+        format!(
+            "max R{} G{} B{} A{}, mean {:.3} {:.3} {:.3} {:.3}",
+            self.max[0],
+            self.max[1],
+            self.max[2],
+            self.max[3],
+            self.mean[0],
+            self.mean[1],
+            self.mean[2],
+            self.mean[3]
+        )
+    }
+}
+
+/// `FrameDiff` between two packed RGBA frames of the same length; every channel at
+/// `usize::MAX` when they are not, because a wrong-sized frame is not "slightly off".
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn rgba_diff(got: &[u8], expect: &[u8]) -> FrameDiff {
+    if got.len() != expect.len() {
+        return FrameDiff {
+            max: [usize::MAX; 4],
+            mean: [0.0; 4],
+        };
+    }
+    let mut max = [0usize; 4];
+    let mut sum = [0u64; 4];
+    for (g, e) in got.chunks_exact(4).zip(expect.chunks_exact(4)) {
+        for c in 0..4 {
+            let d = g[c] as usize;
+            let d = d.abs_diff(e[c] as usize);
+            max[c] = max[c].max(d);
+            sum[c] += d as u64;
+        }
+    }
+    let pixels = (got.len() / 4).max(1) as f64;
+    FrameDiff {
+        max,
+        mean: [
+            sum[0] as f64 / pixels,
+            sum[1] as f64 / pixels,
+            sum[2] as f64 / pixels,
+            sum[3] as f64 / pixels,
+        ],
+    }
+}
+
+/// How many times closer a received frame must sit to its own render than to the
+/// other one, on the summed per-channel mean. Measured here at 21.9x, so the
+/// requirement is a chosen strictness and not a fitted one.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+const FRAME_MARGIN: f64 = 4.0;
+
+/// Largest alpha-plane difference between two packed RGBA frames, ignoring RGB
+/// entirely. Zero is what this transport gives; a length mismatch is `usize::MAX`.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn rgba_alpha_delta(got: &[u8], expect: &[u8]) -> usize {
+    if got.len() != expect.len() {
+        return usize::MAX;
+    }
+    got.iter()
+        .zip(expect.iter())
+        .skip(3)
+        .step_by(4)
+        .map(|(a, b)| (*a as usize).abs_diff(*b as usize))
+        .max()
+        .unwrap_or(0)
+}
+
+/// Whether the frame that came back is the frame that went up rather than the other
+/// render. Per channel it must be no further from its own render than from the other
+/// one; ties are allowed, and only the fixture constant alpha channel ties. The
+/// totals must be FRAME_MARGIN apart, which is what stops a transport that blurred
+/// every frame toward the same thing from passing.
+#[cfg_attr(not(feature = "ndi"), allow(dead_code))]
+fn is_this_frame(own: &FrameDiff, cross: &FrameDiff) -> bool {
+    (0..4).all(|c| own.max[c] <= cross.max[c])
+        && (0..4).all(|c| own.mean[c] <= cross.mean[c])
+        && own.mean_all() * FRAME_MARGIN <= cross.mean_all()
+}
+
+/// What one pump phase saw: whether the render came back byte-exact, how many frames
+/// the receiver returned, and the closest frame's bytes so the caller can compare it
+/// against the *other* render too.
+#[cfg(feature = "ndi")]
+struct PumpOutcome {
+    matched: bool,
+    frames: u32,
+    best_delta: usize,
+    best_swap_delta: usize,
+    dims: (u32, u32),
+    best: Option<Vec<u8>>,
+    /// How many frames this pump saw that differed from the one immediately before
+    /// them. Sending the same image repeatedly and getting varying answers means the
+    /// transport is doing something rate-controlled, not a fixed transform; one change
+    /// is the stale frame the previous phase left in the receiver.
+    variants: u32,
+}
+
+/// Send `expect` until the receiver hands it back unchanged. `Err` carries the shim's
+/// own words; a pump that runs out returns `Ok` with `matched: false` and the evidence
+/// of what did arrive.
+#[cfg(feature = "ndi")]
+fn pump_until_exact(
+    sender: &flux_integrations::ndi_io::NdiSender,
+    recv: &flux_integrations::ndi_io::NdiReceiver,
+    expect: &[u8],
+    width: u32,
+    height: u32,
+    pumps: u32,
+) -> Result<PumpOutcome, String> {
+    let mut out = PumpOutcome {
+        matched: false,
+        frames: 0,
+        best_delta: usize::MAX,
+        best_swap_delta: usize::MAX,
+        dims: (0, 0),
+        best: None,
+        variants: 0,
+    };
+    let mut prev: Option<Vec<u8>> = None;
+    for _ in 0..pumps {
+        if !sender.send(expect, width, height) {
+            return Err(format!(
+                "NdiSender::send refused a {}-byte frame at {width}x{height} (it wants {})",
+                expect.len(),
+                (width as usize) * (height as usize) * 4
+            ));
+        }
+        if let Some(f) = recv.next_frame(150)? {
+            out.frames += 1;
+            if prev.as_ref().is_some_and(|x| *x != f.rgba) {
+                out.variants += 1;
+            }
+            prev = Some(f.rgba.clone());
+            let d = max_rgba_delta(&f.rgba, expect);
+            let s = max_rgba_delta_rb_swapped(&f.rgba, expect);
+            let improved = d < out.best_delta;
+            if improved {
+                out.best_delta = d;
+                out.dims = (f.width, f.height);
+            }
+            if s < out.best_swap_delta {
+                out.best_swap_delta = s;
+            }
+            if d == 0 && f.width == width && f.height == height {
+                out.matched = true;
+                out.best = Some(f.rgba);
+                return Ok(out);
+            }
+            if improved {
+                out.best = Some(f.rgba);
+            }
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2119,5 +2514,225 @@ mod tests {
 
     fn ok_snapshot() -> live_audio::LiveAudioSnapshot {
         base_snapshot()
+    }
+
+    fn synth_frame(w: usize, h: usize, f: impl Fn(usize, usize) -> [u8; 4]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(w * h * 4);
+        for y in 0..h {
+            for x in 0..w {
+                out.extend_from_slice(&f(x, y));
+            }
+        }
+        out
+    }
+
+    /// A frame two columns wide, so a chroma-style transform has something to alternate
+    /// over, with R, G and B all distinct at every pixel.
+    fn pair_of_renders() -> (Vec<u8>, Vec<u8>) {
+        let a = synth_frame(64, 32, |x, y| {
+            [
+                ((x * 37 + y * 7) % 256) as u8,
+                ((x * 11 + y * 5) % 256) as u8,
+                ((x * y + 13) % 256) as u8,
+                255,
+            ]
+        });
+        let b = synth_frame(64, 32, |x, y| {
+            [
+                ((x * 89 + y * 61) % 256) as u8,
+                ((x * 43 + y * 17) % 256) as u8,
+                ((x * 7 * y + 200) % 256) as u8,
+                255,
+            ]
+        });
+        (a, b)
+    }
+
+    /// What the measured transport does: a small deterministic nudge that errs hardest
+    /// in R and B, leaves G nearer the original and never touches alpha. Saturating,
+    /// because a wrapping one is a 254-level jump on a byte that happened to be 0 and
+    /// would model nothing.
+    fn lossy_copy(src: &[u8]) -> Vec<u8> {
+        let mut out = src.to_vec();
+        for (i, b) in out.iter_mut().enumerate() {
+            if i % 4 == 3 {
+                continue;
+            }
+            let weight = match i % 4 {
+                0 | 2 => 2,
+                _ => 1,
+            };
+            *b = b.saturating_sub(weight);
+        }
+        out
+    }
+
+    #[test]
+    fn discrimination_accepts_the_frame_that_was_actually_sent() {
+        let (a, b) = pair_of_renders();
+        let got = lossy_copy(&a);
+        let own = rgba_diff(&got, &a);
+        let cross = rgba_diff(&got, &b);
+        assert!(
+            is_this_frame(&own, &cross),
+            "a lightly lossy copy of A must still be identified as A: own {} / cross {}",
+            own.describe(),
+            cross.describe()
+        );
+        assert!(
+            !is_this_frame(&cross, &own),
+            "the same test run backwards must refuse: the residual of A cannot be read as B"
+        );
+        assert_eq!(own.max[3], 0, "the synthetic loss must not touch alpha");
+    }
+
+    #[test]
+    fn the_margin_is_what_refuses_a_transport_barely_better_than_nothing() {
+        // `is_this_frame` has two halves. The per-channel comparison can be satisfied
+        // by a transport that is only a little closer to the right frame than to the
+        // wrong one, which is carrying a suggestion and not a render. This fixture is
+        // built so that own beats cross on every channel by max and by mean, yet by
+        // less than FRAME_MARGIN over all - so the margin is the only thing that
+        // refuses it, and the only thing that can redden this test.
+        let a = synth_frame(32, 16, |x, y| {
+            [
+                (100 + x % 20) as u8,
+                (110 + y % 15) as u8,
+                (120 + x % 11) as u8,
+                255,
+            ]
+        });
+        let b: Vec<u8> = a
+            .iter()
+            .enumerate()
+            .map(|(i, v)| if i % 4 == 3 { *v } else { v.saturating_add(10) })
+            .collect();
+        let got: Vec<u8> = a
+            .iter()
+            .enumerate()
+            .map(|(i, v)| match i % 4 {
+                1 => v.saturating_sub(4),
+                3 => *v,
+                _ => v.saturating_sub(8),
+            })
+            .collect();
+        let own = rgba_diff(&got, &a);
+        let cross = rgba_diff(&got, &b);
+        assert!(
+            (0..4).all(|c| own.max[c] <= cross.max[c] && own.mean[c] <= cross.mean[c]),
+            "the fixture must already satisfy the per-channel half: own {} / cross {}",
+            own.describe(),
+            cross.describe()
+        );
+        assert!(
+            own.mean_all() * FRAME_MARGIN > cross.mean_all(),
+            "the fixture must sit inside the margin, or this test proves nothing: \
+             own {:.1} x{FRAME_MARGIN} vs cross {:.1}",
+            own.mean_all(),
+            cross.mean_all()
+        );
+        assert!(
+            !is_this_frame(&own, &cross),
+            "only the margin separates these two, so it must refuse: own {} / cross {}",
+            own.describe(),
+            cross.describe()
+        );
+    }
+
+    #[test]
+    fn a_frame_blurred_toward_both_renders_is_not_identified_as_either() {
+        // The failure the margin exists for: a transport that drags every frame toward
+        // the same thing stays closer to neither, so the comparative test refuses it
+        // even though frames still arrive and still differ from each other.
+        let (a, b) = pair_of_renders();
+        let mid: Vec<u8> = a
+            .iter()
+            .zip(b.iter())
+            .map(|(x, y)| ((*x as u16 + *y as u16) / 2) as u8)
+            .collect();
+        let from_a = rgba_diff(&mid, &a);
+        let from_b = rgba_diff(&mid, &b);
+        assert!(
+            !is_this_frame(&from_a, &from_b) && !is_this_frame(&from_b, &from_a),
+            "an equidistant frame must be refused in both directions: a={} b={}",
+            from_a.describe(),
+            from_b.describe()
+        );
+    }
+
+    #[test]
+    fn the_alpha_plane_is_compared_separately_from_the_colour() {
+        let (a, _) = pair_of_renders();
+        let mut same_alpha = lossy_copy(&a);
+        assert_eq!(
+            rgba_alpha_delta(&same_alpha, &a),
+            0,
+            "the colour may move but the alpha plane must not"
+        );
+        assert!(
+            rgba_diff(&same_alpha, &a).worst() > 0,
+            "the nudge has to have actually changed something for the zero above to mean anything"
+        );
+        // Saturating, and down: the fixture alpha is 255 everywhere, so +1 would wrap to
+        // zero and the test would be measuring a delta of 255 while claiming one.
+        same_alpha[7] = same_alpha[7].saturating_sub(1);
+        assert_eq!(
+            rgba_alpha_delta(&same_alpha, &a),
+            1,
+            "one alpha byte out of place must be visible to the alpha test"
+        );
+    }
+
+    #[test]
+    fn frame_distances_refuse_a_wrong_sized_frame_instead_of_calling_it_close() {
+        let (a, _) = pair_of_renders();
+        assert_eq!(max_rgba_delta(&a, &a[..a.len() - 4]), usize::MAX);
+        assert_eq!(rgba_alpha_delta(&a, &a[..a.len() - 4]), usize::MAX);
+        assert_eq!(rgba_diff(&a, &a[..a.len() - 4]).worst(), usize::MAX);
+        let mut swapped = a.clone();
+        for px in swapped.chunks_exact_mut(4) {
+            px.swap(0, 2);
+        }
+        assert_eq!(
+            max_rgba_delta_rb_swapped(&swapped, &a),
+            0,
+            "an R/B-exchanged frame must score zero once the channels are exchanged back"
+        );
+        assert!(
+            max_rgba_delta(&swapped, &a) > 0,
+            "...and the raw comparison must still see the swap"
+        );
+    }
+
+    #[test]
+    fn ndi_commands_load_the_runtime_before_the_shim() {
+        // The shim imports `Processing.NDI.Lib.x64.dll`, and `NdiShim::load` can be handed
+        // a relative candidate (`bases()` ends in `.`), which is documented undefined
+        // behaviour for the loader flag it uses and does not resolve that import from the
+        // shim's own directory. The runtime has to be in the process first. Scanned
+        // because the symptom of the wrong order is "ndi_shim.dll not found" on a machine
+        // that has NDI installed, which is an apparatus report that points at the wrong
+        // missing thing.
+        let src = include_str!("main.rs");
+        for cmd in ["cmd_ndi_loopback", "cmd_ndi_send", "cmd_ndi_recv"] {
+            let body = src
+                .split(&format!("fn {cmd}("))
+                .nth(1)
+                .unwrap_or_else(|| panic!("{cmd} is not defined in main.rs"))
+                .split("\nfn ")
+                .next()
+                .expect("a function body");
+            match (
+                body.find("NdiRuntime::load()"),
+                body.find("NdiShim::load()"),
+            ) {
+                (Some(rt), Some(shim)) => assert!(
+                    rt < shim,
+                    "{cmd} loads the shim before the runtime, so the shim's import cannot resolve"
+                ),
+                (None, Some(_)) => panic!("{cmd} loads the shim with no runtime load above it"),
+                _ => {}
+            }
+        }
     }
 }

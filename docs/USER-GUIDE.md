@@ -89,8 +89,10 @@ frame — no wall-clock in evaluation. This is why offline export matches previe
   addresses they send are currently discarded by the receiver.
 - **NDI / Spout / Syphon / vision**: behind cargo features that are **off by
   default**, so the binary you just built does not contain them. Check with
-  `flux integrations`. Even when enabled, the senders emit a synthetic 640×360
-  gradient — there is no wgpu→NDI/Spout frame path yet.
+  `flux integrations`. Even when enabled, no sender carries what the app is
+  showing: `flux ndi-send` and `flux ndi-loopback` render a Flux project for
+  themselves (since 2026-11-18), `flux spout-send-dx` still emits a synthetic
+  640×360 gradient, and there is no path from the running preview to either.
 
 ## Troubleshooting
 

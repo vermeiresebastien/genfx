@@ -122,7 +122,7 @@ that branch and fails (or succeeds) for a device reason. A mutation that drops
 silently returning to its current state.
 
 **Step 5 — CLI surface.** `flux live-audio list|probe|status` (extend
-`cmd_capture`, `crates/app/src/main.rs:997`, or add a sibling — decide by line
+`cmd_capture`, `crates/app/src/main.rs:1173` (as it numbers now; `:997` at that plan), or add a sibling — decide by line
 count, `main.rs` is already 1 248 lines). `list` must print the friendly names,
 which is the visible payoff of the `PKEY_Device_FriendlyName` work: today
 `flux capture` prints `microphone { 00000000-… }` for what Windows calls

@@ -87,8 +87,9 @@ license, what is reused, and the resulting Flux decision.
   is still true of the repository: the headers the shim compiles against sit in the cargo
   registry (`apps/ndi-bridge/build_shim.bat:7`), and so does the gitignored prebuilt
   `ndi_shim.dll`. The 2026-11-09 closer — that send/receive "remains gated on the full header
-  set + a live stream" — is discharged for synthetic 640×360 frames, same-process and
-  cross-process (`evidence/ndi-2026-11-15.txt`, D023).
+  set + a live stream" — is discharged for 640×360 frames, same-process and
+  cross-process: synthetic in `evidence/ndi-2026-11-15.txt` (D023), a Flux render since
+  `evidence/ndi-loopback-2026-11-18.txt` (D049).
 - **Spout2 prebuilt binary present**: `SPOUTSDK/SpoutLibrary/Binaries/SpoutLibrary.{dll,lib}`
   (x64, BSD-2), exposing a **C++ pure-virtual** interface (`SendImage`/`ReceiveImage`/
   `GetSenderCount`…). Wrapping it needs a small C++ `extern "C"` shim plus a live GL/DX
