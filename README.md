@@ -92,8 +92,9 @@ produces; `a91ebda` (D032), `7adb5e6` (D033), `51bc077` (D034), `2361785` (D035)
 are each `18 passed / 0 failed / 0 blocked_external`, with `gitDirty false` except at D034, whose own
 decision record was still being written while its gates ran. The two SDK files are gitignored, so a
 fresh clone still records 2 blocked steps here. CI records no such thing — its SDK legs are separate
-jobs that clone their own sources, and `DECISIONS.md` D039 reads what they really did. See
-`AGENTS.md` § "Traps inside this repo's own verification harness".
+jobs that clone their own sources: `DECISIONS.md` D039 reads what they really did, D040 what the gate
+that replaced them did on a runner and what the first green hosted run actually shipped, byte for
+byte. See `AGENTS.md` § "Traps inside this repo's own verification harness".
 
 ## Live control
 

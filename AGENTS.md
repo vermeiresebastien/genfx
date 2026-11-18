@@ -119,7 +119,12 @@ them first.
   the environment, is 17-0-0 again, and D032's `requirements-freshness` step made the ceiling 18.
   CI has no blocked steps to record. Its `link` and `spout` legs are separate jobs that clone their
   own SDK sources, and the first hosted run whose workflow could be read measured both *failing* on
-  a toolchain path the image does not contain — D039 gates them on a machine probe instead.
+  a toolchain path the image does not contain — D039 gates them on a machine probe instead, and D040
+  reads both legs green on a runner, `verify` end to end twice, and one run (`44198109118`) whose
+  conclusion is `success` — the first here — beside its neighbour's `cancelled` at the 60-minute
+  bound on a byte-identical workflow. The hosted installer is not the hosted `verify.json`: 28 of that
+  artifact's 33 evidence files are this host's checkout copy, and the five the runner did write say
+  its toolchain is rustc 1.100.0 and its graphics device is a Basic Render Driver over Dx12.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since
@@ -135,10 +140,12 @@ them first.
   (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
   **read the `limitation` string, not the boolean.**
 - **A green `verify.ps1` does not mean the workspace suite ran.** Its `unit-tests` step is eight
-  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 233 across 40
-  result lines. Every test inside a `[[bin]]` target (the `requirements` and `xtask` guards D028
-  through D034 add, and D036's six in the `flux` binary) is therefore executed by CI's workspace run
-  and by **no** step in this script.
+  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 316 across 41
+  result lines (re-measured 2026-11-18 at `3667fd2` plus this tranche's docs, exit 0; D037 recorded
+  the same numbers on the tree that produced them). The hosted side now reads the same figure: step 8
+  of run 44198109118 prints 41 `test result: ok` lines totalling 316. Every test inside a `[[bin]]`
+  target (the `requirements` and `xtask` guards D028 through D034 add, and D036's six in the `flux`
+  binary) is therefore executed by CI's workspace run and by **no** step in this script.
   So after adding one, the honest claim is "`cargo test -p xtask --bin requirements` passes" plus a
   workspace run; `VERIFY: PASS` alone cannot see it.
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting

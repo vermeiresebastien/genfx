@@ -1788,8 +1788,8 @@ so `requirements.rs:22-32`/`:26-32` (`IMPLEMENTATION-ARCHITECTURE.md:100`, `:330
 all still exact. Three citations did move and all three are re-pointed rather than left:
 `DECISIONS.md:805` (cites `requirements.rs:174`, the writer, now `:584`), `DECISIONS.md:1136` (cites
 `verify.ps1:200-202`, shifted by one inserted step to `:201-203`) and D028's `ci.yml:35-45`, which
-the inserted step split — those five commands are `:35`–`:41` and `:50` now. `ci.yml:29`/`:31` and
-`verify.ps1:32`/`:35`/`:47-61`/`:77`/`:81`/`:99` sit above their insertions and are unchanged.
+the inserted step split — those five commands were `:35`–`:41`/`:50` here and are `:42`–`:48`/`:50`
+now; `ci.yml:29`/`:31` → `:42`/`:44` (D040). `verify.ps1:32`/`:35`/`:47-61`/`:77`/`:81`/`:99` hold.
 
 Two files grew, both deliberately and both below every citation into them: `README.md` 115 → 117,
 adding at 91-93 where the largest inbound reference is `README.md:60`, and `AGENTS.md` 197 → 198,
@@ -2271,7 +2271,7 @@ tested limit rather than a surprise; P5's `left` value also re-measured the ledg
   rewritten or `take(20)` becomes `take(10)`. D034 called that a deliberate trade; this lane keeps the
   trade and stops describing it as an oversight it fixed.
 - Arm 1 is asserted in the module and unreachable from either harness: `verify.ps1:123` and
-  `ci.yml:46` both point `--check` at a tracked path, and `git ls-files --error-unmatch
+  `ci.yml:59` both point `--check` at a tracked path, and `git ls-files --error-unmatch
   implementation/requirements.json` succeeds, so exit 2 means only a deleted or never-checked-out
   ledger. The test exists so the verdict is not a lie if a checkout does hit it, not because a run
   produced it. Arm 12 is the reverse case: reachable — any tool that appends a final newline to the
@@ -2819,13 +2819,13 @@ The file is 2 818 lines at the commit carrying this section.
 
 ## D038 — 2026-11-17 the workflow file has not parsed since `d4e9a29`, so 29 of 49 CI runs died before creating a job
 
-`ci.yml:151` (that blob; `:215` at HEAD) read `run: cargo test -p flux-integrations --features`
+`ci.yml:151` (that blob; `:217` at `3667fd2`) read `run: cargo test -p flux-integrations --features`
 `ndi ndi::`. A plain YAML scalar may not end with a colon that is followed by a line break: the
 last `:` of `ndi::` is read as a mapping indicator, so `yaml.safe_load` raises `ScannerError:
 mapping values are not allowed here … line 151, column 65`, the file yields no jobs at all, and
 Actions fails the run in 0 s — measured on run 44189589142, whose `/jobs` array is empty. The
-sibling legs at `:139`→`:203` (link) and `:169`→`:241` (spout) carry the same trailing `::` inside
-literal block scalars, where it is harmless; `:151`→`:215` is the only line of the breaking shape.
+sibling legs at `:139`→`:205` (link) and `:169`→`:243` (spout) carry the same trailing `::` inside
+literal block scalars, where it is harmless; `:151`→`:217` is the only line of the breaking shape.
 
 ### The census, because the claim I nearly wrote was wrong
 
@@ -2875,12 +2875,13 @@ canonical list.
 
 ### Two things this does not close
 
-(1) The parity target still has **no successful run**. The 49-run census all failed; this push is
-the first since `d4e9a29` that can create jobs, its outcome is D039's to report, and until a run is
-read *green* the honest sentence remains "verify.ps1 executes these gates on this host", not "CI is
-green". A hosted clippy newer than 0.1.99 can still redden step 6 with a lint that does not exist
-here. The SDK legs, which this section left saying "blocked by design", did not stay blocked: D039
-reads their logs. (2) No gate checks that
+(1) The parity target had **no successful run** when this was written. The 49-run census all failed;
+this push is the first since `d4e9a29` that can create jobs, and D040 reads what they say: a `verify`
+job with all 25 steps green at #50, and at #54 a whole run concluding **`success`** — so "these gates
+have never run hosted" is dead, the clippy worry below is retired for this image, and what ends a run
+now is not a gate but the job's own clock: #53, byte-identical workflow, cancelled inside the
+installer step at 60 min 10 s. The SDK legs, which this section left saying "blocked by design", did
+not stay blocked: D039 reads their logs and D040 reads the gate. (2) No gate checks that
 workflow parses. The cheapest deterministic form is another `requirements`-bin test that scans
 `run:`-keyed plain scalars for a value ending in `:` — deliberately not a YAML-parser dependency,
 which would be a build-time crate for one assertion. Left undone because the ask was the repair, not
@@ -2901,15 +2902,17 @@ looked for `abl_link.lib` before the clone. So it ran on every push and failed o
 
 | job | result | where it stopped |
 |---|---|---|
-| `ndi (optional)` | **success** | step 4, "Build with ndi feature" — the only job of the 26 concluded so far, over this repository's whole history, that ended `success` |
+| `ndi (optional)` | **success** | step 4, "Build with ndi feature" — not, as this row first read, the only `success` the repository had: `verify` concluded green in the same run 43 min later, and D040 takes the census |
 | `ableton-link (optional)` | failure | step 3 "Fetch Ableton Link and build abl_link"; step 4 reported `skipped` |
 | `spout (optional)` | failure | step 3 "Fetch Spout2 and build the C++ shim"; step 4 reported `skipped` |
-| `verify (windows-latest)` | in progress | steps 1–7 success — `Format check` and `Clippy (no deny)` among them — and step 8 "Workspace tests" still running when this row was written |
+| `verify (windows-latest)` | **success** | steps 1–7 success — `Format check` and `Clippy (no deny)` among them — and step 8 "Workspace tests" still running when this row was written; the row's own result cell read `in progress` for one tranche, and the job finished 25 entries green at 23:26:55Z |
 
 This is a job-level census, taken because D038's table counted runs: Actions had created 27 jobs in 50
 runs — 25 `failure`, this one `success`, and `verify` still without a conclusion when the row above was
 written. That is the state at `738641c`; the third push of this lane added four more concluded jobs and
-all four are `success`, which the last section of this one reports.
+all four are `success`, which the last section of this one reports. That sentence was a snapshot of
+four of five: the same push also created `verify`, which concluded `cancelled` at 60 min 10 s, and the
+push after it created five more, all `success`. D040's 37-job census is the one to quote.
 
 Neither SDK failure is about an SDK. The link log, after the clone and `git submodule update` have
 succeeded, ends `CMake Error at CMakeLists.txt:2 (project): Generator "Visual Studio 17 2022" could
@@ -2981,14 +2984,15 @@ key (nine lines, subclassing `yaml.SafeLoader`) plus a scan that every `needs.<i
 a legal identifier and every `needs:` names a job that exists. Both faults were invisible to the
 instrument that reported success, and each one cost a CI run to find.
 
-D038's line numbers moved with this edit and were re-resolved, not recomputed: `ci.yml:151` is now
-`:215`, and the sibling legs `:139`→`:203` (link) and `:169`→`:241` (spout). The +64 and +72 differ
-because the spout leg picked up eight comment lines of its own.
+D038's line numbers moved with this edit and were re-resolved, not recomputed — against the file at
+`801683e`, which is how three of them were stale again before this section was committed: at
+`3667fd2` the anchors are `:217` (ndi), `:205` (link) and `:243` (spout), and D040's table says why.
 
 ### Five things this does not close
 
-(1) There is still **no green hosted run**. `verify` had not finished when this was written, and one
-leg's success is not the parity target. (2) When this list was first written the probe had never run
+(1) There was still no green hosted **run** when this was written — the parity job had gone 25/25 at
+#50, so that reason was already gone, and D040 reads the run that replaced it: #54, `success`, and #53
+beside it `cancelled` by the clock rather than by a gate. (2) When this list was first written the probe had never run
 on a runner — two pushes tried and neither workflow was readable; the third push got it to execute,
 and the next section reads what it said. (3) A skip is not coverage: even when both legs run they
 build from a fresh `_upstream/` clone, while the vendored `abl_link.lib` and `spout_shim.dll` stay
@@ -3027,3 +3031,279 @@ detector that would have saved the two dead runs, which lives in a scratch direc
 the repository.
 
 The file is 3 029 lines at the commit carrying this section.
+## D040 — 2026-11-18 the gate ran, one run came back green and one ran out of clock, so this is what a hosted installer actually carries, byte for byte
+
+D039 stopped mid-sentence at "both legs then entered `in_progress`". This reads the rest of that run,
+the run pushed after it, and the two artifacts each run uploads. Everything below comes from the
+Actions API, from job logs, or from files downloaded between 23:30Z and 01:20Z. The first draft of
+this section was written at the start of that window and left two jobs pending; this rewrite reads
+their conclusions, taken at 00:14Z. The commands are given so a reviewer can
+re-run them rather than take the table on trust.
+
+### The parity target has been read green — as a job
+
+Run #50 (`44192530149`, head `738641c`): the `verify (windows-latest)` job `134425386086`
+**completed `success`**, started 22:41:47Z, finished 23:26:55Z (45 min 8 s), with **25 step entries
+and no entry that is not `success`**. That is worth more than it reads, and the reason is a census of
+the twenty earlier runs that got as far as creating a `verify` job: **every one of them died at step
+7, `Clippy (no deny)`**, with no other failing step in any of them. So #50 is not the first green
+*job* in the run (`ndi` finished 43 minutes earlier) — it is the first time that job's step 8
+onward has ever executed on a runner:
+
+`Workspace tests` (8) · `Catalog validation` (9) · `Doctor (capabilities)` (10) ·
+`GPU catalog shader compile` (11) · `Shader harness export (Naga validate)` (12) ·
+`Requirements ledger freshness (generated file matches its generator)` (13) ·
+`Max for Live patch structure` (14) · `UI bundle cache-buster` (15) · `Media fixtures` (16) ·
+`Desktop GUI build` (17) · `Release build` (18) · `Windows installer bundle` (19) ·
+`Live-audio platform tests (WASAPI capture)` (20) · `Live-audio app tests` (21)
+
+This is AGENTS.md's rule about the first check step, demonstrated rather than asserted: while one
+early leg is red, no gate below it is reported at all, and this repository carried that blind spot
+through twenty runs.
+
+Those 25 against the 22 D038 counted in the file is not a contradiction, and it was checked rather
+than assumed: entries 2–23 *are* the file's 22 steps, and entries 1 (`Set up job`), 46
+(`Post Run actions/checkout@v4`) and 47 (`Complete job`) are Actions' own — the numbering skips
+24–45 because Actions reserves those slots for the post steps it did not need.
+
+The run #50 belongs to concluded `failure`, because it predates this gate and its two ungated legs
+died at 22:42. So the sentence that replaced D038's residue (1) when this section was first written
+read "a hosted *job* has now run the canonical list end to end and gone green; a hosted *run* has not
+yet concluded green" — written at 23:41Z, before either of the two pending jobs had concluded, and
+retired by the next section with the measured verdicts. D038's standing worry that "a hosted clippy
+newer than 0.1.99 can still redden step 6" is retired twice over: the step (the file's 6, hosted's 7,
+since Actions prepends `Set up job`) came back green in all three `verify` jobs read here on a runner
+whose rustc is **1.100.0** — newer than this host's 1.99.0, which the `doctor.json` row below
+measures — and its command is `cargo clippy --workspace --all-targets -- -A warnings`, so a warning
+level cannot redden it by construction.
+
+### Runs #53 and #54: one run green, one run out of clock, and a census that supersedes D039's
+
+`8c7ed59` is #53 and `3667fd2` is #54 (`44198109118`). Each created five jobs. In each, the probe,
+`ndi`, `spout` and `ableton-link` concluded **`success`** — four legs green, twice, which is the gate
+doing its job rather than being argued for. Both `verify` jobs have since concluded, read at 00:14Z:
+#54's ended **`success`** with all 25 step entries green in 55 min 1 s (23:17:55Z → 00:12:56Z), and
+#53's ended **`cancelled`** at 60 min 10 s (23:13:06Z → 00:13:16Z) — steps 1–18 green, step 19
+`Windows installer bundle` killed mid-step, steps 20–23 reported `skipped`. The run conclusions
+follow their jobs: **#54 is `success`**, the first green hosted run this repository has had in 54
+runs, and #53 is `cancelled`, which is not the same verdict as `failure` and is not a red gate.
+
+What is measured here is not only the green. The two jobs ran the **same workflow**:
+`git rev-parse 8c7ed59:.github/workflows/ci.yml` and the same against `3667fd2` both give
+`47a50c8c694eeca46852c5d5024df2ae87ad2d1a`, and `git diff --stat 8c7ed59 3667fd2` is DECISIONS.md and
+STATE.json and nothing else. Same image, same steps, started 4 min 49 s apart — and one finished just
+under five minutes inside the `timeout-minutes: 60` bound while the other did not finish. So the
+parity target is met, and the way it was nearly not met is now a measured fact rather than D038's
+guess: the margin left by the slowest completed job is 4 min 59 s, and the tree cannot do anything
+about it.
+
+Re-taken census at 00:14Z, `gh api --paginate /actions/runs?per_page=60` (54 runs, all of them this
+workflow) joined to `/jobs` per run: 23 runs created jobs, **37 jobs, all 37 concluded — 25
+`failure`, 11 `success`, 1 `cancelled`**. Every one of the eleven successes belongs to #50 (ndi,
+verify), #53 (probe, ndi, spout, link) or #54 (those four plus verify), and the single `cancelled` is
+#53's verify. Run level: 52 `failure`, 1 `cancelled`, **1 `success`**. D039's table cell that called
+`ndi` "the only job … that ended `success`" is superseded by its own run, and the `verify` row of the
+same table, which read `in progress`, has a conclusion now.
+
+### CI's installer against this host's: 8 entries, 7 of them the same bytes
+
+`gh run download 44192530149 -n installer-windows` gives a 6,312,298 B zip holding one file,
+`Flux_0.1.0_x64-setup.exe`, **6,329,553 B**. This host's, recorded by `evidence/package.json`
+against a tree at `6320d3e` with `gitDirty true`, is 6,372,686 B (`c697887a…`). Those two were
+extracted with `7z x` and hashed entry by entry:
+
+| payload entry | hosted (#50, `738641c`) | this host (`6320d3e`) | verdict |
+|---|---|---|---|
+| `flux-desktop.exe` | 19,085,312 · `3c3ea42a…` | 19,397,120 · `1357956a…` | **differs** (+311,808 B local) |
+| `$TEMP\MicrosoftEdgeWebview2Setup.exe` | 1,897,688 | 1,897,688 | identical `cf2f2445…` |
+| `uninstall.exe` | 79,431 | 79,431 | identical `a07a736d…` |
+| `$PLUGINSDIR\nsis_tauri_utils.dll` | 34,304 | 34,304 | identical `5ba143b5…` |
+| `$PLUGINSDIR\modern-wizard.bmp` | 26,494 | 26,494 | identical `3ad2dc31…` |
+| `$PLUGINSDIR\StartMenu.dll` | 7,680 | 7,680 | identical `39870682…` |
+| `$PLUGINSDIR\System.dll` | 12,288 | 12,288 | identical `afe032f9…` |
+| `$PLUGINSDIR\nsDialogs.dll` | 9,728 | 9,728 | identical `9c76f4d5…` |
+
+Same entry set, same names, seven byte-identical, and one difference: the app binary. The green run
+lets the two *hosted* builds be compared with each other, which says what that difference is.
+`gh run download 44198109118 -n installer-windows` is a 6,307,484 B zip holding a **6,324,721 B**
+`Flux_0.1.0_x64-setup.exe` (`f9955fd8…`); extracted with the same `7z x`, its eight entries are the
+same eight names, seven of them identical to the #50 bytes above, and `flux-desktop.exe` is
+19,085,312 B `742602e2…` — the same size as #50's and **32 bytes different**. `cmp -l` puts those 32
+bytes in three kinds of place, and every kind is metadata: eight bytes are four copies of the PE
+`TimeDateStamp` with only its low two bytes changing (at 256, 16,016,084, 16,016,112 and
+16,016,140 — they decode to 1794957880 = 23:24:40Z and 1794960612 = 00:10:12Z, each inside its own
+job's window); eight bytes are the commit string the binary embeds, in its two places at
+3,761,899 (`641c` against `7fd2`) and 3,761,906 (`7386` against `3667`), which is
+`apps/desktop/src-tauri/build.rs:79` running `git rev-parse --short HEAD` into `FLUX_GIT_HASH` for
+the `gitHash` row of `apps/desktop/src-tauri/src/lib.rs:708`; and the last sixteen are the CodeView
+PDB GUID at 16,017,744, immediately before the `flux_desktop.pdb\0` it names. The two trees differ in
+six files and none of them is an input to that crate — `git diff --stat 738641c 3667fd2` is ci.yml,
+AGENTS.md, README.md, one doc and the two evidence files — so 19,085,280 of 19,085,312 bytes of a
+CI-built app binary came out of two runners 45 minutes apart unchanged, and the delta a reviewer
+would call "a different build" is a clock, a hash and a GUID. That hash string is what the running app
+reports as `gitHash` (`src-tauri/src/lib.rs:708`), so an installed Flux names its own commit out of its
+own bytes — the payload has no provenance file in it, and the eight entries above are the whole of it.
+
+This host's `1357956a…` is a different case, and the sentence this section first wrote about it —
+"built from a different commit on a different machine" — has its first half measured and its second
+half not: `6320d3e` is six commits *behind* `3667fd2` (`git rev-list --count`), and that range does
+touch the crate, 15 source files deep including `apps/desktop/src-tauri/Cargo.toml`, `build.rs` and
+`src/lib.rs`
+(`git diff --stat 6320d3e 3667fd2 -- '*.rs' '*.toml' '*.ts' '*.js' '*.html' '*.wgsl' '*.css'`). So
+the +311,808 B has a source cause available; nothing in this tranche separates the source part of it
+from a runner part, and no control here should be read as doing so.
+
+Note what the totals do *not* do — the payload differs by 311,808 B while the installers differ by
+43,133 B, because the NSIS data block is `LZMA:23` and solid, so file sizes do not propagate. The
+#50/#54 pair measures the same thing from the other end and harder: 32 payload bytes, of which 24 are
+GUID and hash text, moved the outer installer by 4,832 B. Anyone comparing two installers by their
+outer size is comparing compression, not contents.
+
+What that is evidence for: the `Windows installer bundle` leg of the canonical list —
+`cargo run -q -p xtask -- package` — runs to completion on a clean checkout of a committed tree on a
+hosted image, and what it uploads carries the WebView2 bootstrapper (`$TEMP` entry, so
+`embedBootstrapper` is in the hosted bytes too, not only in this host's) and carries **no**
+`ffmpeg.exe`, no `spout_shim.dll`, no NDI or Link DLL and no VC++ runtime, which is `resources: []`
+visible from outside the repository. One line of the #54 log belongs to AT082's offline clause and
+should not be read backwards: at 00:10:13Z the bundler prints `Downloading
+https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip` and then the
+`nsis_tauri_utils-v0.5.3` DLL — that is the *build* reaching the network for NSIS itself, not the
+installer reaching it for anything, and the `$TEMP` bootstrapper entry above is the only network
+behaviour that ships. What it is not evidence for: nothing in CI installs it, launches
+it or shows a window. AT082's title is a standard-user, offline, uninstall-preserving install on a
+machine that did not build Flux, and its blocker still names exactly the legs that have not run; the
+`installer-bundle` step in `verify.ps1` and this hosted step both prove the build, not the install.
+
+### One control that validates the procedure, and one instrument that did not
+
+The locally extracted `flux-desktop.exe` hashes to `1357956a…`, which is the value D037 recorded for
+the same file when it launched it as a payload. Re-extracting today reproduces it exactly, so the CI
+above comes from the same operation that produced D037's, which is the only reason the comparison
+means anything.
+
+The instrument that did *not* work is worth its own paragraph. `7z l -slt` prints a `Size` field for
+these entries that is not the file size — it reported `$PLUGINSDIR\StartMenu.dll` at 13,316 B where
+the extracted file is 7,680 B — which contradicted D037's census and made this lane's first draft of
+that table wrong in one row. The `-ba` form is worse: its two size columns shift per row, so a
+`paste`-based pairing hands names the wrong numbers. D037's numbers are right (all eight, confirmed
+by extraction) and the listing is the unreliable witness; for a solid NSIS archive, extract and hash.
+
+### `evidence-windows-latest`: 28 of its 33 files are this host's, and five are the runner's own
+
+The other artifact is 622,401 B from #50 and 622,416 B from #54, 33 files each. Compared file by file
+against `git show <head>:implementation/evidence/<file>` with line endings normalized on both sides —
+the artifact is CRLF on disk, 4,774 B with 108 CR where the blob is 4,666 B with none, which is
+`core.autocrlf=true` on `windows-latest` and the same reason `requirements.rs` normalizes before it
+compares — **28 of the 33 are the checkout copy**, `verify.json` among them, and this section's first
+draft called that "byte-identical", which is the wrong word for a pair that differs by 108 bytes: what
+is identical is the *blob*, i.e. `git hash-object` of the downloaded file returns
+`d70d77b55a04cbb78988293ca9453b0790c03ace` because git's clean filter ran first. That file's fields are
+`gitHash 6320d3e`, `gitDirty true`, `generatedAt 2026-11-17T21:22:37Z`,
+`counts {passed 22, failed 0, blocked_external 0}` — the run this host made 1 h 55 min before #54's job
+started. `ci.yml` never executes the script (the three grep hits for `verify.ps1` in it are all comment
+lines), so those 28 hosted files are a *copy*, not a measurement, and anyone citing "CI: 22 steps
+passed" from that JSON is citing this host.
+
+The five that are not a copy are the five CI's own steps write, and they are the first hosted
+measurements this repository has had:
+
+| hosted file | what the runner wrote (`3667fd2`, #54) | this host's tracked copy |
+|---|---|---|
+| `catalog.json` | 217 entries = 52 effects + 165 generators, `duplicates []`, `missingImplementation []` at 23:45:58Z | the same 217 |
+| `doctor.json` | rustc **1.100.0** (0ef1bc386 2026-11-09), GPU **Microsoft Basic Render Driver**, backend **Dx12**, `deviceType Cpu`, driver 10.0.26100.33648, FFmpeg `C:\ProgramData\Chocolatey\bin\ffmpeg.exe`, seven encoders true | rustc 1.99.0 (b940084d7), **RTX 2080 Ti**, **Vulkan**, `DiscreteGpu`, 560.94 |
+| `test-gpu.json` | profile `baseline`, `compiled: 217`, `failures: []` — on that CPU device | 217 on the RTX |
+| `fixtures.json` | `test_10s_60fps.mp4`, `test_2997.mp4`, `sine_1k_48k.wav` under `D:\a\genfx\genfx\fixtures/generated` | the same three names |
+| `package.json` | `bundleExit 0`, `bundles ["nsis"]`, `resources []`, artifact **`f9955fd8…`, 6,324,721 B** at 00:10:25Z, `gitHash 3667fd2`, `gitDirty true` | `c697887a…`, 6,372,686 B, `gitHash 6320d3e`, `gitDirty true` |
+
+That `package.json` row closes a loop the installer table above only asserted. The sha256 the runner
+recorded for the file it built — `f9955fd8…` — is the sha256 of the bytes `gh run download` gave me
+two hours later, computed by different code at different times; #50's pair agrees the same way
+(`468f538f…` = 6,329,553 B). "CI built the thing CI uploaded" now has two independent witnesses.
+
+Three findings come only from those five files, and none of them was knowable from the step list.
+(1) The runner's toolchain is **1.100.0** and this host's is 1.99.0, so the "a newer toolchain than the
+verifying host's" worry is the standing state, not a forecast; its measured effect on this tree is one
+warning this host has never printed — `unused field 'rust-version' in 'workspace.package'`, with
+cargo's own note that `cargo::unused_workspace_package_fields` is warn-by-default — and the warning is
+right: `Cargo.toml:20` sets `rust-version = "1.85"` under `[workspace.package]`, none of the 12 members
+says `rust-version.workspace = true`, and the only declaration that binds is
+`apps/desktop/src-tauri/Cargo.toml:6` repeating the literal, so the workspace has been advertising an
+MSRV it enforces on one crate. A warn-by-default cannot redden a step whose command is
+`cargo clippy --workspace --all-targets -- -A warnings` (`ci.yml:44`), which is the point of the
+sentence rather than its comfort. Steps 7 and 8 came back green on 1.100.0 in all three runs read here. (2) The
+hosted `test-gpu` green is a **software DX12 device**, so what CI proves about shaders is Naga → DX12
+for all 217 entries — coverage no host-side run has claimed, since this host only ever compiles them
+for Vulkan — and it proves nothing about the RTX path, and `--profile baseline` on a `Cpu` device is
+not a frame-budget measurement in any sense. (3) All five say `gitDirty true` at a freshly cloned,
+committed tree. The UI step says otherwise on the runner's own lips (`bundle cache-buster checks:
+29/29 passed`, "REAL TREE: index.html has one tag and already matches the committed bundle"), the
+evidence directory is excluded from the scope by D026, and no step prints `git status --porcelain`, so
+the verdict is unattributable from anything CI records. A provenance field that reads `true` on a clean
+checkout is a field that does not mean what its name says, and it is the reason the two `gitDirty`
+cells in the row above are not evidence of anything.
+
+The hosted test totals are in the job log rather than in any evidence file
+(`gh run view --log --job 134444792239`, 1,121,942 B): step 8 `Workspace tests` printed **41
+`test result: ok` lines totalling 316 passed**, step 20 `Live-audio platform tests` 2 lines / 13,
+step 21 `Live-audio app tests` 3 lines / 81, and there is no `test result: FAILED` in the file — the
+one grep hit for `panicked` is a test *name*, `a_broken_ledger_is_located_not_panicked`. Re-run on
+this host at 01:33Z against this same tree — `cargo test --workspace -- --test-threads=1`, exit 0 —
+the identical command prints the identical **41 result lines and 316 passed**, so the two sides of the
+parity claim now carry one number instead of two, and this invocation did not hit the native fault
+AGENTS.md counts.
+
+### Six citations this tranche moved, re-resolved rather than recomputed
+
+`ci.yml` went 111 → 170 → 244 lines across this lane: five commits (`6f00058`, `3df8bd3`, `55200c0`,
+`7e39ced`, `280842f`) added 59 lines for the live-audio and UI-bundle gates and the installer step,
+then the probe and the two gated legs added 74 more. Six documents still pointed at old coordinates. Each was
+checked by printing the line a citation lands on, not by arithmetic:
+
+| where | claimed | true at | true now |
+|---|---|---|---|
+| D038 (twice, and D039's re-resolution) | `ci.yml:215` / `:203` / `:241` | `801683e` | `:217` / `:205` / `:243` |
+| D032's residue paragraph | `ci.yml:29`/`:31` "unchanged" | `1a418a1` | `:42` (fmt), `:44` (clippy) |
+| D035's bullet | `ci.yml:46` runs `requirements -- --check` | `1a418a1` | `:59` |
+| `implementation/STATE.json:131` | `ci.yml:31` runs clippy | `1a418a1` | `:44` |
+| `docs/PERFORMANCE-READINESS.md:1150` | `ci.yml:29` is the first check step | `1a418a1` | `:42` |
+| `PLANNING/AUDIO-REACTIVE-LANE-PLAN.md:116` | mirror "the `ndi` pattern (`ci.yml:85-92`)" | `d4e9a29` | the `ndi` job is `:209-217` |
+
+D038 and D039 carry the corrected numbers in place; the last three are corrected in their own files.
+Two things came out of doing it. (a) A citation qualified "at HEAD" is a claim about a moving target:
+D039's paragraph re-resolved correctly, against the file at `801683e`, and was two commits stale by
+the time it was committed — the qualifier has to name a blob. (b) The `verify.ps1:NNN` citations
+were run through the same check: the six in D032's sentence (`:32`, `:35`, `:47-61`, `:77`,
+`:81`, `:99`) plus `:123`, `:136` and `:201-203` all land on their subject, and the one dead thing
+found is a *name* — D025's `Test-LinkLib` (`:77`) is `Resolve-LinkLib` at `:81` today, and `:77` is
+the comment above it. Left as written, because it is D025's contemporaneous wording, not a claim here.
+
+### Six things this does not close
+
+(1) A hosted *run* that concludes `success` has happened — #54, 00:12:57Z — and what did not close is
+the margin around it: three `verify` durations, 45 min 8 s / 55 min 1 s / 60 min 10 s-cancelled,
+against `timeout-minutes: 60` at `ci.yml:19`, on two jobs whose `ci.yml` blob is one and the same
+hash. So the next push can still read `cancelled` with nothing wrong in the tree, and the one-line fix
+is deliberately not made here: a timeout is also the only thing that ends a hung test, and choosing
+90 is an owner call about wall-clock spend, not a correctness call. (2) A skip is still not coverage, and now the
+shipping side says the same thing: both legs build fresh `_upstream/` clones, the vendored
+`abl_link.lib` and `spout_shim.dll` stay gitignored, and the hosted installer's payload above has no
+shim in it at all — so no hosted job compiles or ships the bytes `verify.ps1` gates here. (3) No gate
+checks that the workflow parses, and no gate checks that a leg's `if:` names an output the probe
+actually writes; the nine-line duplicate-key detector that would have caught both dead runs still
+lives in a scratch directory — and that battery was itself wrong until this commit, because its D038
+check tested *parsed* `run:` values for a trailing colon, which flags the repaired line too (a quoted
+`"… ndi::"` still ends in `:`) and cannot see quoting at all. Read off the source instead, it reports
+nothing on this file and catches the breaking shape when the old line is restored into a copy at
+`:217` — a message, not new coverage, since `safe_load` already raises on that form.
+(4) Nothing hosted installs or launches the artifact, so AT082 stays `implemented_unverified` for the
+same reasons its blocker names — and `embedBootstrapper` means a first install on a machine without
+the WebView2 runtime needs a network, which no CI job tests. (5) The toolchain worry is measured
+now, not feared: the runner is on 1.100.0 and this host on 1.99.0, and it survived steps 7 and 8
+three times over. It is not closed, because `-A warnings` buys silence rather than safety — the
+`unused field 'rust-version' in 'workspace.package'` complaint is cargo reading this workspace's own
+manifest, no gate anywhere reads it, and a future toolchain that *errors* would land at the same step
+for the same reason. (6) The hosted `gitDirty: true` at a committed clean checkout is unattributed:
+no step prints `git status --porcelain`, so every provenance block CI writes overstates dirtiness, and
+D026's `implementation/evidence/` exclusion cannot be assumed to be the whole rule.
+
+The file is 3 309 lines at the commit carrying this section.
