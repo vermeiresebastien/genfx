@@ -4067,3 +4067,67 @@ it owes the workspace suite and a `verify.ps1` run behind it, and it cannot be
 that does, or for a decision to spend the gates anyway.
 
 The file is 4 069 lines at the commit carrying this section.
+
+## D046 — 2026-11-18 every standing number in the command list is re-run, and one of them was mis-read by the person re-running it
+
+### Why
+
+The repository's first truthfulness rule is that a "verified" line gets the proving
+command re-run before it is repeated. D045 re-ran one such line and it turned out to
+be an absolute nobody had re-run in four lanes. Rather than stop at the sentence that
+happened to be in front of me, this lane re-ran the cheap carriers of the other
+standing numbers in `AGENTS.md` and `implementation/STATE.json`, on this host, while
+runs #58 and #59 were in flight on the hosted side.
+
+| claim | command | result |
+| --- | --- | --- |
+| 217 catalog entries | `cargo run -q -p xtask -- doctor` | exit 0, `catalog entries: 217`, `doctor: PASS`, GPU line `NVIDIA GeForce RTX 2080 Ti (Vulkan, DiscreteGpu)` |
+| 217 entries, no duplicates | `cargo run -q -p xtask -- catalog` | exit 0, `217 entries (52 fx/util, 165 generators), duplicates=0` |
+| "217 WGSL, Naga-validated" | `cargo run -q -p xtask --bin export_shaders` | exit 0, `wrote 217 shaders to …apps/shader-harness\shaders.json (0 naga failures)` |
+| `check-bundle.mjs` (29 legs) | `node apps/desktop/ui/check-bundle.mjs` | exit 0, `bundle cache-buster checks: 29/29 passed` |
+| Max patch structural check | `node apps/max-for-live/check-maxpat.cjs` | exit 0, `maxpat structural checks: PASS` |
+| workflow gate census | `node .github/check-workflow.mjs` | exit 0, `ci.yml clean (5 jobs, 35 steps, 8 references, 102 plain scalars); 17 controls as required` |
+| carrier census for the flag | `cargo run -q -p xtask --bin requirements -- --check` | exit 0, `20 cargo test command lines read from 3 carriers … [3] [6] [11]` |
+
+Nothing moved. `cargo fmt --all -- --check` exits 0 and silent, as it has since D019
+fixed it.
+
+### The mis-read, which is the finding
+
+The one number that did not survive contact with a measurement is my own first
+attempt at the shader claim. `STATE.json` says "WebGPU shader harness (217 WGSL,
+Naga-validated)", and the natural way to check a count of WGSL is to count WGSL:
+`find . -name "*.wgsl" -not -path "./target/*"` returns **2** —
+`crates/catalog/src/g027_automata.inc.wgsl` and `g_mesh.inc.wgsl`, two catalog include
+fragments. A two-to-two-hundred-seventeen discrepancy is the kind of thing that turns
+into a recorded defect about a dead harness, and it would have been wrong: the 217
+shaders are generated from the catalog by `export_shaders` into
+`apps/shader-harness/shaders.json`, which `.gitignore` carries, so there was never a
+file per shader to count. The claim's carrier is the export command's own line, and
+run as a command it prints 217 with 0 naga failures.
+
+That is the same failure mode this repository already documents for greps — an empty or
+tiny result from a derived table indicts the pattern before it indicts the tree — and
+it is worth recording because the pattern here came from reading a *summary sentence* as
+a file-format claim. `STATE.json`'s line is tightened to say what was measured.
+
+### What this lane did not do
+
+It did not re-run the cargo suites, the acceptance harness or `verify.ps1`: D045 changed
+markdown, and running an hour of gates to restate numbers that the seven commands above
+already restated is the mirror image of the thing being audited. `cargo fmt --all --
+--check` was re-run, though: exit 0 and silent, still green since the lane that cleared
+D019's four-day red. It also produced no code change, so the two tracked evidence files
+it touched — `implementation/evidence/doctor.json` and `catalog.json` — differ only in
+`provenance`: `gitHash e4578c2 → 4b4e1a7`, `gitDirty true → false`, a new
+`generatedAtUtc`. The previous committed `doctor.json` recorded itself as produced from a
+*dirty* tree at D041's commit; these bytes are a clean-tree run at `4b4e1a7`, which is the
+stronger evidence, so they are committed as a restamp and nothing else.
+
+Runs #58 (bumped pins) and #59 (docs-only replicate, byte-identical `ci.yml`) were still
+in flight when this was written, so the node20 after-measurement D044 promises is not
+recorded here — that read belongs to the next record, and this commit was deliberately
+held unpushed so that a third concurrent run would not sit on the same Windows runner
+pool while the durations in D043's census are still the subject of a measurement.
+
+The file is 4 133 lines at the commit carrying this section.

@@ -141,7 +141,7 @@
     "Recording: frame-exact CFR bounded duration",
     "OSC + MIDI + bridge protocol CODECS (real UDP loopback, rate-limit). Param control application IS wired into the desktop process (D022, UDP-loopback tested); transport/trigger/preset/bridge are counted with a reason and change nothing, and no Live packet has been observed.",
     "Max for Live source patches (.maxpat) + bridge protocol decode + structural check",
-    "WebGPU shader harness (217 WGSL, Naga-validated) + localhost server",
+    "WebGPU shader harness (217 shaders, Naga-validated) + localhost server - the 217 is what `cargo run -q -p xtask --bin export_shaders` prints into apps/shader-harness/shaders.json, which is gitignored, not a count of .wgsl files: exactly 2 of those exist, both catalog include fragments (re-measured D046)",
     "Live source/sink interfaces (NDI/Spout/Syphon contracts) - discovery and enumeration only",
     "Windows capture: real WASAPI endpoint + PnP camera enumeration. Audio capture exists in lane-A (committed in 6f00058, crates/platform/src/capture.rs behind --features live-audio, measured on this host 2026-11-16 in implementation/evidence/live-capture-2026-11-16.txt); camera and desktop capture are still enumeration only.",
     "Redacted diagnostics report; docs (user guide, file/protocol formats, implementation architecture, performance readiness)",

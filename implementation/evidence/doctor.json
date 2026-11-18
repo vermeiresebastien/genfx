@@ -35,11 +35,11 @@
     ]
   },
   "provenance": {
-    "gitHash": "e4578c2",
-    "gitHashFull": "e4578c2116b71a57844a70dddd2ceaddb995b14a",
-    "gitDirty": true,
+    "gitHash": "4b4e1a7",
+    "gitHashFull": "4b4e1a7ced9c5db16bd8cad4b3352f42b7312d42",
+    "gitDirty": false,
     "gitDirtyScope": "working tree, excluding implementation/evidence/",
-    "generatedAtUtc": "2026-11-18T02:15:42Z",
+    "generatedAtUtc": "2026-11-18T05:42:08Z",
     "binary": {
       "path": "D:\\Projects\\visual\\genfx\\target\\debug\\xtask.exe",
       "mtimeUnix": 1794930422,
