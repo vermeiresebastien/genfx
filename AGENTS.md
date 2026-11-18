@@ -81,13 +81,28 @@ parallel and 0.03 s serial. Keep passing the flag — it is what
 reddens a run where a live-audio `cargo test` line loses it. What this lane could
 not check is the tree the original witness was taken on: the sentence named
 `ecf0274` only for the serial re-measurement, and no record of the hang exists in
-`implementation/`, `docs/` or `spec/` — it lived in this paragraph alone. Still the
-only mechanism note in the repo, `crates/tests/tests/dag_parallel.rs:11-17`:
-"GPU device creation is not safe concurrently from multiple test threads (it can
-deadlock)", implemented as a function-local lock, so different files hold different
-mutexes and nothing covers `flux-app`. Retiring the race rather than the flag means
-one process-wide serialiser at the thing both forms call — `crates/render/src/gpu.rs:66`
-— and that is D045's named next step, not D045's change.
+`implementation/`, `docs/` or `spec/` — it lived in this paragraph alone. Its
+subject, `crates/tests/tests/dag_parallel.rs:10-23`: "GPU device creation is not
+safe concurrently from multiple test threads (it can deadlock)", was implemented as
+a function-local lock, so different files held different mutexes and nothing
+covered `flux-app` or `flux-render`'s own lib-suite. D047 took the step this
+paragraph named but did not take: device creation is serialised process-wide now —
+`crates/render/src/gpu.rs:97`, `pub fn new`, whose first statement (`:98`) takes
+`device_creation_lock` (`:74`). `device_creation_waits_for_the_process_serialiser`
+is the gate and it has been seen red: with the guard line deleted the worker
+answered inside its hold window (1 808 ms derived against a 519 ms measured
+creation), and both new tests pass again on the restore, hash-proven — the second
+one (`the_only_instance_construction_in_this_file_is_the_locked_one`) pins that no
+unlocked `wgpu::Instance::new` appears beside the guarded one. What this did NOT do
+is retire the flag or the fault rate: the hang is still unreproduced, the lock is
+justified by the structural gap (one shared call site, no per-file mutexes) and not
+by a measurement of the race, and `--test-threads=1` is still what all three
+carriers run. The lock guards creation only and is released before any submit, so
+it never serialises a frame, and the per-file `gpu_lock()` mutexes stay because they
+hold for whole test bodies. Six unflagged `cargo test -p flux-render --lib` trials
+after the change — the shape that had no lock before it — gave 6 exits 0 at 10
+passed each; that is an after-measurement of the previously-uncovered form, not a
+control for the race.
 
 Never wrap a verification command in a pipe or a trailing `echo` — it replaces the
 tool's exit status with the echo's. Check the exit code of the thing you are claiming.
@@ -175,12 +190,15 @@ them first.
   (`capability_report_never_derives_verified_from_a_build_feature`) fails the pattern. Still true:
   **read the `limitation` string, not the boolean.**
 - **A green `verify.ps1` does not mean the workspace suite ran.** Its `unit-tests` step is eight
-  `-p … --lib` packages — 158 tests at `7adb5e6` — while `cargo test --workspace` is 316 across 41
-  result lines (re-measured 2026-11-18 at `3667fd2` plus this tranche's docs, exit 0; D037 recorded
-  the same numbers on the tree that produced them). The hosted side now reads the same figure: step 8
-  of run 44198109118 prints 41 `test result: ok` lines totalling 316. Every test inside a `[[bin]]`
-  target (the `requirements` and `xtask` guards D028 through D034 add, and D036's six in the `flux`
-  binary) is therefore executed by CI's workspace run and by **no** step in this script.
+  `-p … --lib` packages — 158 tests at `7adb5e6`, 199 re-measured at D047's run, whose `flux-render`
+  row went 8 → 10 because that lane's two serialiser guards are `mod tests` in the lib target rather
+  than tests in a `[[bin]]`, so it is the first lane since D027 whose own tests this step executes —
+  while `cargo test --workspace` is 318 across 41 result lines (re-measured 2026-11-18 at this tree,
+  twice, exit 0; D037 recorded 316 on the tree that produced them, and the hosted side still reads
+  that figure: step 8 of run 44198109118 prints 41 `test result: ok` lines totalling 316). Every test
+  inside a `[[bin]]` target (the `requirements` and `xtask` guards D028 through D034 add, and D036's
+  six in the `flux` binary) is therefore executed by CI's workspace run and by **no** step in this
+  script.
   So after adding one, the honest claim is "`cargo test -p xtask --bin requirements` passes" plus a
   workspace run; `VERIFY: PASS` alone cannot see it.
 - **A CLI that prints a failure and exits 0 is the same defect as a skipped gate counting

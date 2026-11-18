@@ -384,11 +384,14 @@ Tests assert the counts and that every referenced `type_id` exists in the catalo
 
 ### 4.1 Device and formats
 
-`flux_render::gpu::Gpu::new(BackendPref::Auto)` (`render/src/gpu.rs:10-20, 66`) stores
-device/queue/adapter info (`GpuInfo::to_json`, `gpu.rs:32-56`) — this is what `flux doctor`
-and `cargo xtask doctor` report. Readback honours the 256-byte row alignment:
-`padded_bytes_per_row(width, 4)` (`gpu.rs:211-215`, tests at `:223-225`), applied again in
-`preview.rs`.
+`flux_render::gpu::Gpu::new(BackendPref::Auto)` (`render/src/gpu.rs:10-20, 97`) stores
+device/queue/adapter info (`GpuInfo::to_json`, `gpu.rs:32-54`) — this is what `flux doctor`
+and `cargo xtask doctor` report. Its first statement takes a process-wide lock around
+instance and device creation (`device_creation_lock`, `gpu.rs:74`, D047) — one guard at
+the shared call site, rather than the per-test-file mutexes D045 counted and that left
+`flux-app` and `flux-render`'s own lib-suite covered by nothing. Readback honours the
+256-byte row alignment: `padded_bytes_per_row(width, 4)` (`gpu.rs:243-247`, tests at
+`:343-345`), applied again in `preview.rs`.
 
 ### 4.2 One render target per node — a real DAG
 
@@ -728,7 +731,7 @@ analytic generators.
 
 Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the suite:
 - `crates/tests/**` **skips**: every GPU test matches `Err(_) => { eprintln!("no GPU;
-  skipping"); return; }` (e.g. `dag_parallel.rs:72-78`, `preview_render.rs:12-16`,
+  skipping"); return; }` (e.g. `dag_parallel.rs:78-84`, `preview_render.rs:12-16`,
   `sweep_catalog.rs:167`), so the suite goes green on a headless box while having tested
   nothing.
 - `crates/render/src/tests.rs:13-15` **panics** instead: `.expect("GPU available")`, and
@@ -741,19 +744,31 @@ Two different no-GPU behaviours coexist, and this is the sharpest gotcha in the 
   `export_formats.rs:98,113`).
 
 **What is serialised and what is not.** The documented reason is in
-`crates/tests/tests/dag_parallel.rs:10-17`: "GPU device creation is not safe concurrently
-from multiple test threads (it can deadlock)" — a process-wide `OnceLock<Mutex<()>>`
-`gpu_lock()` held by each test. It exists **only** in `dag_parallel.rs` and
-`node_editor.rs:15-19`, and because each file in `tests/` is its own test binary the lock
-never crosses files. `crates/tests/src/lib.rs` (the shared harness) has no lock at all, so
-its tests race each other on the same binary. The remaining GPU files carry no lock and are
-serialised **by convention in their doc comments**:
+`crates/tests/tests/dag_parallel.rs:10-23`: "GPU device creation is not safe concurrently
+from multiple test threads (it can deadlock)" — a `OnceLock<Mutex<()>>` `gpu_lock()` held by
+each test. That file's and `node_editor.rs:15-19` are the only two that have one, and
+because each file in `tests/` is its own test binary the lock never crosses files.
+`crates/tests/src/lib.rs` (the shared harness) has no lock at all, so its tests race each
+other on the same binary. Since D047 the creation half is guarded where every caller
+actually goes: `Gpu::new` (`render/src/gpu.rs:97`) takes `device_creation_lock` (`:74`) as
+its first statement, so the guard is process-wide rather than per-file, and it now covers
+`flux-render`'s lib-suite and `flux-app`'s binary — the callers D045 counted as covered by
+nothing. Read that as *within one process*: separate test binaries are separate processes,
+so nothing crosses them, and cargo runs them sequentially. The per-file `gpu_lock()` bodies
+are not made redundant by it, because they hold for the whole test body — the renders too —
+while `Gpu::new` releases before any submit. The remaining GPU files still carry no lock and
+are serialised **by convention in their doc comments**:
 `cargo test -p flux-tests --test sweep_catalog -- --nocapture --test-threads=1`
 (`sweep_catalog.rs:4-5`) and the same for `preset_sweep` (`preset_sweep.rs:4`).
-`.cargo/config.toml` contains only the `xtask` alias (3 lines) — there is **no**
-`RUST_TEST_THREADS`/`--test-threads` default anywhere, so a plain `cargo test` runs
-everything multi-threaded. **[inferred]** This is why `crates/render/src/tests.rs` can hang
-rather than fail on some hosts.
+`.cargo/config.toml` contains only the `xtask` alias (2 lines, no trailing newline) — there
+is **no** `RUST_TEST_THREADS`/`--test-threads` default anywhere, so a plain `cargo test` runs
+everything multi-threaded. `crates/render/src/tests.rs` is the sharpest case for that: one
+`gpu()` helper (`:13-15`) with four call sites (`:19, 39, 53, 177`) in a five-test file, so
+each test thread builds its own device inside one process. The old
+**[inferred]** clause — that this is why the file "can hang rather than fail on some hosts"
+— is not retracted, because nothing has reproduced a hang (D045's twelve parallel
+live-audio legs among them), but the gap it pointed at is closed: those creations now
+serialise inside `Gpu::new`, not inside whichever test file happened to declare a mutex.
 
 Not serialised but stateful: `golden.rs` writes into `fixtures/generated/` and deletes
 subdirectories before each run (`:10-14, 43-45, 88, 116`), and `gui_backend.rs` uses

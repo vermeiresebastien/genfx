@@ -74,12 +74,12 @@ It passes now (`exit 0`), and `cargo test --workspace -- --test-threads=1` is st
 green behind the reformat — 233 passed, 0 failed across 40 result lines (29 test binaries
 + 11 doctests), re-measured 2026-11-16 on the D036 tree; it was 196 before the OSC receive
 bridge (D022) added 8, then +1 D027, +2 D028, +7 D031, +4 D032, +2 D033, +2 D034, +5 D035 and +6 D036.
-That 233/40 is the D036 tree's figure, not the current one: 316 passed across 41 result lines is what
-`AGENTS.md` and `STATE.json` carry, re-measured 2026-11-18 at `3667fd2` with exit 0. The +83 is not one
+That 233/40 is the D036 tree's figure, not the current one: 318 passed across 41 result lines is what
+`AGENTS.md` and `STATE.json` carry — D037's 316 at `3667fd2`, plus D047's two `gpu::tests` — both re-measured 2026-11-18 with exit 0. The +83 above is not one
 lane's doing — the 31 commits between `1a418a1` and `6320d3e` add 78 `#[test]` attributes and D037 adds 13,
 91 attributes against +83 executed tests, because a `#[test]` inside a `#![cfg(feature = …)]` module
 never runs in a default-features workspace build and an attribute added to a target already counted moves
-nothing. D041's tranche changes no Rust bytes, so 316/41 still describes the tree this file sits on.
+nothing. D041's tranche changes no Rust bytes; D047's adds two lib tests, so 318/41 is the tree figure.
 The harness that reported it was then
 repaired: `infrastructure/verify.ps1` had one step chaining three `cargo test` runs behind
 a single exit-code read, and recorded skipped SDK gates as passes. Both are fixed (D020),

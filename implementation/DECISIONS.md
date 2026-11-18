@@ -4009,11 +4009,11 @@ The corrected paragraph in `AGENTS.md` therefore says both things — keep passi
 flag, stop calling it the only form that finishes.
 
 Nor does it identify the mechanism, and honestly no measurement here could. The
-only mechanism note in the repository is `crates/tests/tests/dag_parallel.rs:10-17`,
+only mechanism note in the repository is `crates/tests/tests/dag_parallel.rs:10-17` (D047 expanded that doc comment; the note is at `:10-23` there now),
 "GPU device creation is not safe concurrently from multiple test threads (it can
 deadlock)", attached to a function-local `OnceLock<Mutex<()>>` — which is exactly
 why that file's four tests are covered and `flux-app`'s are covered by nothing.
-`crates/render/src/gpu.rs:66` is where both forms go: `Instance::new`,
+`crates/render/src/gpu.rs:66` is where both forms go (`:97` since D047): `Instance::new`,
 `enumerate_adapters`, a sort, then `pollster::block_on(adapter.request_device(..))`.
 That a `block_on` around a driver call *hangs* rather than fails is a property of
 the old witness, not of anything measured today. And the tree the hang was produced
@@ -4064,7 +4064,7 @@ instead of re-declared per test file, which retires the race where both forms re
 and makes `dag_parallel.rs`'s local mutex redundant. It is a renderer source change,
 it owes the workspace suite and a `verify.ps1` run behind it, and it cannot be
 *justified* by a census that did not reproduce the fault — so it waits for a run
-that does, or for a decision to spend the gates anyway.
+that does, or for a decision to spend the gates anyway. D047 spent the gates: see that record.
 
 The file is 4 069 lines at the commit carrying this section.
 
@@ -4131,3 +4131,151 @@ held unpushed so that a third concurrent run would not sit on the same Windows r
 pool while the durations in D043's census are still the subject of a measurement.
 
 The file is 4 133 lines at the commit carrying this section.
+
+## D047 — 2026-11-18 the process-wide serialiser D045 named is taken, and its guard is seen red before it is believed
+
+### Why
+
+D045 measured the sentence rather than repeating it and came back with an absolute
+retracted and a mechanism still unnamed: twelve parallel live-audio legs, zero hangs,
+so the race is bounded at roughly one run in five and not retired. What it did name was
+the structural reason a census cannot settle the question. The repo's only mechanism
+note, `crates/tests/tests/dag_parallel.rs:10-23`, attaches its warning to a
+*function-local* `OnceLock<Mutex<()>>`; every file in `crates/tests/tests/` is its own
+test binary, so two files holding "the GPU lock" hold two different mutexes. Two files
+have one at all (`dag_parallel.rs` and `node_editor.rs:15-19`). Everything else that
+creates a device creates it under no lock: `flux-render`'s lib-suite builds a device in
+four of its five tests inside one process, and `flux-app`'s 65-test binary reaches the
+same driver init with nothing around it. That is why `--test-threads=1` was load-bearing
+rather than hygienic — the flag was compensating for a guard that had been written per
+file instead of at the thing every file calls.
+
+A guard at the shared call site is the only shape that can actually make the promise, and
+`Gpu::new` is the only such site: one `wgpu::Instance::new` in the workspace.
+
+This lane was written up under the number D046 while it ran. `1a8bd55` had already
+recorded D046 — the standing-numbers re-run — so this record is D047, and every D047
+citation in `AGENTS.md`, `dag_parallel.rs`, `IMPLEMENTATION-ARCHITECTURE.md` and the
+D045 annotations names this change, not the one before it.
+
+### What was measured, and what was reasoned
+
+Measured, on this host at this tree:
+
+| | |
+| --- | --- |
+| the guard's own red | deleting `let _serialiser = device_creation_lock();` gives `2 passed; 2 failed`, exit 101 — `device_creation_waits_for_the_process_serialiser` panics with "Gpu::new answered inside a 1808 ms hold window (this machine creates a device in 519 ms) … the guard line in Gpu::new is gone", and the source-scan guard fails at its second assert ("the guard line is not between `Gpu::new`'s entry and the instance it builds") |
+| the restore | the file's pre-mutation sha256 `3d60df46…f6198f5b` is recorded in the red log, the restore is proved against it, and the restored target is green again: `4 passed` in 2.92 s for the `gpu::` filter |
+| the previously-uncovered form | `cargo test -p flux-render --lib` with **no** `--test-threads=1`, six trials: 6 × exit 0, `10 passed` each, 4–6 s wall — the shape that had no lock before this commit |
+| the workspace suite, twice | `cargo test --workspace -- --test-threads=1` exit 0 both times: **318 passed / 0 failed / 0 ignored across 41 result lines** (813 and 808 lines), zero `FAILED`, `error[`, `ACCESS_VIOLATION` or `0xc0000` in either, and the single `panicked` hit in run 1 is the test *name* `freshness::a_broken_ledger_is_located_not_panicked`, which passed — the same shape D037 reported. Both new `gpu::tests` print `ok` in both logs. The 41 headers and 41 result lines are contiguous one-for-one, which is what makes "cargo runs one test binary at a time" a reading of the log rather than an assumption |
+| the harness | `infrastructure/verify.ps1` run whole from a shell with `FLUX_ABLETON_LINK_LIB` and `FLUX_SPOUT_SHIM` removed: `VERIFY: PASS`, exit 0, `steps: passed=23 failed=0 blocked_external=0`, `verify.json` gitHash `1a8bd55`, `gitDirty true`, `external` all true, zero `FAILED`/`error[`/`ACCESS_VIOLATION`/`0xc0000` in 2 660 lines. Its `unit-tests` step totals **199** lib tests — app 66, audio 19, catalog 17, domain 30, engine 22, integrations 29, media 6, **render 10** |
+| the restamp | `cargo run -q -p xtask -- evidence` exit 0 after that run: 33 files, 9 stamped by their writer, 4 naming a commit in a header, 20 unattributed, 0 missing provenance |
+| cheap gates | `cargo fmt --all -- --check` exit 0; `cargo clippy --workspace --all-targets -- -A warnings` exit 0; `node .github/check-workflow.mjs` exit 0 (census unchanged: 5 jobs, 35 steps, 8 references, 102 plain scalars, 17 controls); `requirements -- --check` exit 0, 20 `cargo test` lines / 3 carriers — re-run after the `AGENTS.md` paragraph grew, because that file is one of the three carriers |
+
+Reasoned, and not sold as a measurement: that a driver-level concurrent init is what the
+old witness hung on. Nothing here reproduced a hang — not D045's twelve parallel legs,
+not these six — so this change is justified by the coverage gap it closes (one shared
+call site now has one guard) and *not* by a before/after race measurement. The
+`STATUS_ACCESS_VIOLATION` in `known_gaps[15]` is a different fault, at a different place,
+and this lane neither explains it nor claims to have moved its rate beyond adding its
+two clean long runs to the tally.
+
+### The change, and its two boundaries
+
+`crates/render/src/gpu.rs:56-83` documents and defines `device_creation_lock()` (`:74`):
+a process `OnceLock<Mutex<()>>`, taken with `.unwrap_or_else(|poisoned| poisoned.into_inner())`
+because a holder that panicked mid-init left no state worth preserving, and propagating
+the poison would turn one crash into every later GPU test failing for a reason that names
+neither the crash nor the device. `Gpu::new` (`:97`) takes it as its first statement
+(`:98`).
+
+Two limits are stated in the code rather than discovered by a reader. The lock guards
+*creation* only — it is released before any submit, render or readback, so it serialises
+one device init per `Gpu`, never a frame; a test that needs the whole render serialised
+still needs `gpu_lock()`-shaped coverage, which is why `dag_parallel.rs:12-17` now says
+plainly that its own mutex stays for its test bodies. And "process-wide" is per process:
+cargo runs each test binary as its own process, so this does not serialise across
+binaries, only across the threads inside one — which is precisely the case that was
+unguarded.
+
+### The gates it owes, and the trap in the first one
+
+`device_creation_waits_for_the_process_serialiser` is the falsifier for the guard line.
+Its first version held the lock for a fixed 1 500 ms against a creation that measured
+674 ms on this host — a 2.2× margin on a machine that was also running two hosted CI
+jobs, and the failure mode of a too-short window is the quiet direction: the gate passes
+on the broken artifact. It now calibrates instead of assuming: it times one unlocked
+`Gpu::new`, holds for `3 × that + 250 ms`, and prints both numbers in the assertion and
+in a control line, so the window is a property of the machine rather than of the commit.
+It needs no working GPU to be meaningful — the worker only has to *reach* `Gpu::new` and
+be kept out of it, and success or `GpuDeviceLost` is reported either way.
+
+The second guard, `the_only_instance_construction_in_this_file_is_the_locked_one`, is a
+source scan: exactly one `wgpu::Instance::new` in `gpu.rs`, and the guard line between
+`Gpu::new`'s entry and it. Its first version failed with `left: 3` because the test lives
+in the file it reads and spelled the needle literally, so `include_str!` counted the
+test's own two lines. The needle is `concat!`-built now, and that measured failure is the
+comment.
+
+### The standing numbers this moves, and where they had to move with it
+
+The suite total is carried in four places that do not read each other: `README.md:77-82`,
+`AGENTS.md`, `implementation/STATE.json` (`test_totals.passed` and the `measured` prose
+in the same object), and the `Test totals` row of
+`docs/PERFORMANCE-READINESS.md`. 316 → **318** went into all four together, with the
+base named at each site: the +2 is D047's two guards over D037's 316, not over the 233
+that row still printed last.
+
+The harness figure is a different drift and it is not this lane's arithmetic.
+`AGENTS.md` and `STATE.json` carried `unit-tests` at **158** — the `7adb5e6` count — and
+the run above reads **199**. Decomposed against the 158 recorded at `1a418a1` (app 34,
+audio 14, catalog 16, domain 30, engine 22, integrations 28, media 6, render 8) the +41
+is app +32, audio +5, render +2, integrations +1, catalog +1, with domain, engine and
+media unchanged, accumulated over the 45 commits from `1a418a1` to `1a8bd55`. So this is
+the first record since D027 in which a lane's own tests *were* executed by a `verify.ps1`
+step: D028–D036 added tests to `[[bin]]` targets, which no step reaches, and that is why
+the blind spot this repository documents did not move while the workspace total did.
+
+`STATE.json` is cited by line number from `docs/PERFORMANCE-READINESS.md` (`:559` cites
+`STATE.json:158`, `:1148` cites `:89-101`) and `README.md:15..94` is cited from three
+documents, so every edit in this tranche to those two files is in-place and line-neutral;
+`AGENTS.md` carries no inbound line citations, so its bullet was allowed to grow by three
+lines instead.
+
+### The citation sweep this insertion caused
+
+`gpu.rs` grew 120 lines, `dag_parallel.rs` 6, `docs/IMPLEMENTATION-ARCHITECTURE.md` 15.
+Offsets were derived from the `git diff --unified=0` hunk headers and then each re-point
+was byte-checked — HEAD-blob line *n* against worktree line *f(n)* — by
+`smoke/D047-verify-cites.py`; 20 pairs, 0 mismatches. Live citations moved:
+`AGENTS.md`'s live-audio paragraph (`dag_parallel.rs:10-23`, `gpu.rs:97`/`:98`/`:74`),
+`IMPLEMENTATION-ARCHITECTURE.md` §4.1 (`:10-20, 97`, `:32-54`, `:243-247`, `:343-345`) and
+its serialisation paragraph (`:78-84`, `:10-23`), and
+`docs/PERFORMANCE-READINESS.md:1153`'s `IMPLEMENTATION-ARCHITECTURE.md:661`, `:875` →
+`:664`, `:890` (edited in place, `git diff --numstat` 1/1, so the file's own line count
+and its inbound citations did not move). Historical citations were annotated, not
+re-pointed: D045's `dag_parallel.rs:10-17` and two `gpu.rs:66` mentions in
+`implementation/DECISIONS.md` keep the numbers they were written with and gain a
+parenthetical naming where they land now, and D045's closing "next step named, not taken"
+sentence gains "D047 spent the gates: see that record." — three lines, 3/3 numstat, so no
+citation into `DECISIONS.md` moved. The `+3`/`+15` shifts into
+`IMPLEMENTATION-ARCHITECTURE.md` do move the numbers that six older D-records cite
+(`:414`, `:869`, `:100`, `:883`); those are past-tense churn tables about their own
+commits, so they are left, and this paragraph is the record of the shift.
+
+One correction found while sweeping, and it is not this lane's: that paragraph asserted
+`.cargo/config.toml` "contains only the `xtask` alias (3 lines)". The file is 34 bytes
+with two newlines — two lines, no trailing newline. It is now stated as measured.
+
+### What still waits
+
+The flag stays in all three carriers: nothing here licenses removing it, and
+`requirements --check` reddens a live-audio leg that loses it. The hang keeps its
+unnamed mechanism and its ≈ one-run-in-five bound. `crates/tests/src/lib.rs` still has no
+lock of its own, and the `gpu_lock()` in `dag_parallel.rs`/`node_editor.rs` still
+serialises whole test bodies, which is more than creation. `requirements.rs:981` still
+hardcodes D045's witness into a mutant's failure text, for the reason D045 gave. Beyond
+this lane: AT015's evidence arm, the SSL 2 device measurement, and AT082's owner half.
+
+The file is 4 281 at the commit carrying this section, and this section is appended
+below D046's, so no citation above it moved.

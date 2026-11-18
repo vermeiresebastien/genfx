@@ -9,6 +9,12 @@ use std::sync::{Mutex, OnceLock};
 
 /// GPU device creation is not safe concurrently from multiple test threads (it
 /// can deadlock). Serialize all GPU tests in this file.
+///
+/// Since D047 the *creation* half of this is guarded process-wide inside
+/// `flux_render::gpu::Gpu::new`, so this lock is no longer what keeps two of
+/// these four tests from racing a `request_device`. It stays because it covers
+/// more than creation: it holds for the whole test body, including the renders,
+/// which the process-wide lock deliberately does not serialise.
 fn gpu_lock() -> std::sync::MutexGuard<'static, ()> {
     static L: OnceLock<Mutex<()>> = OnceLock::new();
     L.get_or_init(|| Mutex::new(()))
