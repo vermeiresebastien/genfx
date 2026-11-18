@@ -105,7 +105,11 @@ than last. CI records no such thing — its SDK legs are separate jobs that clon
 and what the first green hosted run actually shipped, byte for byte, and D041 puts
 `.github/check-workflow.mjs` — eight structural legs, eleven mutation controls — in both harnesses,
 raises `verify`'s 60-minute bound to 75 after a hosted job came back green with six seconds left on it,
-and disposes a Dependabot advisory against a crate the Windows graph never links. See `AGENTS.md`
+and disposes a Dependabot advisory against a crate the Windows graph never links. D042 makes the unit of
+audit that gate reads the directory instead of one filename — nine legs, the ninth a fault when the scan
+finds no YAML at all, seventeen controls — and reads the log D041 left unread: run #56 concluded
+`success` with `verify` in 61 min 53 s, the first run that finished only because the bound had been
+raised. See `AGENTS.md`
 § "Traps inside this repo's own verification harness".
 
 ## Live control

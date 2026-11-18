@@ -120,7 +120,9 @@ them first.
   the environment, is 17-0-0 again, and D032's `requirements-freshness` step made the ceiling 18.
   D037 took it to 22 and D041's `workflow-structure` step (`node .github/check-workflow.mjs`, the
   same script ci.yml runs as its own step 2) is the 23rd — so count the steps in the run you are
-  reading, not in this sentence.
+  reading, not in this sentence. That script read one named file until D042: its default is now a
+  scan of `.github/workflows`, so a workflow added beside `ci.yml` is audited the moment it appears
+  and a scan that finds no YAML there is leg 8, not a clean exit.
   CI has no blocked steps to record. Its `link` and `spout` legs are separate jobs that clone their
   own SDK sources, and the first hosted run whose workflow could be read measured both *failing* on
   a toolchain path the image does not contain — D039 gates them on a machine probe instead, and D040
@@ -128,11 +130,20 @@ them first.
   conclusion is `success` — the first here — beside its neighbour's `cancelled` at the 60-minute
   bound on a byte-identical workflow. That census is two runs wide now: `44211444352` is green too,
   and its `verify` job took 59 min 54 s of the same 60-minute bound, which is why D041 raises
-  `verify` to 75 and why "the bound is marginal" is now a measurement rather than a worry. A hosted
-  run ending `cancelled` is not a red gate, and with 31 of 55 runs never having created a job at all,
+  `verify` to 75 and why "the bound is marginal" is now a measurement rather than a worry. The census
+  is three runs wide now: `44226667811` is green too, and its `verify` job took 61 min 53 s, which it
+  was only allowed to spend because the bound had already moved. D042 re-takes it whole: 56 runs, 25
+  of which created jobs, 47 jobs — 25 failure / 21 success / 1 cancelled — three runs `success`. A
+  hosted run ending `cancelled` is not a red gate, and with 31 of those 56 runs never having created
+  a job at all,
   "CI did not report" is not the same fact as "CI reported nothing wrong". The hosted installer is not the hosted `verify.json`: 28 of that
   artifact's 33 evidence files are this host's checkout copy, and the five the runner did write say
-  its toolchain is rustc 1.100.0 and its graphics device is a Basic Render Driver over Dx12.
+  its toolchain is rustc 1.100.0 and its graphics device is a Basic Render Driver over Dx12. Reading
+  a hosted job is itself gated on that job finishing: `GET /actions/jobs/{id}/logs` for a running job
+  redirects to a blob that answers `BlobNotFound` (measured 2026-11-18 on job `134541386792`, at
+  02:59:01Z), while `GET /actions/runs/{id}/jobs` lists its steps and per-step conclusions the whole
+  time. So a step's *conclusion* is readable for exactly as long as the job has left to run before
+  its *output* is, and a sentence that says "the log says" must name which of the two it has.
 - **`verify.json` used to carry a UTF-8 BOM** because `Set-Content -Encoding UTF8` writes one
   in Windows PowerShell, so the "machine-readable" evidence failed a strict `JSON.parse`.
   Measured on the committed file at `75da874` and its predecessor. Written without BOM since

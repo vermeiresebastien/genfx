@@ -3298,7 +3298,8 @@ the nine-line duplicate-key detector that would have caught both dead runs lived
 — and that battery was itself wrong until this commit, because its D038 check tested *parsed* `run:`
 values for a trailing colon, which flags the repaired line too (a quoted
 `"… ndi::"` still ends in `:`) and cannot see quoting at all. D041 closes this: `.github/check-workflow.mjs`
-is in both harnesses with eight legs and eleven controls, its leg 7 reads the *source* text of a plain
+is in both harnesses with eight legs and eleven controls at `b05b4b6` — D042 takes them to nine and
+seventeen the same day — and its leg 7 reads the *source* text of a plain
 scalar rather than the parsed value, and `plainScalarColon` is the control that asserts the quoting half
 of this mistake cannot come back. (4) Nothing hosted installs or launches the artifact, so AT082 stays `implemented_unverified` for the
 same reasons its blocker names — and `embedBootstrapper` means a first install on a machine without
@@ -3555,7 +3556,10 @@ sentence around every hit got read rather than the pattern alone.
 
 (1) The gate checks the file it is pointed at. `FILE` defaults to `workflows/ci.yml` beside the script,
 and nothing asserts that a second workflow file, if one ever appears, gets its own step — a new
-`.github/workflows/*.yml` is unchecked by construction until someone adds a leg for it. (2) It validates
+`.github/workflows/*.yml` is unchecked by construction until someone adds a leg for it. **[Closed by
+D042, next section: the default is now a scan of `.github/workflows`, every `.yml`/`.yaml` it finds is
+audited, and a scan that finds none is leg 8. The sentence above is what the script did at `b05b4b6`,
+and the probe that proves the closure is the fourth row of D042's table.]** (2) It validates
 *names*, not *values*: `== 'True'` compared against a probe that writes `true` passes all eight legs and
 still skips its leg forever on the runner. That is the silent class half-closed — the typo that renames
 is caught, the typo that mis-compares is not, and no static scan of a `${{ }}` string can decide it
@@ -3570,3 +3574,228 @@ on GitHub (dismissing shared visible state is the owner's click), `glib` 0.18.5 
 and closing it upstream needs `tauri` to move to `gtk 0.20` — which this repository does not control.
 
 The file is 3 572 lines at the commit carrying this section.
+
+## D042 — 2026-11-18 the gate D041 shipped reads one file, and the fault it reads for is a per-file fault
+
+### The hole, stated before the fix
+
+D041 closed by listing five things it does not close, and item (1) is different in kind from the other
+four. (2) is a limit of static scanning, (3) is a log that had not been read yet — it is read further
+down, and the reading retires (4)'s tail as a side effect — (4) is a limit of what `timeout-minutes`
+bounds, (5) is a decision handed to the owner.
+(1) is a coordinate: *"`FILE` defaults to `workflows/ci.yml` beside the
+script, and nothing asserts that a second workflow file, if one ever appears, gets its own step — a new
+`.github/workflows/*.yml` is unchecked by construction until someone adds a leg for it."*
+
+That is not a dormant gap. The class this script exists for — D038's — is per-file: a workflow GitHub
+refuses to parse creates zero jobs and zero logs, which is how 31 of the 55 runs in D041's census ended
+without anything to read. Add a second file (`release.yml`, say) carrying that same trailing-colon
+scalar and the `verify` job's step 2 keeps printing `workflow check: … clean` about bytes that were
+never opened, while the whole run silently stops existing. The green step and the dead workflow are
+compatible, and the harness's worst historical failure comes back wearing a pass. That is the same
+shape as every other vacuous-green recorded in this file — a skipped SDK gate recorded `ok: true`, a
+`verify.ps1` step with no external command inheriting the previous verdict, a checker that reads no
+config and therefore reclassifies everything — so it gets closed the same way: by making the input set
+itself a leg.
+
+### Nine legs, and the directory that decides the ninth
+
+The unit of audit is now the directory, not the filename.
+
+- `discover(names)` splits a listing into `checked` (matching `/\.ya?ml$/i`) and `ignored`. The
+  extension test is case-insensitive because the two error directions are not symmetric: auditing a
+  file the runner never executes costs one extra OK line, and skipping a file it does execute is the
+  hole this section is about.
+- With no argument the script reads every `.yml`/`.yaml` in `.github/workflows` beside itself —
+  resolved from `import.meta.url`, so it does not care what cwd `verify.ps1` or the runner started it
+  from (measured, not assumed: invoked as `node D:\Projects\visual\genfx\.github\check-workflow.mjs`
+  with cwd `C:\`, it prints the same nine legs and exits 0). `argv[2…]` still names paths explicitly,
+  which is how a reader aims it at a copy.
+- **Leg 8** fires when the scan finds none. The failure it prevents is not "the directory is empty
+  today" — it is `git mv .github/workflows/ci.yml …`, or a rename that leaves the step pointing at
+  nothing, and a gate with an empty input set printing OK.
+- Leg and fault text is suffixed `[<file>]`. With two files in scope, `FAIL leg 7` alone no longer
+  says which one raised, and that is the one thing a reader of a red step at 03:00 needs.
+- The text-mutant battery needs a host file, so it runs against the audited file named `ci.yml`, or
+  the first audited file when paths were passed. When there is no audited file it reports
+  `FAIL controls: no audited file to mutate, so the text battery did not run` — the battery refuses
+  to be skipped, which is the point of having a battery.
+- Six `discover` cases join the eleven text mutants, so the control count is seventeen. `emptyDir`
+  and `notesOnly` are leg 8's must-fire witnesses; `onlyCi`, `secondWorkflow`, `nonWorkflowIgnored`
+  and `upperCaseExtension` are its must-stay-clean witnesses.
+
+ci.yml's step name and `verify.ps1`'s `Step 'workflow-structure'` are untouched, so the harness ceiling
+D041 stamped — 23 executed steps — is still 23. Nothing in this section renumbers anything.
+
+### Four probes, three of them against directories that are not this one
+
+Run as `node .github/check-workflow.mjs` in this tree and as
+`node <copy>/check-workflow.mjs` in two throwaway `.github/` trees under `%TEMP%`, each exit code read
+from the process itself rather than from a trailing `echo`:
+
+| probe | `.github/workflows` holds | exit | what it printed |
+|---|---|---|---|
+| this tree | `ci.yml` | 0 | nine leg lines, eleven `control …: … as required`, six `discover …: … as required`, then `workflow check: ci.yml clean (5 jobs, 35 steps, 8 references, 102 plain scalars); 17 controls as required` |
+| empty dir | *(nothing)* | 1 | `FAIL leg 8 — no *.yml / *.yaml under C:\Users\SEBAST~1\AppData\Local\Temp\wf-empty\.github\workflows\ — this gate has nothing to read, which is not a pass` **and** `FAIL controls: no audited file to mutate, so the text battery did not run` |
+| second file, well-formed | `ci.yml` + a new `release.yaml` (one job, two steps, nothing in it shared with ci.yml) | 0 | `leg 8: OK (2 workflow file(s) audited from .github/workflows)` and a tail that names both: `ci.yml clean (5 jobs, 35 steps, 8 references, 102 plain scalars), release.yaml clean (1 jobs, 2 steps, 0 references, 6 plain scalars); 17 controls as required` |
+| second file, D038's fault | `ci.yml` + a `release.yaml` whose `run:` scalar ends in `::` | 1 | `FAIL leg 7 — <root>.jobs.build.steps[9].run (line 9): the plain scalar ends with a colon, so YAML reads it as a mapping indicator and the file yields no jobs — quote it: "cargo build release::" [release.yaml]`, with ci.yml's own eight text legs still reported OK and `0 control fault(s)` |
+
+The two planted files are one line apart, and the line is the fault: rows 3 and 4 both hold a
+`release.yaml` declaring `name: release`, `on: [push]`, one job `build` on `windows-latest` with
+`timeout-minutes: 10`, `actions/checkout@v4` and a final step — `- run: cargo build --release` in row 3,
+`- run: cargo build release::` in row 4. That is the whole reproducible fixture.
+
+The fourth row is the one the section was written for: a file that did not exist five minutes earlier,
+carrying the exact historical fault, is caught and attributed without anything being edited to point
+the gate at it. Two readings of that message are worth pinning. The bracket index is a **line** number,
+not a step ordinal — `steps[9]` on a two-step job is line 9 of that file, and the message repeats it as
+`(line 9)` for that reason. And `1 fault(s) across 2 file(s)` means one file raised and one did not;
+it is not a per-file average and not a count of legs.
+
+The scratch trees are under `%TEMP%` and this record is their only surviving copy, which is the reason
+the commands and the fixture are written out instead of left as "ran four probes": an evidence path a
+later lane cannot re-run is a claim, not a witness.
+
+### What this did *not* need, and why it was not done
+
+No `verify.ps1` re-run, for two reasons that came from reading it rather than from guessing.
+
+- `-Quick` is narrower than its name: `if (-not $Quick)` at line 116 wraps exactly four `Step` calls —
+  `integration-producer-tests`, `integration-export-matrix`, `integration-dag-parallel`, `golden` — and
+  everything from `catalog` at 124 onward runs either way. So it saves four cargo-test invocations and
+  writes an evidence file four keys shorter over the committed one. A bad trade for this tranche.
+- A *full* pass re-runs `test-gpu`, both live-audio legs, `cli-build`, `gui-build` and
+  `installer-bundle` to restamp the printed output of a step whose output the evidence does not carry.
+  Read the file: `steps` is a map of 23 keys, each valued `{ "exit": 0, "ok": true }`, beside
+  `gitHash: e4578c2`, `quick: false` and `counts: {passed: 23, failed: 0, blocked_external: 0}`. No
+  step's stdout is in it — which is also how D041's quoted `workflow check: …` line reached the page:
+  from that run's console capture, not from the tracked JSON. A change to what the script *prints*
+  therefore moves this decision record and cannot stale-date the evidence file.
+
+Three commands *were* re-run, because this record makes claims three other documents copy:
+`cargo fmt --all -- --check` exits 0 and prints nothing, `node .github/check-workflow.mjs` exits 0 with
+nine leg lines, eleven `control …: … as required`, six `discover …: … as required` and the tail, and
+`cargo run -q -p xtask --bin requirements -- --check` exits 0 over 20 `cargo test` lines in 3 carriers.
+That last one is not hygiene in this tranche: it edits `AGENTS.md`, which is one of those three carriers,
+and the freshness check reads that file's canonical-commands block for the flag it is meant to police.
+All three were run a second time after the `ci.yml` comment edit recorded in the paragraph after this one,
+which is what makes calling that edit line-neutral an observation rather than a hope.
+
+Two counts that look like defects and are not. `verify.ps1` carries **24** `Step` calls while
+`verify.json` has **23** keys: line 188's `Test-NdiRuntime` is true on this host, so
+`ndi-runtime-loads` ran and the `else` arm at 193 — `ndi-feature-compiles` plus a `Blocked` — is what a
+machine without the NDI runtime records instead, exactly as D023 designed it. Counting `Step` lines is
+therefore not a census of any particular run, which is why AGENTS.md says to count the run. And this
+tranche changes no Rust, no step list and no executable byte of `ci.yml`: the workflow file's only edit
+is its `timeout-minutes` comment, three lines of prose replaced line-for-line, 255 lines before and
+after, `git diff --numstat` 3/3, and the gate's census of the edited file identical to the census of the
+un-edited one (5 jobs, 35 steps, 8 references, 102 plain scalars) because comments are not scalars. The
+tracked evidence therefore stays a true record of the run it names. The hosted witness for *this* shape
+is a run that has not happened yet: #57 will be the first whose `verify` step 3 executes the directory
+scan, and reading that log is the one item this record leaves open. What the next subsection reads is
+the run that *did* happen — #56, whose step 3 executed D041's one-file gate, which closes D041's
+residual (3) but says nothing about leg 8.
+
+### The log D041 left unread, and the four-run census that came with it
+
+Run #56 (`44226667811`, head `4ce015a`) completed at 03:56:48Z with conclusion `success`: five jobs,
+every one `success` — `sdk-probe` in 6 s, `ndi` 1 min 43 s, `spout` 2 min 8 s, `ableton-link` 2 min 50 s,
+and `verify` (`134541386792`) in **61 min 53 s**. Its `steps` array holds 26 entries — `Set up job`, the
+23 file steps, `Post Run actions/checkout@v4`, `Complete job` — which is the arithmetic D041 corrected
+from 25 to 26, measured rather than derived. The numbering has holes (the post-checkout entry is number
+48), so `max(number)` is not an entry count; count the elements.
+
+Re-taking D041's census with #56 in it, as the same two `gh api` calls: **56 runs**, of which **25**
+created jobs and 31 did not; **47 jobs** — 25 `failure`, 21 `success`, 1 `cancelled`; and **three**
+runs conclude `success` (#54 `3667fd2`, #55 `e4578c2`, #56 `4ce015a`), five jobs each. The job count
+moves 42 → 47 and `success` 16 → 21 by exactly the five jobs this one run added, which is the check
+that the two censuses are of the same repository and not of two different windows.
+
+Hosted step 3 is the gate. It opened at 02:55:02.925Z under `pwsh 7`, and between 02:55:05.5897Z and
+02:55:05.6740Z — 84 ms — it printed twenty lines: the eight leg lines, the eleven control lines, and
+
+```
+workflow check: file:///D:/a/genfx/genfx/.github/workflows/ci.yml clean —
+  5 jobs, 35 steps, 8 references, 102 plain scalars; 11 controls as required
+```
+
+Three things cost little to say and are worth the ink. The four census numbers agree with this tree
+exactly, so the runner audited the bytes `4ce015a` carries and not some other checkout. The step's whole
+window is 2.7 s, of which 2.66 s is `pwsh` plus `node` coming up before the first line — the script's own
+work is under a tenth of a second, so adding a leg costs the pipeline nothing. And the path in that line
+is a `file://` URL, because the default was a `new URL(...)` object; that is one of the things D042's
+rewrite changed, along with those twenty stdout lines becoming twenty-seven — nine leg lines, seventeen
+control lines and the tail, counted by re-running the gate here rather than derived from the two numbers.
+D041's residual (3) is closed: the gate has an exit code on a runner, and the runner and this host agree.
+
+**The census.** Getting the log also made the per-step cost of this job measurable for the first time,
+in four logs whose steps are the same command strings (`gh run view --log --job <id>`, then a
+`##[group]`-to-`##[group]` span per step). Seconds:
+
+| the step's command | #53 `8c7ed59` | #54 `3667fd2` | #55 `e4578c2` | #56 `4ce015a` |
+|---|---|---|---|---|
+| `cargo clippy --workspace --all-targets` | 354.8 | 277.2 | 294.0 | 353.3 |
+| `cargo test --workspace -- --test-threads=1` | 1094.3 | 1022.8 | 1099.0 | 1103.9 |
+| `cargo run -q -p xtask -- catalog` | 360.0 | 306.3 | 325.5 | 336.9 |
+| `cargo build -p flux-desktop` | 243.0 | 220.0 | 225.0 | 230.0 |
+| `cargo build --release -p flux-app` | 311.1 | 276.1 | 301.7 | 307.6 |
+| **`cargo run -q -p xtask -- package`** | 1 143.2 † | 952.0 | 1 033.7 | 1 126.5 |
+| `cargo test -p flux-app --features live-audio` | — | 110.2 | 183.3 | 124.5 |
+| the seven above | — | 3 164.6 | 3 462.2 | 3 582.7 |
+| **whole `verify` job** | 3 610 (cut) | 3 301 | 3 594 | **3 713** |
+
+† #53 was cancelled inside `package` at 60 min 10 s, so that figure is the clock the runner gave the step
+before the bound closed, not the time the step needed. The other six columns of that row are complete
+runs.
+
+This says something D040 and D041 both had to leave as a worry. The installer is the largest single item
+in the job — 1 126.5 s of #56's 3 713, just under a third — and across the three runs that finished it
+moved 952.0 → 1 033.7 → 1 126.5. But it is not an outlier: every one of the seven moved *up together*
+between #54 and #56, by 4.5 %, 7.9 %, 10.0 %, 4.5 %, 11.4 %, 18.3 % and 13.0 %, and `clippy` moved most
+in relative terms (277.2 → 353.3). Four different heads, so this is an observational census and not a
+controlled experiment; the observation is that the spread belongs to the runner, not to a step. Which is
+what the "installer step's variance, which is still unexplained" clause in D041's residual (4) should
+have said all along — there is no installer-specific anomaly to explain, only a job whose seven heavy
+steps sum to 52.7 / 57.7 / 59.7 minutes of work, against a bound that used to be 60. Two of the four runs
+needed more than the old bound held (#53, which died at it, and #56, which was only allowed to finish
+because D041 raised it); the other two had 6 s and 4 min 59 s of margin. 75 now leaves 13 min 7 s over
+the worst run ever measured here, and the bound's own residual stands: margin, not a fix.
+
+Method, so the numbers can be re-taken: the span is opener-to-next-opener, which includes the runner's
+bookkeeping between steps and therefore *upper-bounds* each command. That is why `Format check` reads 0.0 s
+in the per-step view — `cargo fmt --all -- --check` prints nothing when the tree is clean, so the only
+lines in its window are its own group header (02:55:57.075Z) and the next step's (02:55:59Z): two seconds
+of silence is a *passing* fmt, and a reader who mistakes a silent step for an absent one will "fix" it.
+The same four logs are in `smoke/` for the next hour and then they are not; the two commands above are
+the reproducible half.
+
+### Four things this does not close
+
+(1) D041's residual (2) survives whole: the gate still compares *names*, not *values*. A probe that
+writes `spout=true` beside an `if:` that reads `== 'True'` passes all nine legs and skips its leg
+forever, and leg 4/5 only prove the key exists and is written by a step that names it. (2) The scan is
+one level deep — `.github/workflows/**.yml` in a subdirectory would be neither run by the runner nor
+seen here, and nothing asserts that either. (3) The controls are still anchored to *this* `ci.yml`'s
+bytes: a mutant whose `from` text has been edited away reports `matches 0 times` and reddens the run,
+which is the right failure, but it means a refactor of the probe's PowerShell obliges whoever refactors
+it to edit the battery in the same commit. (4) A deprecation this tranche deliberately left alone:
+the whole annotation stream of run #56, collapsed, is one line —
+
+```
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on
+  Node.js 24: actions/checkout@v4.
+```
+
+That is one distinct line. It appears 2 340 times in the finished 2 165 048-byte stream `gh run watch`
+wrote, because the watcher re-renders everything it knows on every poll — the same file prints
+`Workflow structure`, a step that executed exactly once, 780 times — so a count taken from that stream is
+a count of ticks, not of events. (An earlier draft of this sentence said 597, which is what the same file
+held while the run was still going; a count read off a live artifact has to be re-taken before it is
+published.) The fact is the text: every job in this workflow pins `actions/checkout@v4`, whose declared
+runtime is Node 20, and GitHub runs it on Node 24 under protest. Nothing is broken by that today — five
+jobs, all green — and bumping a major action version is a `ci.yml` edit that re-points citations of its
+own and would have been a second changed variable in a run whose whole purpose is to observe the first.
+So it is recorded here as the next lane's cheap win, with the annotation as its evidence, rather than
+slipped into this commit.
+
+The file is 3 801 lines at the commit carrying this section.

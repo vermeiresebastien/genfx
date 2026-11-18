@@ -15,12 +15,29 @@
 // second, and the silent class is the worse one: an `if:` that typos an output name does
 // not fail, it evaluates to empty and skips its leg forever.
 //
-// Every leg is therefore driven against a mutant of this same file, below, and the
-// battery asserts which leg fires. A leg that stops firing reddens this script.
+// Every text leg is therefore driven against a mutant of this same file, below, and the
+// battery asserts which leg fires; leg 8 is a property of the directory, so it has its own
+// six discovery cases. A leg that stops firing reddens this script.
 
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const FILE = process.argv[2] || new URL("workflows/ci.yml", import.meta.url);
+// D041's residual (1) was that this script opened one named file, so a workflow added
+// beside `ci.yml` went unchecked by construction — and the fault class it audits is
+// per-file: a second bad file creates zero jobs just like the first one did. The default
+// is therefore the directory. Leg 8 fires when the scan finds no workflow in it, because
+// a gate with nothing to read must not be able to print OK. The extension test is
+// case-insensitive on purpose: over-covering a file GitHub never runs is harmless, and
+// under-covering one it does run is the hole.
+const DIR = fileURLToPath(new URL("workflows/", import.meta.url));
+const NAMED = process.argv.slice(2);
+
+function discover(names) {
+  const wf = (n) => /\.ya?ml$/i.test(n);
+  return { checked: names.filter(wf).sort(), ignored: names.filter((n) => !wf(n)).sort() };
+}
+
 const KEY = /^([A-Za-z0-9_-]+):(?:[ ]*($|#.*|[^\s#].*))?$/;
 const BLOCK = new Set(["|", "|-", "|+", ">", ">-", ">+"]);
 
@@ -300,37 +317,91 @@ const MUTANTS = [
   { name: "inScalarControl", from: "                $spout = 'true'\n", to: "                $spout = 'true'\n                $spout = 'true'\n", expect: [] },
 ];
 
-// core.autocrlf gives this file CRLF on Windows and LF elsewhere; the mutants below are
+// Leg 8 has no text anchor — it is a property of the directory, not of a file — so it is
+// driven against the discovery function directly. `emptyDir` and `notesOnly` are its
+// must-fire witnesses; the rest prove it does not fire on the shapes this repo can
+// actually end up with, including a second workflow file arriving.
+const DISCOVER_CASES = [
+  { name: "emptyDir", names: [], want: { checked: 0, ignored: 0, leg8: true } },
+  { name: "onlyCi", names: ["ci.yml"], want: { checked: 1, ignored: 0, leg8: false } },
+  { name: "secondWorkflow", names: ["ci.yml", "release.yaml"], want: { checked: 2, ignored: 0, leg8: false } },
+  { name: "nonWorkflowIgnored", names: ["ci.yml", "README.md"], want: { checked: 1, ignored: 1, leg8: false } },
+  { name: "upperCaseExtension", names: ["CI.YML"], want: { checked: 1, ignored: 0, leg8: false } },
+  { name: "notesOnly", names: ["notes.md"], want: { checked: 0, ignored: 1, leg8: true } },
+];
+
+// core.autocrlf gives these files CRLF on Windows and LF elsewhere; the mutants below are
 // written against LF, so the text they patch is normalized first.
-const source = fs.readFileSync(FILE, "utf8").replace(/\r\n/g, "\n");
-const real = audit(source);
-for (const [n, detail] of real.legs) console.log(`leg ${n}: OK (${detail})`);
-for (const f of real.faults) console.error("FAIL leg", f.leg, "—", f.msg);
+const DISC = discover(NAMED.length ? NAMED.map((f) => path.basename(f)) : fs.readdirSync(DIR));
+const FILES = NAMED.length ? NAMED.map((f) => path.resolve(f)) : DISC.checked.map((n) => path.join(DIR, n));
+const READS = FILES.map((f) => ({
+  name: path.basename(f),
+  source: fs.readFileSync(f, "utf8").replace(/\r\n/g, "\n"),
+}));
+
+const legs = [];
+const faults = [];
+if (DISC.checked.length) {
+  legs.push([8, `${DISC.checked.length} workflow file(s) audited from .github/workflows${
+    DISC.ignored.length ? `; ${DISC.ignored.length} non-YAML file(s) left alone (${DISC.ignored.join(", ")})` : ""}`]);
+} else {
+  faults.push({ leg: 8, msg: `no *.yml / *.yaml under ${DIR} — this gate has nothing to read, which is not a pass` });
+}
+for (const r of READS) {
+  const a = audit(r.source);
+  r.census = a.census;
+  for (const [n, detail] of a.legs) legs.push([n, `${detail} [${r.name}]`]);
+  for (const f of a.faults) faults.push({ leg: f.leg, msg: `${f.msg} [${r.name}]` });
+}
+for (const [n, detail] of legs.sort((x, y) => x[0] - y[0])) console.log(`leg ${n}: OK (${detail})`);
+for (const f of faults) console.error(`FAIL leg ${f.leg} — ${f.msg}`);
 
 let controlFaults = 0;
-for (const m of MUTANTS) {
-  let text = source;
-  if (m.from !== null) {
-    const hits = source.split(m.from).length - 1;
-    if (hits !== 1) {
-      console.error(`FAIL control ${m.name}: its \`from\` text matches ${hits} times, so the mutant is not the file`);
+// The text mutants are ci.yml's own bytes. If ci.yml is not being audited they would all
+// report "matches 0 times", so say that plainly once instead of eleven times — and never
+// skip the battery, which is the vacuous-green this whole file exists to refuse.
+const HOST = (READS.find((r) => r.name === "ci.yml") || READS[0]);
+if (!HOST) {
+  console.error("FAIL controls: no audited file to mutate, so the text battery did not run");
+  controlFaults += 1;
+} else {
+  for (const m of MUTANTS) {
+    let text = HOST.source;
+    if (m.from !== null) {
+      const hits = HOST.source.split(m.from).length - 1;
+      if (hits !== 1) {
+        console.error(`FAIL control ${m.name}: its \`from\` text matches ${hits} times in ${HOST.name}, so the mutant is not the file`);
+        controlFaults += 1;
+        continue;
+      }
+      text = HOST.source.replace(m.from, m.to);
+    }
+    const got = [...new Set(audit(text).faults.map((f) => f.leg))].sort();
+    const want = [...m.expect].sort();
+    if (got.join(",") !== want.join(",")) {
+      console.error(`FAIL control ${m.name}: expected legs [${want.join(",") || "clean"}], got [${got.join(",") || "clean"}]`);
       controlFaults += 1;
       continue;
     }
-    text = source.replace(m.from, m.to);
+    console.log(`control ${m.name}: ${want.length ? `legs ${want.join(",")} fired` : "clean"} as required`);
   }
-  const got = [...new Set(audit(text).faults.map((f) => f.leg))].sort();
-  const want = [...m.expect].sort();
-  if (got.join(",") !== want.join(",")) {
-    console.error(`FAIL control ${m.name}: expected legs [${want.join(",") || "clean"}], got [${got.join(",") || "clean"}]`);
+}
+
+for (const c of DISCOVER_CASES) {
+  const got = discover(c.names);
+  const want = `${c.want.checked} checked, ${c.want.ignored} ignored, leg 8 ${c.want.leg8 ? "fires" : "clean"}`;
+  const have = `${got.checked.length} checked, ${got.ignored.length} ignored, leg 8 ${got.checked.length ? "clean" : "fires"}`;
+  if (want !== have) {
+    console.error(`FAIL discover ${c.name}: expected [${want}], got [${have}]`);
     controlFaults += 1;
     continue;
   }
-  console.log(`control ${m.name}: ${want.length ? `legs ${want.join(",")} fired` : "clean"} as required`);
+  console.log(`discover ${c.name}: ${have} as required`);
 }
 
-if (real.faults.length || controlFaults) {
-  console.error(`workflow check: ${real.faults.length} fault(s) in ${FILE}, ${controlFaults} control fault(s)`);
+const controlTotal = MUTANTS.length + DISCOVER_CASES.length;
+if (faults.length || controlFaults) {
+  console.error(`workflow check: ${faults.length} fault(s) across ${READS.length} file(s), ${controlFaults} control fault(s)`);
   process.exit(1);
 }
-console.log(`workflow check: ${FILE} clean — ${real.census}; ${MUTANTS.length} controls as required`);
+console.log(`workflow check: ${READS.map((r) => `${r.name} clean (${r.census})`).join(", ")}; ${controlTotal} controls as required`);
