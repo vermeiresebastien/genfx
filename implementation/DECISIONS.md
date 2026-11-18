@@ -3518,7 +3518,7 @@ repository builds, ships or tests. `cargo update -p glib --precise 0.20.0 --dry-
 naming `gtk v0.18.2` as the requirement holder, and the only way to change the answer is to change
 upstream.
 
-### Nine carriers moved, and the pair-half that a regex cannot see
+### Thirteen citation sites in five files, and the pair-half that a regex cannot see
 
 `ci.yml` grew 11 lines and `verify.ps1` 5, so every citation at or past `ci.yml:22` and `verify.ps1:110`
 moved. Each was re-resolved by printing the line a citation lands on against the line it named at
@@ -3542,6 +3542,11 @@ pointed at the fmt step from before D040's own sweep, whose right-hand column th
 What is deliberately *not* re-pointed: D040's own drift table and its `verify.ps1:200-202 → :201-203`
 sentences. Those record one tranche's arithmetic against named blobs, and rewriting them would destroy
 the record without fixing a pointer. A reader who wants today's coordinates reads the table above.
+The heading's count is of *sites*, and the three counts are stated so they can be re-derived from the
+rows beside them rather than carried: ten rows, thirteen distinct `file:NNN` locations in five files,
+seventeen numbers rewritten once the two ranges (`:209-217` and `:201-203`) are counted by their
+endpoints. `b05b4b6`'s message says "26 of them, nine carriers", which is none of those and is exactly
+the number a later lane would copy — the table and this sentence are the record, the subject line is not.
 AGENTS.md already warns that a `file:NNN` regex misses the second number of `:3819, 3829`; the same trap
 has a cheaper cousin here — the `/`:31`` half of "`ci.yml:29`/`:31`" matches no pattern at all, so the
 sentence around every hit got read rather than the pattern alone.
@@ -3564,4 +3569,4 @@ advisory is disposed as a *risk to this artifact*, not as a state change: GHSA-w
 on GitHub (dismissing shared visible state is the owner's click), `glib` 0.18.5 stays in `Cargo.lock`,
 and closing it upstream needs `tauri` to move to `gtk 0.20` — which this repository does not control.
 
-The file is 3 567 lines at the commit carrying this section.
+The file is 3 572 lines at the commit carrying this section.
